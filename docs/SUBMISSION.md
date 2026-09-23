@@ -40,15 +40,23 @@
 - **它面向生产级服务端**，追求协议与功能完备；
 - **本项目面向可读、可测、可审计的教学与安全场景**：每一层拆成能独立运行、能逐行讲解的模块，并附带四轮安全审计的完整记录与可运行的攻击靶场。
 
-支撑事实：**协议层零依赖且 `wasm-gc` 目标可测**（19 个包）；**四轮系统性安全加固，缺陷与修复过程在 `docs/VULNERABILITIES.md` 中逐条可查**（含 fuzz）；**通过 RealWorld 官方规范套件**（hurl 13 套件 / 154 请求 / 100% 通过，3 轮可重复）。完整对比与复核命令见 `docs/DIFFERENTIATION.md`。
+支撑事实：**协议层零依赖且 `wasm-gc` 目标可测**（79 个测试，复核命令 `moon test --target wasm-gc`）；**四轮系统性安全加固，缺陷与修复过程在 `docs/VULNERABILITIES.md` 中逐条可查**（含 fuzz）；**通过 RealWorld 官方规范套件**（hurl 13 套件 / 154 请求 / 100% 通过，3 轮可重复）。完整对比与复核命令见 `docs/DIFFERENTIATION.md`。
 
 ## 六、可复核的工程记录
 
+下表的每个数字都能现场复核。在仓库根目录执行，先装好 MoonBit 工具链并 `export PATH="$HOME/.moon/bin:$PATH"`；桌面 IDE 那行需要 `cd desktop && npm install`。
+
 | 项 | 数值 | 复核命令 |
 |---|---|---|
-| 有效 commits | **20 余个**（章程要求 ≥10）| `git log --oneline \| wc -l` |
-| 自动化测试 | 156 通过 / 0 失败（native）| `moon test --target native` |
+| 有效 commits | **31**（章程要求 ≥10）| `git log --oneline \| wc -l` |
+| MoonBit 包数 | **28** | `find . -name 'moon.pkg' -not -path './_build/*' -not -path './.mooncakes/*' \| wc -l` |
+| MoonBit 源码行数 | **11209**（约 1.1 万）| `find . -name '*.mbt' -not -path './_build/*' -not -path './.mooncakes/*' \| xargs wc -l \| tail -1` |
+| 自动化测试（native）| 156 通过 / 0 失败 | `moon test --target native` |
+| 自动化测试（wasm-gc 协议层）| 79 通过 / 0 失败 | `moon test --target wasm-gc` |
 | 编译检查 | 无警告 | `moon check --deny-warn` |
+| RealWorld 规范套件 | 13 套件 / 154 请求 | `ls conduit/specs-hurl/*.hurl \| wc -l`；`grep -hE "^(GET\|POST\|PUT\|DELETE\|PATCH\|HEAD\|OPTIONS) " conduit/specs-hurl/*.hurl \| wc -l` |
+| 安全靶场 `attack.py` | 14 小节 / 18 项断言 | `grep -cE "^# -+ [0-9]+" sec/attack.py`；`grep -v "^def check" sec/attack.py \| grep -c "check("` |
+| 桌面 IDE 功能体检 | 23 项全通过 | `cd desktop && ./node_modules/.bin/electron e2e-features.js <项目目录>` |
 | CI | GitHub Actions | 仓库 `.github/workflows/ci.yml` |
 | 许可证 | Apache-2.0 | `LICENSE` |
-| 设计文档 | **8 份**（架构 / 安全 / 漏洞记录 / 验证 / 查重 / 归属 / 语言层 / 路线图；另有本申报书）| `docs/` |
+| 设计文档 | **10 份** | `ls docs/*.md \| wc -l` |

@@ -46,9 +46,9 @@
 |---|---|
 | MoonBit 包 | **28** 个 `moon.pkg` |
 | MoonBit 源码 | **11209** 行 `.mbt` |
-| 桌面 IDE | **62** 个 `.js` 文件 |
-| git commits | **29** |
-| 文档 | **9** 份（`docs/*.md`）|
+| 桌面 IDE | **65** 个 `.js` 文件 |
+| git commits | **31** |
+| 文档 | **10** 份（`docs/*.md`）|
 
 **顶层模块**：`admin app bench cluster cmd conduit db demo deploy desktop docs http ide-backend kernel logs notes pg redis sec tools`
 
@@ -57,6 +57,7 @@
 cd moonbit-platform
 find . -name 'moon.pkg*' -not -path './_build/*' -not -path './.mooncakes/*' | wc -l
 find . -name '*.mbt' -not -path './_build/*' -not -path './.mooncakes/*' | xargs wc -l | tail -1
+find desktop -name '*.js' -not -path '*/node_modules/*' | wc -l
 git log --oneline | wc -l
 ls docs/*.md | wc -l
 ```
@@ -100,12 +101,13 @@ ls docs/*.md | wc -l
 - 主题：日间/夜间/自动（Monaco 跟随）
 - LSP 客户端：补全 / 跳转 / 悬停 / 引用 / 大纲 / 重命名 / 诊断
 - 工具标签（6 个工具入口卡，点击切到对应面板）
+- **AI Agent 标签**（P1 补上）：`aiagent.js` 对话界面（输入框 / Ctrl+Enter 发送 / 停止 /
+  状态行 / 流式文本 / 错误提示），后端 `agent.js` 接 opencode —— 已实测收到回复正文
 
 **⚠️ 半成品**：
-- **AI Agent**：**后端已就绪**（`agent.js`，接 opencode，已验证能拿到回复正文），**但没有任何 UI**（无对话界面、无标签）
 - LSP 的 hover/跳转依赖本机 `moon-lsp`，部分能力走符号索引降级
 
-**❌ 未做**：
+**❌ 未做（AI Agent 的刻意边界）**：
 - 多轮对话、模型切换、token 统计
 - 调试器（断点）
 
@@ -165,7 +167,21 @@ Node 在 Windows 上**不能直接 spawn `.cmd`/`.bat`** → `EINVAL`。而 `npm
 
 已修：CSS 收窄为 `body.no-project[data-view="project"]`；工具标签的卡片在无项目时**改为提示"请先打开项目"**；未打开项目时**忽略上次记忆的标签、强制落在主菜单**。
 
-### 7.4 未验证就交付
+### 7.5 P1 期间又暴露两个真缺陷（都已修）
+
+**`agent.js` 的 args 从未包含 `--format json`**（只在注释里写了）。opencode 默认输出人类可读
+文本，下游那段 JSON 事件解析全部落空 —— 界面只会得到一个空气泡。实测：修复前 `busy` 归
+`false` 但气泡为空；补上参数后正确收到回复正文。**教训：注释里写了不等于代码里写了。**
+
+**`renderer.js` 的初始化时序**：`initActivityBar` 用 `body.no-project` 类判定「有没有打开
+项目」，但它在 `showWelcome()`（由后者添加该类）**之前**执行，所以「无项目时强制落主菜单」
+一直失效。改用权威状态 `rootDir` 判定。
+
+### 7.6 测试脚本之间会互相污染
+
+`verify-agent-ui` 点击标签会写 `localStorage['moonbit-view']`，导致后续 `verify-welcome`
+误报（启动落在别的标签，欢迎页本就不该显示）。已在两个脚本里显式清理，`verify-welcome`
+也改成先切到「项目」标签再断言 —— **测试不应依赖上一次运行留下的状态。**
 
 多次出现"改完没跑验证就往下走"（如 stdio 修复、`askMask` 进产物）。用户对此明确不满。**本项目里凡是没实测过的改动，都应视为未完成。**
 
@@ -173,12 +189,12 @@ Node 在 Windows 上**不能直接 spawn `.cmd`/`.bat`** → `EINVAL`。而 `npm
 
 ## 八、下一步（按优先级）
 
-| 优先级 | 事项 | 说明 |
+| 优先级 | 事项 | 状态 |
 |---|---|---|
-| P0 | **验证"无项目态"修正** | 重跑转译 + 三场景验证（项目标签锁、其它标签正常、有项目恢复） |
-| P1 | **AI Agent UI** | 后端已就绪，只差对话界面 + 标签；**边界要卡死**：输入框/发送/流式/错误提示，不做多轮/模型切换/token 统计 |
-| P2 | 补 `docs/` 与 README 的复核命令 | 申报书引用的数字都能现场复核 |
-| P3 | 调试器 | 需先确认 `llvm-dwarfdump` 能否读出变量与行号 |
+| P0 | 验证「无项目态」修正 | ✅ 完成（53e7bb4）：转译幂等 + verify-welcome 三场景实测通过 + e2e 23 PASS |
+| P1 | AI Agent UI | ✅ 完成（081cf27）：新增第 5 个标签 + 对话界面；顺带修掉 2 个真缺陷（见 7.5）|
+| P2 | 补 `docs/` 与 README 的复核命令 | ✅ 完成：申报书第六节复核表补齐，README 重写 |
+| P3 | 调试器 | 待办：需先确认 `llvm-dwarfdump` 能否读出变量与行号 |
 
 ---
 
