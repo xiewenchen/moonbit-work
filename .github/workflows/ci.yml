@@ -42,6 +42,12 @@ jobs:
           curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
           echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
 
+      # 必须更新 registry 索引再构建 —— 刚装好的工具链带的是安装时的旧索引，
+      # 会报 `Failed to resolve registry dependency moonbitlang/async: module was not found in the registry`，
+      # 整个 CI 从这一步就红（日志里自己也提示了 "you may need to run moon update"）。
+      - name: moon update (refresh registry)
+        run: moon update
+
       - name: moon version
         run: moon version
 
