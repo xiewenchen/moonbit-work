@@ -1,0 +1,12 @@
+import {
+  "mbp/platform/app",
+  "mbp/platform/db",
+  "mbp/platform/notes",
+  "moonbitlang/async",
+}
+
+pkgtype(kind: "executable")
+
+supported_targets = "native"
+
+warnings = "-29"

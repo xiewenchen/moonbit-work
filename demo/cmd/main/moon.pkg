@@ -1,0 +1,9 @@
+import {
+  "mbp/platform/demo",
+  "mbp/platform/http/server",
+  "moonbitlang/async",
+}
+
+pkgtype(kind: "executable")
+
+supported_targets = "native"
