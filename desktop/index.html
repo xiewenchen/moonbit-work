@@ -543,10 +543,17 @@
       #themeToggle .theme-ico svg { width: 14px; height: 14px; }
 
       /* ===== 未打开项目：**只影响「项目」标签**，其余标签照常可用 =====
-         之前写成全局 body.no-project，会把主菜单/中转站/工具一起锁住 —— 那是错的。 */
+         两处都修过，都不是这样做的：
+         ① 写成全局 body.no-project → 会把主菜单/中转站/工具一起锁死（错）；
+         ② 用 position:fixed; inset:0 铺满整个窗口 → 把顶部宣传条与左侧标签栏都盖住了（错）。
+         现在：welcomeScreen 用 absolute **只覆盖内容区**。注意——它虽然写在
+         mainview-project 里，浏览器解析时会被工作台里的未闭合标签挤到外层，
+         实际成为「内容区容器」的直接子元素（实测 mpChildren 只有 workbench）。
+         所以用 :has() 把这个真正的父容器设为定位上下文，而不是靠 mainview-project。 */
+      div:has(> #welcomeScreen) { position: relative; }
       #welcomeScreen { display: none; }
       body.no-project[data-view="project"] #welcomeScreen {
-        display: flex; position: fixed; inset: 0; z-index: 900;
+        display: flex; position: absolute; inset: 0; z-index: 90;
         align-items: center; justify-content: center; background: var(--s-bg-deepest);
       }
       /* 无项目且在项目标签时，收起会误点的东西：编译/运行按钮、命令面板、地址栏、编辑器、底部面板 */
@@ -589,7 +596,9 @@
       :root[data-theme="light"] .ask-box { background: #ffffff; border-color: #eaeaef; }
 
       /* 主视图：同一时刻只显示一个（主页不该也是编辑器）*/
-      .mainview { display: none; height: 100%; min-height: 0; }
+      /* position: relative 是给「欢迎页」用的：welcomeScreen 现在放在 mainview-project 内
+         做 absolute 定位，只覆盖内容区，不再铺满窗口。 */
+      .mainview { display: none; height: 100%; min-height: 0; position: relative; }
       .mainview.active { display: flex; flex-direction: column; }
       main#main-content { height: 100%; }
       #workbench { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
@@ -963,6 +972,20 @@
       </div>
     </div>
                     </div>
+                    <!-- 未打开项目时的欢迎页：只留「打开 / 新建」两个动作。
+                         放在这里（mainview-project 内 + absolute）是关键 —— 它只覆盖
+                         「项目」的内容区，不会盖住顶部宣传条与左侧标签栏。 -->
+                    <div id="welcomeScreen">
+                      <div class="ws-card">
+                        <div class="ws-title">MoonBit IDE</div>
+                        <div class="ws-sub">还没有打开项目</div>
+                        <div class="ws-actions">
+                          <button id="wsOpen" class="ws-primary">打开项目</button>
+                          <button id="wsNew" class="ws-secondary">新建项目</button>
+                        </div>
+                        <div class="ws-hint">也可以把项目文件夹直接拖进窗口</div>
+                      </div>
+                    </div>
                   </div>
                   <div id="mainview-agent" class="mainview">
                     <div class="fm">
@@ -1057,20 +1080,6 @@
     </div>
 
     
-<!-- 未打开项目时的全屏欢迎页：只留「打开 / 新建」两个动作。
-     其余功能（编译/运行/面板/侧栏）由 body.no-project 统一隐藏 ——
-     避免用户对着一堆点了没反应的按钮猜。 -->
-<div id="welcomeScreen">
-  <div class="ws-card">
-    <div class="ws-title">MoonBit IDE</div>
-    <div class="ws-sub">还没有打开项目</div>
-    <div class="ws-actions">
-      <button id="wsOpen" class="ws-primary">打开项目</button>
-      <button id="wsNew" class="ws-secondary">新建项目</button>
-    </div>
-    <div class="ws-hint">也可以把项目文件夹直接拖进窗口</div>
-  </div>
-</div>
 <!-- 通用确认框：替代原生 confirm()。原生 confirm 是同步阻塞的 —— 弹窗期间渲染
      进程不刷新，叠上 Monaco 的光标样式，用户会看到「鼠标消失」。 -->
 <div id="askMask" class="ask-mask" hidden>

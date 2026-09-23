@@ -14,7 +14,12 @@ app.whenReady().then(async () => {
   // 启动时落在哪个标签取决于 localStorage 与是否打开项目 —— 那是设计允许的；
   // 本脚本验证的是「项目标签 + 无项目」这个组合，不应依赖外部状态。
   await win.webContents.executeJavaScript(`(() => {
-    try { localStorage.removeItem('moonbit-view') } catch (_) {}
+    try { localStorage.removeItem('moonbit-view'); localStorage.removeItem('moonbit-banner-hidden') } catch (_) {}
+    // 让顶部宣传条显示（它可能因「记住关闭」而隐藏 —— 隐藏了布局断言就没意义）
+    const byText = (t) => { for (const e of document.querySelectorAll('*')) { if (e.children.length === 0 && (e.textContent || '').trim() === t) return e } return null }
+    let bn = byText('MoonBit 工作台')
+    for (let i = 0; i < 6 && bn; i++) { if (bn.tagName === 'DIV' && String(bn.className).includes('hbAFoo')) break; bn = bn.parentElement }
+    if (bn) bn.style.display = 'flex'
     const a = document.querySelector('a[data-view="project"]'); if (a) a.click()
   })()`)
   await new Promise((r) => setTimeout(r, 400))
@@ -40,16 +45,31 @@ app.whenReady().then(async () => {
       runBtnText: (document.querySelector('button[data-cmd="run"]') || {}).textContent,
       checkBtnText: (document.querySelector('button[data-cmd="check"]') || {}).textContent,
     }
+    // 几何：欢迎页必须只在「内容区」里，不能盖住左侧标签栏与顶部宣传条
+    const box = (el) => { if (!el) return null; const b = el.getBoundingClientRect(); return { x: Math.round(b.x), y: Math.round(b.y), right: Math.round(b.x + b.width), bottom: Math.round(b.y + b.height) } }
+    const byText = (t) => { for (const e of document.querySelectorAll('*')) { if (e.children.length === 0 && (e.textContent || '').trim() === t) return e } return null }
+    let bn = byText('MoonBit 工作台')
+    for (let i = 0; i < 6 && bn; i++) { if (bn.tagName === 'DIV' && String(bn.className).includes('hbAFoo')) break; bn = bn.parentElement }
+    before.navRect = box(document.querySelector('nav'))
+    before.bannerRect = box(bn)
+    before.welcomeRect = box(document.getElementById('welcomeScreen'))
     return before
   })()`)
 
   console.log('\n  === 未打开项目时 ===')
-  for (const [k, v] of Object.entries(r)) console.log('  ' + k.padEnd(14) + ': ' + v)
+  for (const [k, v] of Object.entries(r)) console.log('  ' + k.padEnd(14) + ': ' + (v && typeof v === 'object' ? JSON.stringify(v) : v))
   const okEmpty =
     r.welcome === '可见' && r.wsOpen === '可见' && r.wsNew === '可见' &&
     r.runBtn === '隐藏' && r.checkBtn === '隐藏' && r.cmdBtn === '隐藏' &&
     r.body === '隐藏' && r.panel === '隐藏'
   console.log('\n  ' + (okEmpty ? '✅ 空状态正确：只剩打开/新建，其余全隐藏' : '❌ 空状态不对'))
+
+  // 布局：欢迎页不得盖住左侧标签栏 / 顶部宣传条（曾经用 fixed; inset:0 铺满整个窗口）
+  const wr = r.welcomeRect, nr = r.navRect, br = r.bannerRect
+  const okLayout = !!wr && !!nr && wr.x >= nr.right && (!br || wr.y >= br.bottom)
+  console.log('  左侧标签栏 right=' + (nr ? nr.right : '?') + '  顶部宣传条 bottom=' + (br ? br.bottom : '?') +
+    '  欢迎页 x=' + (wr ? wr.x : '?') + ' y=' + (wr ? wr.y : '?'))
+  console.log('\n  ' + (okLayout ? '✅ 欢迎页只占内容区：左侧标签栏与顶部宣传条都没被盖住' : '❌ 欢迎页越界，盖住了左侧标签栏或顶部宣传条'))
 
   // ===== 场景 2：切到其它标签，无项目也应正常显示 =====
   const other = await win.webContents.executeJavaScript(`(() => {
@@ -98,5 +118,5 @@ app.whenReady().then(async () => {
 
   // 清理本次测试对 localStorage 的污染（点标签会写入 moonbit-view）
   try { await win.webContents.executeJavaScript(`(() => { localStorage.removeItem('moonbit-view') })()`) } catch (_) {}
-  app.exit(okEmpty && okOther && okBack ? 0 : 1)
+  app.exit(okEmpty && okLayout && okOther && okBack ? 0 : 1)
 })

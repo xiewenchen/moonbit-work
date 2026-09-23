@@ -8,3 +8,4 @@ desktop/package-lock.json
 *.log
 .env
 desktop/e2e-shots/
+desktop/agent-verify-result.txt
