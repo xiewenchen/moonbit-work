@@ -14,3 +14,4 @@ desktop/vendor/
 desktop/dist/
 desktop/agent-config-result.txt
 desktop/run-url-result.txt
+desktop/run-dispatch-result.txt

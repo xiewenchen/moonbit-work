@@ -787,10 +787,21 @@ const NPM_TASK = {
 async function runNpmTask(c, cwd) {
   const dir = String(cwd || '').replace(/[\\/]+$/, '')
   let scripts = {}
-  try {
-    const txt = await window.moonAPI.readFile(dir + '/package.json')
-    scripts = (JSON.parse(String(txt)).scripts) || {}
-  } catch (_) {}
+  // moonAPI.readFile 返回的是对象 { ok, path, content, language } ——
+  // 之前写成 JSON.parse(String(res)) 得到 "[object Object]"，解析失败又被 catch 吞掉，
+  // 于是「读不到」被当成了「没有 scripts」（静默失败，实测被 verify-run-dispatch 抓到）。
+  const res = await window.moonAPI.readFile(dir + '/package.json').catch((e) => ({ ok: false, error: String(e && e.message || e) }))
+  if (!res || !res.ok || typeof res.content !== 'string') {
+    logLine('读不到 package.json：' + ((res && res.error) || '未知错误') + '\n（要跑 npm 命令，这个项目得先有 package.json）', 'err')
+    setMsg('读不到 package.json')
+    return
+  }
+  try { scripts = (JSON.parse(res.content).scripts) || {} }
+  catch (e) {
+    logLine('package.json 解析失败：' + (e && e.message), 'err')
+    setMsg('package.json 格式有误')
+    return
+  }
   const want = NPM_TASK[c] || []
   const hit = want.find((w) => scripts[w])
   if (!hit) {
