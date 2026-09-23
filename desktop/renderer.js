@@ -765,13 +765,51 @@ async function boot(dir) {
   }
 }
 
+// 顶栏按钮的中文名（给提示语用）
+const CMD_CN = { check: '检查代码', build: '编译', test: '跑测试', fmt: '格式化', run: '运行项目' }
+
+// Node 项目：把顶栏那几个按钮映射到 npm 脚本上（没有就明确说没有，别硬跑 moon）
+const NPM_TASK = {
+  build: ['build'],
+  test: ['test'],
+  fmt: ['format', 'fmt', 'lint'],
+  check: ['typecheck', 'lint'],
+}
+async function runNpmTask(c, cwd) {
+  const dir = String(cwd || '').replace(/[\\/]+$/, '')
+  let scripts = {}
+  try {
+    const txt = await window.moonAPI.readFile(dir + '/package.json')
+    scripts = (JSON.parse(String(txt)).scripts) || {}
+  } catch (_) {}
+  const want = NPM_TASK[c] || []
+  const hit = want.find((w) => scripts[w])
+  if (!hit) {
+    const have = Object.keys(scripts).join('、') || '（没有 scripts）'
+    logLine(`这个 Node 项目没有对应「${CMD_CN[c] || c}」的脚本。\n可用脚本：${have}\n想启动项目请点「运行项目」从列表里挑（一般选「开发模式启动」或「启动服务」）。`, 'err')
+    setMsg('没有对应的 npm 脚本')
+    return
+  }
+  startRunner({ label: `运行 ${hit}`, bin: 'npm', args: ['run', hit], cwd: dir })
+}
+
 function wireUI() {
   for (const btn of document.querySelectorAll('button[data-cmd]')) {
-    btn.onclick = () => {
+    btn.onclick = async () => {
       const c = btn.dataset.cmd
       // 「运行」不写死 ./cmd/main，而是自动识别项目的可执行入口让用户选
       if (c === 'run') { runProject(); return }
-      runMoon([c])
+
+      // 按**项目类型**分派命令。之前一律 `runMoon([c])`，
+      // 于是在 Node 项目上点「跑测试」会报 "not in a Moon project"（用户报过）。
+      const cwd = cwdInput.value || ''
+      let kind = ''
+      try { const info = await window.moonAPI.projectInfo(cwd); kind = (info && info.kind) || '' } catch (_) {}
+      if (kind === 'node') { runNpmTask(c, cwd); return }
+      if (!kind || kind === 'moonbit') { runMoon([c]); return }
+      // rust / go / python 之类：给一句明确的话，别硬跑 moon
+      logLine(`「${CMD_CN[c] || c}」对应的是 moon 命令，而当前项目类型是 ${kind}。\n请用该语言自己的工具（或在终端里执行）。`, 'err')
+      setMsg('该命令不适用于当前项目类型')
     }
   }
   $('openFolder').onclick = chooseFolder

@@ -50,10 +50,16 @@ const SCRIPT_CN = {
   electron: '启动桌面应用', dist: '打包安装包', pack: '打包', typecheck: '类型检查', e2e: '端到端测试',
 }
 
+// 「能真正把项目跑起来」的脚本名 —— 标「推荐」，免得用户去点那些空脚本
+// （Strapi 项目里就有个叫 `strapi` 的脚本，内容只是裸 `strapi`，点了只打印帮助）
+const PRIMARY_SCRIPTS = new Set(['start', 'dev', 'develop', 'serve', 'server'])
+
 // 给脚本名配中文标题：完整名优先；否则按「前缀:后缀」翻译（test:backend → 跑测试 · backend）；
 // 都不认识就退回原名（不硬翻，免得译错）。
 function scriptLabel(n) {
-  if (SCRIPT_CN[n]) return SCRIPT_CN[n]
+  if (SCRIPT_CN[n]) {
+    return SCRIPT_CN[n] + (PRIMARY_SCRIPTS.has(n) ? '（推荐）' : '')
+  }
   const i = String(n).indexOf(':')
   if (i > 0) {
     const head = n.slice(0, i)
