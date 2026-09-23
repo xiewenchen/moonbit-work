@@ -9,7 +9,7 @@ const $ = (id) => document.getElementById(id)
 const VIEW_META = {
   home: ['主菜单', '时钟 / 日历 / 日程 / 待办 / 便签'],
   project: ['资源管理器', '文件树 / 搜索 / 大纲'],
-  agent: ['AI Agent', '由 opencode 驱动，可在下方配置模型'],
+  agent: ['文件中转站', 'Office 文档备份与版本还原'],
   tools: ['工具', '后端控制 / 接口调试 / 终端'],
 }
 const VIEW_ORDER = ['home', 'project', 'agent', 'tools']
@@ -979,6 +979,48 @@ async function ensureTerminal() {
     if (String(id) === String(termId))
       term.writeln('[进程已退出，代码 ' + code + ']')
   })
+}
+
+// 工具标签：把已有工具收成一个入口页。
+// 刻意**不重复实现**面板本身 —— 终端/后端/接口都在「项目」标签底部，
+// 这里点击即切到那个标签并激活对应面板，避免两套实现走偏。见 initToolsView。
+function initToolsView() {
+  const el = document.getElementById('mainview-tools')
+  if (!el || el.dataset.built === '1') return
+  el.dataset.built = '1'
+  const items = [
+    { n: '集成终端', d: '真 PTY（node-pty），可运行任意命令', panel: 'terminal' },
+    { n: '后端控制', d: '一键启停后端服务、实时日志、就绪探针', panel: 'backend' },
+    { n: '接口调试器', d: '从 openapi.yml 解析端点，登录后自动填 token', panel: 'api' },
+    { n: '运行输出', d: '编译 / 运行日志，错误堆栈可定位到行', panel: 'output' },
+    { n: '问题面板', d: '实时诊断与错误行高亮', panel: 'problems' },
+    { n: '文件中转站', d: 'Office 文档备份与版本还原', view: 'agent' },
+  ]
+  const head = document.createElement('div')
+  head.className = 'tv-head'
+  head.textContent = '工具'
+  el.appendChild(head)
+  const grid = document.createElement('div')
+  grid.className = 'tv-grid'
+  for (const it of items) {
+    const card = document.createElement('div')
+    card.className = 'tv-card'
+    const t = document.createElement('div')
+    t.className = 'tv-t'
+    t.textContent = it.n
+    const d = document.createElement('div')
+    d.className = 'tv-d'
+    d.textContent = it.d
+    card.appendChild(t)
+    card.appendChild(d)
+    card.onclick = () => {
+      if (it.view) { switchView(it.view); return }
+      switchView('project')
+      showPanel(it.panel)
+    }
+    grid.appendChild(card)
+  }
+  el.appendChild(grid)
 }
 
 function showPanel(which) {
@@ -1989,6 +2031,7 @@ function initCore() {
       setMsg(p && p.code === 0 ? '运行完成' : `运行结束（exit ${code}）`)
     })
   })
+  step('工具标签（工具入口页）', () => initToolsView())
   step('输出面板空状态', () => initOutputEmptyState())
   step('initMoonStream（任务流式输出订阅）', () => initMoonStream())
   step('wireUI（按钮/面板绑定）', () => wireUI())

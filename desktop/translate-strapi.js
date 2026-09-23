@@ -356,6 +356,18 @@ const EXTRA_CSS = `
       #themeToggle .theme-ico { display: inline-flex; }
       #themeToggle .theme-ico svg { width: 14px; height: 14px; }
 
+      /* 工具标签：工具入口卡（点击切到项目标签并激活对应底部面板）*/
+      .tv-head { padding: 18px 20px 6px; font-size: 1.4rem; font-weight: var(--s-fw-semi); color: var(--s-text-bright); }
+      .tv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; padding: 12px 20px 20px; }
+      .tv-card { background: var(--s-bg-panel); border: 1px solid var(--s-border); border-radius: var(--s-radius); padding: 16px; cursor: pointer; transition: border-color 120ms cubic-bezier(0.25, 0.46, 0.45, 0.94), background-color 120ms cubic-bezier(0.25, 0.46, 0.45, 0.94); }
+      .tv-card:hover { border-color: var(--s-primary); background: var(--s-bg-hover); }
+      .tv-t { font-size: 1.3rem; font-weight: var(--s-fw-semi); color: var(--s-text-bright); margin-bottom: 6px; }
+      .tv-d { font-size: 1.1rem; line-height: 1.5; color: var(--s-text-dim); }
+      :root[data-theme="light"] .tv-card { background: #ffffff; border-color: #eaeaef; }
+      :root[data-theme="light"] .tv-card:hover { background: #f6f6f9; border-color: #4945ff; }
+      :root[data-theme="light"] .tv-t { color: #212134; }
+      :root[data-theme="light"] .tv-d { color: #666687; }
+
       /* 通用确认框（替代原生 confirm）——颜色全走 token，日间/夜间自动跟随 */
       .ask-mask { position: fixed; inset: 0; background: rgba(3, 3, 5, 0.55); z-index: var(--s-z-overlay); display: flex; align-items: center; justify-content: center; cursor: default; }
       .ask-mask[hidden] { display: none; }
