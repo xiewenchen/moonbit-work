@@ -1,0 +1,28 @@
+# 构建产物与版本控制元数据
+_build
+.git
+.gitignore
+.github
+.mooncakes
+desktop/node_modules
+desktop/.git
+
+# 测试数据（含自签私钥 localhost.pfx / key.pem，不应进运行镜像）
+**/testdata
+
+# 靶场与文档（运行镜像不需要）
+sec
+docs
+*.md
+
+# 生成物
+symbols.jsonl
+**/symbols.jsonl
+
+# 密钥/凭据类文件（防止误打包）
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+*.p12

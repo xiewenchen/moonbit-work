@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# 最小权限：CI 只需读代码（防止被投毒的工作流拿到写权限）
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: mbptest
+          POSTGRES_USER: mbp
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U mbp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install MoonBit toolchain
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+
+      - name: moon version
+        run: moon version
+
+      - name: Check (deny warnings)
+        run: moon check --deny-warn --target native
+
+      - name: Test (native)
+        run: moon test --target native
+
+      - name: Test (wasm-gc, protocol layer)
+        run: moon test --target wasm-gc

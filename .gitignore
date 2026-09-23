@@ -1,0 +1,9 @@
+_build/
+target/
+.mooncakes/
+**/symbols.jsonl
+desktop/node_modules/
+desktop/package-lock.json
+*.log
+.env
+desktop/e2e-shots/
