@@ -1,0 +1,90 @@
+# Alertmanager 配置（Conduit）
+#
+# 作用：把 Prometheus 产生的告警**真正投递出去**。
+# 只配告警规则而不接 Alertmanager，等于告警没人看 —— 这是上线前必须补的一环。
+#
+# 本文件用 webhook 接收器便于**本机验证**（见 deploy/alert-receiver.py）。
+# 生产环境把 receivers 换成真实通道：email / slack / 钉钉 / PagerDuty 等。
+
+global:
+  # 告警里没带 endsAt 时，多久视为已恢复
+  resolve_timeout: 5m
+
+# ---------------------------------------------------------------- 路由
+route:
+  receiver: webhook
+  # 按告警名 + 实例分组：同一故障的多个实例合并成一条通知，避免刷屏
+  group_by: ["alertname", "instance"]
+  # 新告警产生后等 10s 再发（给同一批次的其他告警一点时间聚合）
+  group_wait: 10s
+  # 同一分组有变化时，最少间隔多久再发
+  group_interval: 5m
+  # 未恢复的告警多久重复提醒一次
+  repeat_interval: 1h
+
+  routes:
+    # critical 立即发、且更频繁重复
+    - matchers:
+        - severity = "critical"
+      receiver: webhook
+      group_wait: 5s
+      repeat_interval: 15m
+
+    # info 级别不重要，降频
+    - matchers:
+        - severity = "info"
+      receiver: webhook
+      group_wait: 30s
+      repeat_interval: 6h
+
+# ---------------------------------------------------------------- 抑制规则
+# 抑制的意义：一个根因故障往往会触发一堆衍生告警，
+# 不抑制的话值班人会被淹没，反而漏掉关键信息。
+inhibit_rules:
+  # 全站不可用是根因，此时再报「某个实例 DOWN」没有增量信息
+  - source_matchers:
+      - alertname = "ConduitAllInstancesDown"
+    target_matchers:
+      - alertname = "ConduitInstanceDown"
+    equal: []
+
+  # 实例数不足是 InstanceDown 的直接后果
+  - source_matchers:
+      - alertname = "ConduitAllInstancesDown"
+    target_matchers:
+      - alertname = "ConduitCapacityReduced"
+    equal: []
+
+  # 5xx 比例高是根因；「出现过 5xx」是它的子集，无需重复报
+  - source_matchers:
+      - alertname = "ConduitHigh5xxRate"
+    target_matchers:
+      - alertname = "ConduitAny5xx"
+    equal: []
+    # 注意：不比较实例标签 —— 比例告警是全局的，而 Any5xx 可能是单实例的
+
+# ---------------------------------------------------------------- 接收器
+receivers:
+  - name: webhook
+    webhook_configs:
+      # 本机验证用接收端（python deploy/alert-receiver.py）
+      # send_resolved: 恢复时也发一条，便于确认故障已消除
+      - url: "http://host.docker.internal:9099/webhook"
+        send_resolved: true
+
+  # 生产可参考下面这种写法（当前未启用）：
+  #
+  # - name: email
+  #   email_configs:
+  #     - to: "oncall@example.com"
+  #       from: "alertmanager@example.com"
+  #       smarthost: "smtp.example.com:587"
+  #       auth_username: "alertmanager@example.com"
+  #       auth_password_file: "/etc/alertmanager/smtp_password"
+  #
+  # - name: slack
+  #   slack_configs:
+  #     - api_url_file: "/etc/alertmanager/slack_url"
+  #       channel: "#alerts"
+  #       title: '{{ .CommonLabels.alertname }}'
+  #       text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'

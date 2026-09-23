@@ -1,0 +1,38 @@
+# Prometheus 抓取配置：采集 3 个 Conduit 实例的 /metrics
+#
+# 说明：Prometheus 跑在容器里，实例跑在宿主机上，
+# 因此 target 用 host.docker.internal（Linux 上需 --add-host=host.docker.internal:host-gateway）。
+#
+# 「一个实例等于一个 target」是有意为之：
+# 每个进程各跑一份服务端（单线程协作式），指标必须分别采集，
+# 聚合交给 PromQL，而不是在应用里跨进程合并。
+
+global:
+  scrape_interval: 5s
+  # 评估周期：告警规则每隔这么久算一次
+  evaluation_interval: 15s
+
+# 告警规则文件
+rule_files:
+  - /etc/prometheus/alerting_rules.yml
+
+# 告警投递目标。只配规则不接 Alertmanager，告警就只停在 UI 里没人看到。
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - host.docker.internal:9093
+
+scrape_configs:
+  - job_name: conduit
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - host.docker.internal:8101
+          - host.docker.internal:8102
+          - host.docker.internal:8103
+        labels:
+          app: conduit
+          env: local
+          # 部署时可用实例所在机器/区域替换，便于多机聚合
+          zone: local-1

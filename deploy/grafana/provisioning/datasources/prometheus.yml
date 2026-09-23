@@ -1,0 +1,10 @@
+# Grafana 数据源：自动挂载 Prometheus
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    # Grafana 与 Prometheus 都在容器里，通过宿主机端口互访
+    url: http://host.docker.internal:9090
+    isDefault: true
+    editable: false

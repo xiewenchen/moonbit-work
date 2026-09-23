@@ -1,0 +1,139 @@
+# Prometheus 告警规则（Conduit）
+#
+# 指标来源：应用 /metrics（Prometheus 文本格式）
+#   http_requests_total{method,status}  counter  按方法/状态分组的请求数
+#   http_requests_count                 counter  请求总数（= 上者合计）
+#   http_request_duration_ms_bucket{le} histogram 延迟直方图（累积）
+#   http_request_duration_ms_sum/_count histogram 的 sum/count
+#   up{job="conduit"}                   gauge    实例可达性
+#
+# 设计取舍：
+#   - 延迟告警一律走 histogram_quantile（分位数），**不用平均值** ——
+#     平均值会被长尾拖平，掩盖真实的慢请求。
+#   - 「实例 DOWN」是最关键的告警：3 个实例挂 1 个，容量就掉 1/3。
+
+groups:
+  # ---------------------------------------------------------------- 可用性
+  - name: conduit-availability
+    interval: 30s
+    rules:
+      - alert: ConduitInstanceDown
+        expr: up{job="conduit"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Conduit 实例 {{ $labels.instance }} 抓取失败"
+          description: >-
+            该实例已不可达超过 1 分钟。3 个实例中挂掉 1 个意味着容量直接下降约 1/3，
+            请检查进程是否退出、端口是否被占用。
+
+      - alert: ConduitAllInstancesDown
+        expr: sum(up{job="conduit"}) == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Conduit 全部实例不可用"
+          description: "服务已完全不可用，客户端将收到 nginx 的 502。"
+
+      - alert: ConduitCapacityReduced
+        expr: sum(up{job="conduit"}) < 3 and sum(up{job="conduit"}) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Conduit 实例数不足（{{ $value }}/3）"
+          description: "服务仍在响应，但冗余已丧失，单实例故障将导致全站不可用。"
+
+  # ---------------------------------------------------------------- 错误率
+  - name: conduit-errors
+    interval: 30s
+    rules:
+      - alert: ConduitHigh5xxRate
+        expr: >-
+          sum(rate(http_requests_total{status=~"5.."}[5m]))
+          / clamp_min(sum(rate(http_requests_count[5m])), 0.001) > 0.02
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "5xx 比例超过 2%（当前 {{ $value | humanizePercentage }}）"
+          description: >-
+            服务端错误占比过高。应用会把未捕获异常统一转成 500，
+            可查实例日志中的 `[app] handler error on ...` 定位根因。
+
+      - alert: ConduitAny5xx
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "出现 5xx 响应（{{ $value | humanize }} req/s）"
+          description: "量级不大但已被观察到，建议排查。"
+
+  # ---------------------------------------------------------------- 延迟
+  - name: conduit-latency
+    interval: 30s
+    rules:
+      - alert: ConduitHighP95Latency
+        expr: >-
+          histogram_quantile(0.95,
+            sum by (le) (rate(http_request_duration_ms_bucket[5m]))) > 500
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 延迟超过 500ms（当前 {{ $value | humanize }}ms）"
+          description: >-
+            注意：bcrypt 是 CPU 密集的同步操作，登录流量高峰会阻塞事件循环
+            （实测可将 /health 的 p95 从 14ms 抬到 53ms）。
+            若此告警持续，考虑降低 MBP_BCRYPT_COST 或增加实例数。
+
+      - alert: ConduitHighP99Latency
+        expr: >-
+          histogram_quantile(0.99,
+            sum by (le) (rate(http_request_duration_ms_bucket[5m]))) > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p99 延迟超过 1000ms（当前 {{ $value | humanize }}ms）"
+
+      - alert: ConduitSlowRequests
+        # 落在 >1s 桶里的请求占比
+        expr: >-
+          sum(rate(http_request_duration_ms_bucket{le="+Inf"}[5m]))
+          - sum(rate(http_request_duration_ms_bucket{le="1000"}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "存在超过 1s 的请求（{{ $value | humanize }} req/s）"
+
+  # ---------------------------------------------------------------- 流量与限流
+  - name: conduit-traffic
+    interval: 30s
+    rules:
+      - alert: ConduitRateLimitTriggered
+        expr: sum(rate(http_requests_total{status="429"}[5m])) > 1
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "限流被触发（{{ $value | humanize }} req/s 被拒）"
+          description: >-
+            有客户端持续超过 MBP_RATE_LIMIT。注意：位于反向代理之后时
+            必须开启 MBP_TRUST_PROXY，否则所有流量会被算到 nginx 容器同一个 IP 上，
+            导致限流误伤全体客户端。
+
+      - alert: ConduitTrafficDropped
+        expr: >-
+          sum(rate(http_requests_count[5m])) < 0.1
+          and sum(rate(http_requests_count[5m] offset 1h)) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "流量相比 1 小时前骤降"
+          description: "可能是上游故障或负载均衡配置问题，而非本服务错误。"

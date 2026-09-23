@@ -1,0 +1,11 @@
+# 自动加载 dashboards 目录下的面板
+apiVersion: 1
+providers:
+  - name: conduit
+    orgId: 1
+    folder: Conduit
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/dashboards
