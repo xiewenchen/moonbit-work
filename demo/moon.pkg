@@ -16,4 +16,4 @@ supported_targets = "native"
 
 // `async test` 需要 import `moonbitlang/async`（编译器误报未使用）。
 
-warnings = "-29"
+warnings = "-29-79"

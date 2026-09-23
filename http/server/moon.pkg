@@ -13,4 +13,4 @@ supported_targets = "native"
 
 // -29：`async test` 误报未使用；-14：schannel 的 server_from_pair 标了 internal（Windows HTTPS 用）
 
-warnings = "-29-14"
+warnings = "-29-14-79"
