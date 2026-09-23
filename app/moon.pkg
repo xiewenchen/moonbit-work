@@ -1,0 +1,27 @@
+import {
+  "mbp/platform/http",
+  "mbp/platform/http/server",
+  "mbp/platform/pg",
+  "mbp/platform/pg/client" @pgclient,
+  "mbp/platform/redis",
+  "mbp/platform/redis/client" @redisclient,
+  "moonbitlang/async",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/env",
+  "moonbitlang/core/random",
+  "moonbitlang/x/bcrypt",
+  "moonbitlang/x/codec/base64",
+  "moonbitlang/x/crypto",
+  "moonbitlang/x/jwt",
+}
+
+import {
+  "mbp/platform/http/client" @httpclient,
+  "moonbitlang/async/socket",
+} for "test"
+
+supported_targets = "native"
+
+// `async test` 需要 import `moonbitlang/async`（编译器误报未使用）。
+
+warnings = "-29"
