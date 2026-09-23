@@ -1,0 +1,13 @@
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/fs",
+  "moonbitlang/async/io",
+  "moonbitlang/async/process",
+  "moonbitlang/core/encoding/utf8",
+}
+
+supported_targets = "native"
+
+// `async test` 需要 import `moonbitlang/async`（编译器误报未使用）。
+
+warnings = "-29"
