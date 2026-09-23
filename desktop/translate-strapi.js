@@ -279,7 +279,7 @@ ${myApp.trimEnd()}
                         <span id="agStatus" class="ag-status">检查中…</span>
                         <span class="sp"></span>
                         <button id="agNew" class="ghost">新对话</button>
-                        <button id="agConfig" class="ghost">打开配置</button>
+                        <button id="agConfig" class="ghost">配置模型</button>
                         <button id="agStop" class="ghost" disabled>停止</button>
                       </header>
                       <div id="agLog" class="ag-log">
@@ -690,6 +690,20 @@ const EXTRA_CSS = `
       .fm-ver-panel .ttl .fm-ver-close { margin-left: auto; flex: none; display: inline-flex; align-items: center; justify-content: center; width: 2.4rem; height: 2.4rem; padding: 0; background: transparent; border: 0; border-radius: 4px; color: var(--s-text-dim); cursor: pointer; }
       .fm-ver-panel .ttl .fm-ver-close:hover { background: var(--s-bg-hover); color: var(--s-text-bright); }
       .fm-ver-panel .ttl .fm-ver-close svg { width: 13px; height: 13px; color: currentColor; }
+
+      /* ===== AI Agent 的「模型配置」弹窗（参照 Copilot / Hermes 的 key 配置习惯）===== */
+      .ag-cfg-box { width: 520px; max-width: 94vw; }
+      .ag-cfg-body { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+      .ag-cfg-row { display: flex; flex-direction: column; gap: 5px; }
+      .ag-cfg-row > .k { font-size: 1.15rem; color: var(--s-text-dim); }
+      .ag-cfg-row input, .ag-cfg-row select { height: 3.2rem; padding: 0 10px; font-size: 1.25rem; font-family: inherit; background: var(--s-bg-deepest); color: var(--s-text); border: 1px solid var(--s-border-strong); border-radius: 5px; }
+      .ag-cfg-row input:focus, .ag-cfg-row select:focus { outline: none; border-color: var(--s-primary); }
+      .ag-cfg-key { display: flex; gap: 8px; }
+      .ag-cfg-key input { flex: 1; min-width: 0; }
+      .ag-cfg-key button { flex: none; padding: 0 12px; height: 3.2rem; font-size: 1.15rem; }
+      .ag-cfg-hint { font-size: 1.1rem; line-height: 1.6; color: var(--s-text-faint); }
+      .ag-cfg-hint.ok { color: var(--s-success); }
+      .ag-cfg-hint.err { color: var(--s-danger); }
       .fm-ver { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 4px; border: 1px solid var(--s-border); margin-top: 6px; font-size: 1.15rem; }
       .fm-ver .t { color: var(--s-text); }
       .fm-ver .sz { color: var(--s-text-dim); margin-left: auto; }
@@ -735,6 +749,38 @@ const final = `<!DOCTYPE html>
 ${myToast}
 ${shell}
 ${myTail}
+<!-- AI Agent 的「模型配置」弹窗：在 IDE 内填 key（比“用系统程序打开配置文件”友好得多）。 -->
+<div id="agCfgMask" class="ask-mask" hidden>
+  <div class="ask-box ag-cfg-box" role="dialog" aria-modal="true" aria-labelledby="agCfgTitle">
+    <div class="ask-title" id="agCfgTitle">模型配置</div>
+    <div class="ag-cfg-body">
+      <label class="ag-cfg-row">
+        <span class="k">服务商</span>
+        <select id="agCfgPreset"></select>
+      </label>
+      <label class="ag-cfg-row">
+        <span class="k">API Key</span>
+        <span class="ag-cfg-key">
+          <input id="agCfgKey" type="password" placeholder="粘贴你的 API Key" autocomplete="off" spellcheck="false" />
+          <button id="agCfgEye" class="ghost" type="button">显示</button>
+        </span>
+      </label>
+      <label class="ag-cfg-row">
+        <span class="k">baseURL</span>
+        <input id="agCfgBase" spellcheck="false" />
+      </label>
+      <label class="ag-cfg-row">
+        <span class="k">模型</span>
+        <input id="agCfgModel" spellcheck="false" />
+      </label>
+      <div class="ag-cfg-hint" id="agCfgHint"></div>
+    </div>
+    <div class="ask-actions">
+      <button class="ghost" id="agCfgCancel">取消</button>
+      <button id="agCfgSave">保存</button>
+    </div>
+  </div>
+</div>
 <!-- 通用确认框：替代原生 confirm()。原生 confirm 是同步阻塞的 —— 弹窗期间渲染
      进程不刷新，叠上 Monaco 的光标样式，用户会看到「鼠标消失」。 -->
 <div id="askMask" class="ask-mask" hidden>
