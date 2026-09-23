@@ -1,0 +1,10 @@
+import {
+  "mbp/platform/ide-backend" @backend,
+  "moonbitlang/core/encoding/utf8",
+}
+
+pkgtype(kind: "executable")
+
+supported_targets = "js"
+
+warnings = "-29"

@@ -1,0 +1,14 @@
+import {
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/json",
+}
+
+pkgtype(kind: "executable")
+
+supported_targets = "js"
+
+// 说明：这是手册 6.2 要求的「预置 Demo 项目」——
+// 一个编译到 JS 的 MoonBit HTTP 服务，返回 JSON。
+// 用 `moon run ide-backend/demo --target js` 即可跑起来。
+
+warnings = "-29"
