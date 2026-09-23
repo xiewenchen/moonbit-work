@@ -1,6 +1,6 @@
 import {
-  "mbp/platform/app",
-  "mbp/platform/http",
+  "xiewenchen/moonbit-platform/app",
+  "xiewenchen/moonbit-platform/http",
   "moonbitlang/async",
 }
 

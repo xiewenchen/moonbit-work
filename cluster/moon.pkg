@@ -1,5 +1,5 @@
 import {
-  "mbp/platform/http/server",
+  "xiewenchen/moonbit-platform/http/server",
   "moonbitlang/async",
   "moonbitlang/async/process",
 }

@@ -1,9 +1,9 @@
 import {
-  "mbp/platform/app",
-  "mbp/platform/http",
-  "mbp/platform/pg",
-  "mbp/platform/pg/client" @pgclient,
-  "mbp/platform/redis",
+  "xiewenchen/moonbit-platform/app",
+  "xiewenchen/moonbit-platform/http",
+  "xiewenchen/moonbit-platform/pg",
+  "xiewenchen/moonbit-platform/pg/client" @pgclient,
+  "xiewenchen/moonbit-platform/redis",
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/env",
   "moonbitlang/core/json",
@@ -11,7 +11,7 @@ import {
 }
 
 import {
-  "mbp/platform/db",
+  "xiewenchen/moonbit-platform/db",
 } for "test"
 
 supported_targets = "native"

@@ -1,13 +1,13 @@
 import {
-  "mbp/platform/http",
-  "mbp/platform/http/server",
-  "mbp/platform/pg/client" @pgclient,
-  "mbp/platform/redis/client" @redisclient,
+  "xiewenchen/moonbit-platform/http",
+  "xiewenchen/moonbit-platform/http/server",
+  "xiewenchen/moonbit-platform/pg/client" @pgclient,
+  "xiewenchen/moonbit-platform/redis/client" @redisclient,
   "moonbitlang/async",
 }
 
 import {
-  "mbp/platform/http/client" @httpclient,
+  "xiewenchen/moonbit-platform/http/client" @httpclient,
   "moonbitlang/async/socket",
   "moonbitlang/core/encoding/utf8",
 } for "test"

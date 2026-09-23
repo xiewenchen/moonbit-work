@@ -9,7 +9,7 @@
 //   "moonbitlang/x@0.4.6",
 // }
 
-name = "mbp/platform"
+name = "xiewenchen/moonbit-platform"
 
 version = "0.1.0"
 

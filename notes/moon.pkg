@@ -1,14 +1,14 @@
 import {
-  "mbp/platform/app",
-  "mbp/platform/http",
+  "xiewenchen/moonbit-platform/app",
+  "xiewenchen/moonbit-platform/http",
   "moonbitlang/async",
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/json",
 }
 
 import {
-  "mbp/platform/http/client" @httpclient,
-  "mbp/platform/http/server",
+  "xiewenchen/moonbit-platform/http/client" @httpclient,
+  "xiewenchen/moonbit-platform/http/server",
   "moonbitlang/async/socket",
 } for "test"
 

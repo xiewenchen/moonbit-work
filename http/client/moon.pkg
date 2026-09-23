@@ -1,5 +1,5 @@
 import {
-  "mbp/platform/http",
+  "xiewenchen/moonbit-platform/http",
   "moonbitlang/async",
   "moonbitlang/async/io",
   "moonbitlang/async/socket",
@@ -7,7 +7,7 @@ import {
 }
 
 import {
-  "mbp/platform/http/server",
+  "xiewenchen/moonbit-platform/http/server",
 } for "test"
 
 supported_targets = "native"

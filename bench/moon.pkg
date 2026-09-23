@@ -1,12 +1,12 @@
 import {
-  "mbp/platform/http",
-  "mbp/platform/http/client",
+  "xiewenchen/moonbit-platform/http",
+  "xiewenchen/moonbit-platform/http/client",
   "moonbitlang/async",
   "moonbitlang/core/env",
 }
 
 import {
-  "mbp/platform/http/server",
+  "xiewenchen/moonbit-platform/http/server",
   "moonbitlang/async/socket",
 } for "test"
 

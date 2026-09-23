@@ -1,5 +1,5 @@
 import {
-  "mbp/platform/bench",
+  "xiewenchen/moonbit-platform/bench",
   "moonbitlang/async",
   "moonbitlang/core/env",
 }

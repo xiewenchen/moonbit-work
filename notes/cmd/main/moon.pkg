@@ -1,7 +1,7 @@
 import {
-  "mbp/platform/app",
-  "mbp/platform/db",
-  "mbp/platform/notes",
+  "xiewenchen/moonbit-platform/app",
+  "xiewenchen/moonbit-platform/db",
+  "xiewenchen/moonbit-platform/notes",
   "moonbitlang/async",
 }
 

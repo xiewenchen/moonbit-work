@@ -1,6 +1,6 @@
 import {
-  "mbp/platform/pg",
-  "mbp/platform/pg/client",
+  "xiewenchen/moonbit-platform/pg",
+  "xiewenchen/moonbit-platform/pg/client",
   "moonbitlang/async",
   "moonbitlang/async/fs",
   "moonbitlang/core/encoding/utf8",

@@ -1,7 +1,7 @@
 import {
-  "mbp/platform/app",
-  "mbp/platform/http",
-  "mbp/platform/redis",
+  "xiewenchen/moonbit-platform/app",
+  "xiewenchen/moonbit-platform/http",
+  "xiewenchen/moonbit-platform/redis",
   "moonbitlang/async",
   "moonbitlang/core/encoding/utf8",
 }
