@@ -1,0 +1,591 @@
+openapi: 3.0.3
+info:
+  title: Conduit API（moonbit-platform 实现）
+  description: |
+    [RealWorld / Conduit](https://github.com/gothinkster/realworld) 规范的实现，
+    由 **moonbit-platform** 用**纯 MoonBit** 编写（HTTP 服务端 / PostgreSQL 客户端 /
+    Redis 客户端 / JWT / bcrypt 均为平台自研，零第三方框架）。
+
+    ## 鉴权
+    受保护端点需要 `Authorization: Token <jwt>` 头
+    （平台同时兼容 `Bearer ` 前缀）。
+
+    ## 错误格式
+    所有错误统一返回 `{"errors":{"<字段>":["<原因>"]}}`。
+
+    ## 已实现的端点（19 个业务端点）
+    用户/鉴权 4、Profile 3、文章 6、评论 3、收藏 2、标签 1。
+
+    另由平台提供基础设施端点：`/health`、`/ready`、`/metrics`（Prometheus）。
+  version: 1.0.0
+  license:
+    name: Apache-2.0
+
+servers:
+  - url: https://127.0.0.1:8443/api
+    description: 经 nginx 的 TLS 入口（3 个实例负载均衡）
+  - url: http://127.0.0.1:8101/api
+    description: 直连单个实例（调试用）
+
+tags:
+  - name: User and Authentication
+  - name: Profile
+  - name: Articles
+  - name: Comments
+  - name: Favorites
+  - name: Tags
+
+security:
+  - Token: []
+
+paths:
+  /users:
+    post:
+      tags: [User and Authentication]
+      summary: 注册新用户
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user]
+              properties:
+                user:
+                  $ref: '#/components/schemas/NewUser'
+            example:
+              user:
+                username: alice
+                email: alice@example.com
+                password: password123
+      responses:
+        '201':
+          description: 注册成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/responses/UserResponse' }
+        '409':
+          description: email 或 username 已被占用
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Errors' }
+              example: { errors: { email: ["has already been taken"] } }
+        '422':
+          description: 参数校验失败
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Errors' }
+              example: { errors: { username: ["can't be blank"] } }
+
+  /users/login:
+    post:
+      tags: [User and Authentication]
+      summary: 登录
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user]
+              properties:
+                user:
+                  type: object
+                  required: [email, password]
+                  properties:
+                    email: { type: string }
+                    password: { type: string, format: password }
+            example:
+              user:
+                email: alice@example.com
+                password: password123
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/responses/UserResponse' }
+        '401':
+          description: 凭据错误
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Errors' }
+
+  /user:
+    get:
+      tags: [User and Authentication]
+      summary: 获取当前用户
+      responses:
+        '200':
+          description: 当前用户
+          content:
+            application/json:
+              schema: { $ref: '#/components/responses/UserResponse' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    put:
+      tags: [User and Authentication]
+      summary: 更新当前用户（支持部分更新）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user:
+                  $ref: '#/components/schemas/UpdateUser'
+      responses:
+        '200':
+          description: 更新后的用户
+          content:
+            application/json:
+              schema: { $ref: '#/components/responses/UserResponse' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /profiles/{username}:
+    get:
+      tags: [Profile]
+      summary: 获取用户资料（**鉴权可选**）
+      description: 带 token 时 `following` 反映当前用户的关注状态；不带 token 时为 `false`。
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Username'
+      responses:
+        '200':
+          description: 资料
+          content:
+            application/json:
+              schema: { $ref: '#/components/responses/ProfileResponse' }
+        '404':
+          description: 用户不存在
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Errors' }
+
+  /profiles/{username}/follow:
+    post:
+      tags: [Profile]
+      summary: 关注（幂等）
+      parameters:
+        - $ref: '#/components/parameters/Username'
+      responses:
+        '200':
+          description: 关注后的资料
+          content:
+            application/json:
+              schema: { $ref: '#/components/responses/ProfileResponse' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 用户不存在
+    delete:
+      tags: [Profile]
+      summary: 取消关注（幂等）
+      parameters:
+        - $ref: '#/components/parameters/Username'
+      responses:
+        '200':
+          description: 取消关注后的资料
+          content:
+            application/json:
+              schema: { $ref: '#/components/responses/ProfileResponse' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /articles:
+    get:
+      tags: [Articles]
+      summary: 文章列表（**鉴权可选**）
+      description: 支持按 tag / author / favorited 过滤与 offset/limit 分页。
+      security: []
+      parameters:
+        - name: tag
+          in: query
+          schema: { type: string }
+        - name: author
+          in: query
+          schema: { type: string }
+        - name: favorited
+          in: query
+          description: 按某用户收藏过滤
+          schema: { type: string }
+        - $ref: '#/components/parameters/Offset'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 文章列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MultipleArticles' }
+    post:
+      tags: [Articles]
+      summary: 创建文章
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [article]
+              properties:
+                article:
+                  $ref: '#/components/schemas/NewArticle'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/responses/ArticleResponse' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          description: 校验失败
+
+  /articles/feed:
+    get:
+      tags: [Articles]
+      summary: 关注的人的文章（**需要鉴权**）
+      parameters:
+        - $ref: '#/components/parameters/Offset'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 文章列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MultipleArticles' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /articles/{slug}:
+    get:
+      tags: [Articles]
+      summary: 获取单篇文章（**鉴权可选**）
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Slug'
+      responses:
+        '200':
+          description: 文章
+          content:
+            application/json:
+              schema: { $ref: '#/components/responses/ArticleResponse' }
+        '404':
+          description: 不存在
+    put:
+      tags: [Articles]
+      summary: 更新文章（**仅作者**）
+      description: 修改 `title` 会重新派生 `slug`。
+      parameters:
+        - $ref: '#/components/parameters/Slug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                article:
+                  $ref: '#/components/schemas/UpdateArticle'
+      responses:
+        '200':
+          description: 更新后的文章
+          content:
+            application/json:
+              schema: { $ref: '#/components/responses/ArticleResponse' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: 非作者
+        '404':
+          description: 不存在
+    delete:
+      tags: [Articles]
+      summary: 删除文章（**仅作者**）
+      parameters:
+        - $ref: '#/components/parameters/Slug'
+      responses:
+        '204':
+          description: 已删除
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: 非作者
+        '404':
+          description: 不存在
+
+  /articles/{slug}/comments:
+    get:
+      tags: [Comments]
+      summary: 评论列表（**鉴权可选**）
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Slug'
+      responses:
+        '200':
+          description: 评论列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  comments:
+                    type: array
+                    items: { $ref: '#/components/schemas/Comment' }
+        '404':
+          description: 文章不存在
+    post:
+      tags: [Comments]
+      summary: 发表评论
+      parameters:
+        - $ref: '#/components/parameters/Slug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comment]
+              properties:
+                comment:
+                  type: object
+                  required: [body]
+                  properties:
+                    body: { type: string }
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  comment: { $ref: '#/components/schemas/Comment' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 文章不存在
+        '422':
+          description: 内容为空
+
+  /articles/{slug}/comments/{id}:
+    delete:
+      tags: [Comments]
+      summary: 删除评论（**仅作者**）
+      parameters:
+        - $ref: '#/components/parameters/Slug'
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '204':
+          description: 已删除
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: 非评论作者
+        '404':
+          description: 评论不存在
+
+  /articles/{slug}/favorite:
+    post:
+      tags: [Favorites]
+      summary: 收藏（幂等）
+      parameters:
+        - $ref: '#/components/parameters/Slug'
+      responses:
+        '200':
+          description: 收藏后的文章
+          content:
+            application/json:
+              schema: { $ref: '#/components/responses/ArticleResponse' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 文章不存在
+    delete:
+      tags: [Favorites]
+      summary: 取消收藏（幂等）
+      parameters:
+        - $ref: '#/components/parameters/Slug'
+      responses:
+        '200':
+          description: 取消收藏后的文章
+          content:
+            application/json:
+              schema: { $ref: '#/components/responses/ArticleResponse' }
+
+  /tags:
+    get:
+      tags: [Tags]
+      summary: 全部标签
+      security: []
+      responses:
+        '200':
+          description: 标签列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tags:
+                    type: array
+                    items: { type: string }
+
+components:
+  securitySchemes:
+    Token:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: '格式：`Token <jwt>`（平台同时兼容 `Bearer <jwt>`）'
+
+  parameters:
+    Username:
+      name: username
+      in: path
+      required: true
+      schema: { type: string }
+    Slug:
+      name: slug
+      in: path
+      required: true
+      schema: { type: string }
+    Offset:
+      name: offset
+      in: query
+      schema: { type: integer, minimum: 0, default: 0 }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+
+  responses:
+    UserResponse:
+      type: object
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+    ProfileResponse:
+      type: object
+      properties:
+        profile: { $ref: '#/components/schemas/Profile' }
+    ArticleResponse:
+      type: object
+      properties:
+        article: { $ref: '#/components/schemas/Article' }
+    Unauthorized:
+      description: 未授权（token 缺失或无效）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Errors' }
+          example: { errors: { token: ["is missing or invalid"] } }
+
+  schemas:
+    Errors:
+      type: object
+      properties:
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
+
+    User:
+      type: object
+      required: [email, token, username, bio, image]
+      properties:
+        email: { type: string }
+        token: { type: string }
+        username: { type: string }
+        bio: { type: string, nullable: true }
+        image: { type: string, nullable: true }
+
+    NewUser:
+      type: object
+      required: [username, email, password]
+      properties:
+        username: { type: string }
+        email: { type: string }
+        password: { type: string, format: password, minLength: 8 }
+
+    UpdateUser:
+      type: object
+      properties:
+        email: { type: string }
+        username: { type: string }
+        password: { type: string, format: password }
+        bio: { type: string, nullable: true }
+        image: { type: string, nullable: true }
+
+    Profile:
+      type: object
+      required: [username, bio, image, following]
+      properties:
+        username: { type: string }
+        bio: { type: string, nullable: true }
+        image: { type: string, nullable: true }
+        following: { type: boolean }
+
+    Article:
+      type: object
+      required:
+        [slug, title, description, body, tagList, createdAt, updatedAt,
+         favorited, favoritesCount, author]
+      properties:
+        slug: { type: string }
+        title: { type: string }
+        description: { type: string }
+        body: { type: string }
+        tagList:
+          type: array
+          items: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        favorited: { type: boolean }
+        favoritesCount: { type: integer }
+        author: { $ref: '#/components/schemas/Profile' }
+
+    MultipleArticles:
+      type: object
+      required: [articles, articlesCount]
+      properties:
+        articles:
+          type: array
+          items: { $ref: '#/components/schemas/Article' }
+        articlesCount: { type: integer }
+
+    NewArticle:
+      type: object
+      required: [title, description, body]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        body: { type: string }
+        tagList:
+          type: array
+          items: { type: string }
+
+    UpdateArticle:
+      type: object
+      properties:
+        title: { type: string }
+        description: { type: string }
+        body: { type: string }
+        tagList:
+          type: array
+          items: { type: string }
+
+    Comment:
+      type: object
+      required: [id, createdAt, updatedAt, body, author]
+      properties:
+        id: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        body: { type: string }
+        author: { $ref: '#/components/schemas/Profile' }

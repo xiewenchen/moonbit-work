@@ -1,0 +1,16 @@
+import {
+  "mbp/platform/app",
+  "mbp/platform/conduit",
+  "mbp/platform/db",
+  "mbp/platform/http",
+  "mbp/platform/http/server",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/env",
+  "moonbitlang/async",
+}
+
+pkgtype(kind: "executable")
+
+supported_targets = "native"
+
+warnings = "-29"

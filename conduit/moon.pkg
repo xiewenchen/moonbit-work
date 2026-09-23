@@ -1,0 +1,19 @@
+import {
+  "mbp/platform/app",
+  "mbp/platform/http",
+  "mbp/platform/pg",
+  "mbp/platform/pg/client" @pgclient,
+  "mbp/platform/redis",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/env",
+  "moonbitlang/core/json",
+  "moonbitlang/async",
+}
+
+import {
+  "mbp/platform/db",
+} for "test"
+
+supported_targets = "native"
+
+warnings = "-29"
