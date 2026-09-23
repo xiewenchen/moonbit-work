@@ -10,7 +10,7 @@ supported_targets = "js"
 // 不依赖（也不影响）本仓库其余 native 包。
 //
 // 为什么单独放一个包、而不是改根 moon.mod 的 preferred-target：
-// 本模块（mbp/platform）主体是 native 的（HTTP/Redis/PG/后端全是 native），
+// 本模块（xiewenchen/moonbit-platform）主体是 native 的（HTTP/Redis/PG/后端全是 native），
 // 改根配置会影响现有构建。这里用单独包 + 单独指定 target 的方式达到同样目的。
 
 warnings = "-29"

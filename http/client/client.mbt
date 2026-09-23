@@ -5,7 +5,7 @@ const MAX_PENDING_BYTES : Int = 8388608
 ///|
 /// 极简 HTTP/1.1 客户端（纯 MoonBit，基于 `moonbitlang/async` 的 socket）。
 ///
-/// 报文解析复用 `mbp/platform/http`，仅 native 后端。
+/// 报文解析复用 `xiewenchen/moonbit-platform/http`，仅 native 后端。
 
 ///|
 /// 一个 HTTP 连接（支持 keep-alive 复用）。

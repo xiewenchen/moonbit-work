@@ -5,7 +5,7 @@
 async test "find module up the tree" {
   match @kernel.find_module(".") {
     Some(m) => {
-      assert_eq(m.name, "mbp/platform")
+      assert_eq(m.name, "xiewenchen/moonbit-platform")
       assert_eq(m.version, "0.1.0")
     }
     None => fail("moon.mod not found")
