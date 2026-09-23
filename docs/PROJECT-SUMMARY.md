@@ -48,7 +48,7 @@
 | MoonBit 源码 | **11209** 行 `.mbt` |
 | 桌面 IDE | **65** 个 `.js` 文件 |
 | git commits | **31** |
-| 文档 | **10** 份（`docs/*.md`）|
+| 文档 | **11** 份（`docs/*.md`）|
 
 **顶层模块**：`admin app bench cluster cmd conduit db demo deploy desktop docs http ide-backend kernel logs notes pg redis sec tools`
 
@@ -194,7 +194,7 @@ Node 在 Windows 上**不能直接 spawn `.cmd`/`.bat`** → `EINVAL`。而 `npm
 | P0 | 验证「无项目态」修正 | ✅ 完成（53e7bb4）：转译幂等 + verify-welcome 三场景实测通过 + e2e 23 PASS |
 | P1 | AI Agent UI | ✅ 完成（081cf27）：新增第 5 个标签 + 对话界面；顺带修掉 2 个真缺陷（见 7.5）|
 | P2 | 补 `docs/` 与 README 的复核命令 | ✅ 完成：申报书第六节复核表补齐，README 重写 |
-| P3 | 调试器 | 待办：需先确认 `llvm-dwarfdump` 能否读出变量与行号 |
+| P3 | 调试器 | ✅ 已评估（结论：**不可行**）：Windows 上 MoonBit native 走 MSVC → 调试信息是 PDB 无 DWARF，`llvm-dwarfdump` 读不出；官方也不支持 MinGW、无 `moon debug`/DAP。详见 `docs/DEBUGGER-FEASIBILITY.md` |
 
 ---
 

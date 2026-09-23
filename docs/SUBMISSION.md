@@ -59,4 +59,4 @@
 | 桌面 IDE 功能体检 | 23 项全通过 | `cd desktop && ./node_modules/.bin/electron e2e-features.js <项目目录>` |
 | CI | GitHub Actions | 仓库 `.github/workflows/ci.yml` |
 | 许可证 | Apache-2.0 | `LICENSE` |
-| 设计文档 | **10 份** | `ls docs/*.md \| wc -l` |
+| 设计文档 | **11 份** | `ls docs/*.md \| wc -l` |

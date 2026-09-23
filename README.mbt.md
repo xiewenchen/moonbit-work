@@ -28,7 +28,7 @@ moon test --target wasm-gc    # 79 通过 / 0 失败（协议层，零依赖）
 | `conduit/` | 按 RealWorld 规范实现的后端 + 官方 hurl 套件（13 套件 / 154 请求） |
 | `sec/` | 安全靶场 + `attack.py`（14 小节 / 18 项断言） |
 | `desktop/` | 配套桌面 IDE（Electron + Monaco，**不属于 MoonBit 交付物**） |
-| `docs/` | 架构 / 安全 / 漏洞记录 / 验证 / 查重 / 归属 等 10 份文档 |
+| `docs/` | 架构 / 安全 / 漏洞记录 / 验证 / 查重 / 归属 / 调试可行性 等 11 份文档 |
 
 ## 复核命令（对外引用的每个数字都可现场复核）
 
@@ -42,7 +42,7 @@ ls conduit/specs-hurl/*.hurl | wc -l # 13 套件
 grep -hE "^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS) " conduit/specs-hurl/*.hurl | wc -l   # 154 请求
 grep -cE "^# -+ [0-9]+" sec/attack.py                        # 14 小节
 grep -v "^def check" sec/attack.py | grep -c "check("        # 18 断言
-ls docs/*.md | wc -l                 # 10 份文档
+ls docs/*.md | wc -l                 # 11 份文档
 ```
 
 项目全貌（架构 / 各模块现状 / 交付状态 / 待办）见 [`docs/PROJECT-SUMMARY.md`](docs/PROJECT-SUMMARY.md)；
