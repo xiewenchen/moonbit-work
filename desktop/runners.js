@@ -7,7 +7,7 @@
 //   · 输出统一以流的方式回传（与 moon:stream 一样的形式），前端复用同一套输出面板
 const fs = require('fs')
 const path = require('path')
-const { spawn } = require('child_process')
+const { spawn, spawnSync } = require('child_process')
 const { resolveSpawn } = require('./spawn-util')
 
 const has = (p) => { try { return fs.existsSync(p) } catch (_) { return false } }
@@ -25,9 +25,35 @@ function kindOf(root) {
   for (const f of ['main.py', 'app.py', 'manage.py', 'pyproject.toml', 'requirements.txt']) {
     if (has(path.join(root, f))) return 'python'
   }
+  // Java / JVM：Maven 或 Gradle（RuoYi 这类 Spring Boot 后台就是）
+  if (has(path.join(root, 'pom.xml')) || has(path.join(root, 'build.gradle')) || has(path.join(root, 'build.gradle.kts'))) return 'java'
   // 静态站点：没有上面的标记、但有 index.html —— 也能“跑起来看到样子”
   if (has(path.join(root, 'index.html')) || has(path.join(root, 'index.htm'))) return 'static'
   return 'unknown'
+}
+
+// Java 项目常见的前置依赖：扫 application*.yml/properties 判断它需不需要MySQL / Redis
+// （RuoYi 的数据库配置就在 application-druid.yml 里，不在 application.yml）
+function javaNeeds(root) {
+  const files = []
+  const walk = (d, depth) => {
+    if (depth > 4 || files.length > 40) return
+    let es = []
+    try { es = fs.readdirSync(d, { withFileTypes: true }) } catch (_) { return }
+    for (const e of es) {
+      if (e.name === 'target' || e.name === 'node_modules' || e.name.startsWith('.')) continue
+      const full = path.join(d, e.name)
+      if (e.isDirectory()) { walk(full, depth + 1); continue }
+      if (/^application.*\.(ya?ml|properties)$/i.test(e.name)) files.push(full)
+    }
+  }
+  walk(root, 0)
+  let txt = ''
+  for (const f of files) { try { txt += fs.readFileSync(f, 'utf8') } catch (_) {} }
+  const out = []
+  if (/jdbc:mysql|druid|datasource/i.test(txt)) out.push('MySQL')
+  if (/redis/i.test(txt)) out.push('Redis')
+  return out
 }
 
 // 从包路径取一个**能看懂的名字**：
@@ -148,6 +174,38 @@ function findRunners(root) {
     // 纯静态站点（只有 index.html）：起一个本地静态服务器，浏览器里就能看到页面
     add('在浏览器里预览', 'python', ['-m', 'http.server', '8080'], root, 'python -m http.server 8080')
     add('在浏览器里预览（8188）', 'python', ['-m', 'http.server', '8188'], root, 'python -m http.server 8188')
+  } else if (kind === 'java') {
+    // Java / Spring Boot（RuoYi 这类后台）。
+    // 注意：这类项目“能不能真的起来”取决于外部环境，所以把缺什么一并写进提示，
+    // 否则用户点了只会看到一堆连接失败、不知道卡在哪。
+    const gradle = has(path.join(root, 'build.gradle')) || has(path.join(root, 'build.gradle.kts'))
+    const mvnw = has(path.join(root, 'mvnw.cmd')) ? 'mvnw.cmd' : (has(path.join(root, 'mvnw')) ? './mvnw' : '')
+    const gradlew = has(path.join(root, 'gradlew.bat')) ? 'gradlew.bat' : (has(path.join(root, 'gradlew')) ? './gradlew' : '')
+    const bin = gradle ? (gradlew || 'gradle') : (mvnw || 'mvn')
+    const warned = []
+    if (!mvnw && !gradlew) {
+      const probe = gradle ? 'gradle' : 'mvn'
+      let ok = false
+      try {
+        // 走 resolveSpawn（把命令拼成字符串 + shell），别用 shell+args 组合 ——
+        // 那会触发 DEP0190（args 不转义的安全告警）。
+        const sp = resolveSpawn(probe, ['-v'])
+        const r = spawnSync(sp.bin, sp.args, { encoding: 'utf8', shell: sp.shell, timeout: 10000 })
+        ok = r.status === 0
+      } catch (_) {}
+      if (!ok) warned.push('本机没装 ' + probe + '（连 mvnw/gradlew 包装器也没有）')
+    }
+    const need = javaNeeds(root)
+    if (need.length) warned.push('需要先启动 ' + need.join(' + '))
+    if (has(path.join(root, 'sql'))) warned.push('数据库要先建表（导入 sql/ 里的脚本）')
+    const tail = warned.length ? '   ⚠ ' + warned.join('；') : ''
+    if (gradle) {
+      add('启动应用', bin, ['bootRun'], root, bin + ' bootRun' + tail)
+      add('打包', bin, ['build'], root, bin + ' build' + tail)
+    } else {
+      add('启动应用', bin, ['spring-boot:run'], root, bin + ' spring-boot:run' + tail)
+      add('打包（跳过测试）', bin, ['package', '-DskipTests'], root, bin + ' package -DskipTests' + tail)
+    }
   }
   return { kind, runners: out }
 }
