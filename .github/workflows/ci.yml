@@ -53,3 +53,14 @@ jobs:
 
       - name: Test (wasm-gc, protocol layer)
         run: moon test --target wasm-gc
+
+      # 桌面 IDE 的**纯逻辑**测试（不需要 Electron、不需要显示环境）—— 能在 Linux CI 上跑。
+      # 只挂当前确实能过的：先跑一遍确认“绿”，再放进来；宁缺勿滥（红的 CI 比不挂更糟）。
+      # 交互层（真点击）的那批 verify-*.js 依赖 Windows 路径与显示环境，**不能**进这个 CI ——
+      # 它们的防线是演示前本地跑 `cd desktop && npm run verify:desktop`。
+      - name: Desktop IDE logic tests
+        run: |
+          cd desktop
+          node test-runner-detect.js     # 项目类型识别 / 运行入口（输入→输出）
+          node test-project-detect.js    # 项目类型识别（另一套口径）
+          node test-relay.js             # 文件中转站核心逻辑

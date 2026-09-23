@@ -15,6 +15,7 @@
     "test:lsp": "node test-lsp.js",
     "test:search": "node test-search.js",
     "test:all": "node test-lsp.js && node test-search.js && node test-symbols.js && node test-lsp-client.js",
+    "verify:desktop": "node test-runner-detect.js && node test-project-detect.js && node test-relay.js && electron verify-welcome.js && electron verify-agent-config.js && electron verify-run-url.js && electron verify-run-dispatch.js && electron verify-relay.js && electron e2e-features.js",
     "test:lsp-client": "node test-lsp-client.js",
     "test:symbols": "node test-symbols.js",
     "fetch:opencode": "node ../tools/fetch-opencode.js",
