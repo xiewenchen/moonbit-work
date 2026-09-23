@@ -1062,11 +1062,12 @@
                         <span class="ag-title">AI Agent</span>
                         <span id="agStatus" class="ag-status">检查中…</span>
                         <span class="sp"></span>
+                        <button id="agNew" class="ghost">新对话</button>
                         <button id="agConfig" class="ghost">打开配置</button>
                         <button id="agStop" class="ghost" disabled>停止</button>
                       </header>
                       <div id="agLog" class="ag-log">
-                        <div class="ag-empty">用自然语言描述你要做的事，例如「解释这个项目的目录结构」。<br />Ctrl+Enter 发送；一次发送 = 一次独立任务，不保留上文。</div>
+                        <div class="ag-empty">用自然语言描述你要做的事，例如「解释这个项目的目录结构」。<br />Ctrl+Enter 发送；同一个对话会记住上文（多轮），点「新对话」重新开始。</div>
                       </div>
                       <footer class="ag-foot">
                         <textarea id="agInput" placeholder="输入指令…（Ctrl+Enter 发送）"></textarea>

@@ -78,6 +78,19 @@ function writeConfig(json) {
   }
 }
 
+// 把 opencode / provider 的错误转成人能看懂的一句话
+function friendlyError(err) {
+  try {
+    const d = (err && err.data) || {}
+    const raw = typeof err === 'string' ? err : JSON.stringify(err || '')
+    if (d.statusCode === 429 || /rate limit exceeded/i.test(raw)) {
+      return '免费额度被限流了（429）。稍等一会儿再试，或在 opencode 里配一个自己的模型额度。'
+    }
+    if (d.message) return String(d.message)
+  } catch (_) {}
+  return typeof err === 'string' ? err.slice(0, 400) : String(JSON.stringify(err || '')).slice(0, 400)
+}
+
 function registerAgentIpc({ getWindow }) {
   const send = (ch, payload) => {
     const w = getWindow && getWindow()
@@ -109,15 +122,17 @@ function registerAgentIpc({ getWindow }) {
     }
   })
 
-  // 一次对话：spawn `opencode run <prompt> --format json`，逐行解析事件并推给前端。
+  // 一次对话：spawn `opencode run <prompt> --format json [--session <id>]`，逐行解析事件推给前端。
+  // 带 --session 就是**续接同一会话**（多轮上下文）—— 这是它从「一问一答就忘」变成「对话」的关键。
   // 只保留一个并发（同一时刻一个任务），和 runner 的做法一致，避免输出串台。
-  ipcMain.handle('agent:run', (_e, { prompt, cwd, model }) => {
+  ipcMain.handle('agent:run', (_e, { prompt, cwd, model, sessionId }) => {
     const bin = findOpencode()
     if (!bin) return { ok: false, error: '未找到 opencode 可执行文件（npm i -g opencode-ai 安装后重启 IDE）' }
     if (current) { try { current.kill() } catch (_) {} current = null }
     // --format json 是**必须**的：不加它 opencode 输出的是人类可读文本，
     // 下面的 JSON 事件解析会全部落空 → 界面上只有空气泡（实测踩过）。
     const args = ['run', String(prompt || ''), '--format', 'json']
+    if (sessionId) args.push('--session', String(sessionId))   // ★ 多轮：续接会话
     if (model) args.push('--model', model)
     send('agent:start', { prompt: String(prompt || ''), bin })
     let child
@@ -133,11 +148,13 @@ function registerAgentIpc({ getWindow }) {
       return { ok: false, error: e.message }
     }
     current = child
+    let sid = sessionId || ''      // 本次会话 id（事件里会带回来，供下一轮续接）
     const onData = (buf) => {
       // opencode --format json 的事件格式（实测样本）：
       //   {"type":"step_start",...}
       //   {"type":"text","part":{"type":"text","text":"Hi!"}}          ← 要显示的正文
       //   {"type":"step_finish","part":{"tokens":{...},"cost":0}}      ← 用量统计
+      //   {"type":"error","error":{"name":"APIError","data":{...}}}    ← 出错（含 429 限流）
       // 所以不能原样透传 JSON，否则界面上全是花括号 —— 要按 type 提取。
       for (const line of buf.toString('utf8').split(/\r?\n/)) {
         if (!line.trim()) continue
@@ -147,17 +164,18 @@ function registerAgentIpc({ getWindow }) {
           send('agent:data', { type: 'raw', text: line })
           continue
         }
+        if (ev.sessionID && typeof ev.sessionID === 'string') sid = ev.sessionID   // ★ 记住会话 id
         const part = ev.part || {}
         if (ev.type === 'text' && typeof part.text === 'string') {
           send('agent:data', { type: 'text', text: part.text })
         } else if (ev.type === 'tool' || part.type === 'tool') {
           // 工具调用也显示出来 —— agent 干了什么应该让用户看见
           const name = part.tool || (part.state && part.state.name) || 'tool'
-          send('agent:data', { type: 'tool', text: String(name) })
+          send('agent:data', { type: 'tool', name: String(name), state: part.state || null })
         } else if (ev.type === 'step_finish' && part.tokens) {
           send('agent:data', { type: 'meta', tokens: part.tokens, cost: part.cost })
         } else if (ev.type === 'error' || ev.error) {
-          send('agent:data', { type: 'error', text: typeof ev.error === 'string' ? ev.error : JSON.stringify(ev.error || ev) })
+          send('agent:data', { type: 'error', text: friendlyError(ev.error) })
         }
         // step_start 之类的过程事件不发，避免刷屏
       }
@@ -165,7 +183,7 @@ function registerAgentIpc({ getWindow }) {
     child.stdout.on('data', onData)
     child.stderr.on('data', onData)
     child.on('error', (e) => send('agent:end', { ok: false, error: '无法执行 opencode：' + e.message }))
-    child.on('close', (code) => { send('agent:end', { ok: code === 0, code }); current = null })
+    child.on('close', (code) => { send('agent:end', { ok: code === 0, code, sessionId: sid }); current = null })
     return { ok: true, pid: child.pid }
   })
 
