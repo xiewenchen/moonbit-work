@@ -10,6 +10,15 @@ app.whenReady().then(async () => {
   const win = BrowserWindow.getAllWindows()[0]
   if (!win) { console.error('没拿到窗口'); app.exit(1); return }
 
+  // 先清掉上次测试可能留下的标签记忆，并显式切到「项目」标签再断言。
+  // 启动时落在哪个标签取决于 localStorage 与是否打开项目 —— 那是设计允许的；
+  // 本脚本验证的是「项目标签 + 无项目」这个组合，不应依赖外部状态。
+  await win.webContents.executeJavaScript(`(() => {
+    try { localStorage.removeItem('moonbit-view') } catch (_) {}
+    const a = document.querySelector('a[data-view="project"]'); if (a) a.click()
+  })()`)
+  await new Promise((r) => setTimeout(r, 400))
+
   const r = await win.webContents.executeJavaScript(`(() => {
     const vis = (sel) => {
       const el = document.querySelector(sel)
@@ -87,5 +96,7 @@ app.whenReady().then(async () => {
   const okBack = back.welcome === '可见' && back.runBtn === '隐藏'
   console.log('  ' + (okBack ? '✅ 项目标签仍是「只留打开/新建」' : '❌ 项目标签状态不对'))
 
+  // 清理本次测试对 localStorage 的污染（点标签会写入 moonbit-view）
+  try { await win.webContents.executeJavaScript(`(() => { localStorage.removeItem('moonbit-view') })()`) } catch (_) {}
   app.exit(okEmpty && okOther && okBack ? 0 : 1)
 })

@@ -56,7 +56,7 @@ must(toastM, '找到 #toast 容器')
 const myToast = toastM[0]
 
 // 我引入的资源（xterm css + 5 个 script）
-const linksM = cur.match(/(<link rel="stylesheet" href="\.\/node_modules\/@xterm[\s\S]*?<script src="\.\/renderer\.js"><\/script>)/)
+const linksM = cur.match(/(<link rel="stylesheet" href="\.\/node_modules\/@xterm[\s\S]*?<script src="\.\/aiagent\.js"><\/script>)/)
 must(linksM, '找到 IDE 的资源引入（xterm + monaco + renderer）')
 // 主菜单的办公组件（dash.js）；SortableJS 是 UMD，**必须在 loader.js 之前**，
 // 否则会和 xterm 一样被 Monaco 的 define.amd 截胡、window.Sortable 永远不存在
@@ -94,7 +94,7 @@ shell = shell.replace(/href="https:\/\/strapi\.io[^"]*"/, 'href="#"')
 shell = shell.replace(/target="_blank"\s*rel="noreferrer noopener"\s*/g, '')
 console.log('  ✓ 顶部横幅文案已换成本项目的')
 
-// ── ④ 导航列表换成我们的 4 个主标签 ──────────────────────────────────
+// ── ④ 导航列表换成我们的 5 个主标签 ──────────────────────────────────
 console.log('\n=== ④ 重写左侧导航为 4 个主标签 ===')
 // 导航列表 <ul>…</ul>（取第一个含 li+a 的 ul）
 const ulStart = shell.search(/<ul[^>]*>/)
@@ -115,8 +115,8 @@ const svgTpl = svgM[0]
 const textM = liTpl.match(/<span[^>]*>([^<]*)<\/span>/)
 const activeCls = (liTpl.match(/class="([^"]*)"/) || [])[1] || ''
 
-// 4 个标签（图标沿用 Strapi 自带的 svg，只换文字与 data-view）
-// 4 个标签各自的图标 —— **必须不一样**，否则用户根本分不清哪个是哪个
+// 5 个标签（图标沿用 Strapi 自带的 svg，只换文字与 data-view）
+// 5 个标签各自的图标 —— **必须不一样**，否则用户根本分不清哪个是哪个
 const ICONS = {
   // 主菜单：四格仪表盘
   home: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="20" height="20" fill="#c0c0cf" aria-hidden="true"><rect x="4" y="4" width="10" height="10" rx="2"/><rect x="18" y="4" width="10" height="10" rx="2"/><rect x="4" y="18" width="10" height="10" rx="2"/><rect x="18" y="18" width="10" height="10" rx="2"/></svg>',
@@ -124,6 +124,8 @@ const ICONS = {
   project: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="20" height="20" fill="#c0c0cf" aria-hidden="true"><path d="M4 8a2 2 0 0 1 2-2h6l2 2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/></svg>',
   // 文件中转站：档案盒（带抽屉把手）
   agent: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="20" height="20" fill="#c0c0cf" aria-hidden="true"><path d="M7 3h18a2 2 0 0 1 2 2v3H5V5a2 2 0 0 1 2-2z"/><path d="M5 10h22v17a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"/><rect x="12" y="14" width="8" height="3" rx="1" fill="#181820"/></svg>',
+  // AI Agent：对话气泡 + 星火
+  ai: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="20" height="20" fill="#c0c0cf" aria-hidden="true"><path d="M16 6C9.9 6 5 9.8 5 14.5c0 2.6 1.5 4.9 3.9 6.4-.2 1.2-.7 2.6-1.8 3.9 2-.3 3.6-1.1 4.7-1.9 1.3.3 2.7.5 4.2.5 6.1 0 11-3.8 11-8.5S22.1 6 16 6z"/><path d="M25 2.4l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></svg>',
   // 工具：扳手
   tools: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="20" height="20" fill="#c0c0cf" aria-hidden="true"><path d="M21.5 6.5a6 6 0 0 0 7.9 7.9l-9.7 9.6a3.5 3.5 0 0 1-5-5z"/><path d="M21.5 6.5l3.5-3.5a4 4 0 0 1 0 5.6"/><circle cx="8.5" cy="23.5" r="2"/></svg>',
 }
@@ -131,6 +133,7 @@ const TABS = [
   ['home', '主菜单'],
   ['project', '项目'],
   ['agent', '文件中转站'],
+  ['ai', 'AI Agent'],
   ['tools', '工具'],
 ]
 function mkLi(view, label, idx) {
@@ -255,8 +258,26 @@ ${myApp.trimEnd()}
                       </section>
                     </div>
                   </div>
+                  <div id="mainview-ai" class="mainview">
+                    <div class="ag">
+                      <header class="ag-head">
+                        <span class="ag-title">AI Agent</span>
+                        <span id="agStatus" class="ag-status">检查中…</span>
+                        <span class="sp"></span>
+                        <button id="agConfig" class="ghost">打开配置</button>
+                        <button id="agStop" class="ghost" disabled>停止</button>
+                      </header>
+                      <div id="agLog" class="ag-log">
+                        <div class="ag-empty">用自然语言描述你要做的事，例如「解释这个项目的目录结构」。<br />Ctrl+Enter 发送；一次发送 = 一次独立任务，不保留上文。</div>
+                      </div>
+                      <footer class="ag-foot">
+                        <textarea id="agInput" placeholder="输入指令…（Ctrl+Enter 发送）"></textarea>
+                        <button id="agSend">发送</button>
+                      </footer>
+                    </div>
+                  </div>
                   <div id="mainview-tools" class="mainview"></div>`
-// 目标：把 4 个 mainview 直接挂到 Strapi 的内容网格下。
+// 目标：把 5 个 mainview 直接挂到 Strapi 的内容网格下。
 // 注意不能只替换 <main>：<main> 外面还包着 [data-strapi-main-content]，
 // mainview 若留在那个包装里，隐藏这个占位空壳时会把 4 个标签一起隐藏
 //（首页区、代码区之前就是这么消失的）。所以要连包装容器一起替换。
@@ -273,7 +294,7 @@ while (wi < shell.length && wd > 0) {
 }
 must(wd === 0, '用配平法定位到包装容器的 </div>')
 shell = shell.slice(0, wrapOpen) + MAINVIEWS + shell.slice(wi + 6)
-console.log(`  ✓ 已用 4 个可切换的主视图替换整块主内容包装（原内容 ${mainInner.length} 字符）`)
+console.log(`  ✓ 已用 5 个可切换的主视图替换整块主内容包装（原内容 ${mainInner.length} 字符）`)
 
 // ── ⑥ 组装最终 HTML ──────────────────────────────────────────────────
 console.log('\n=== ⑥ 组装 ===')
@@ -643,6 +664,26 @@ const EXTRA_CSS = `
       .fm-ver.cur { border-color: var(--s-success); }
       .fm-ver.cur .t::after { content: '（当前内容）'; color: var(--s-success); font-size: 1rem; }
       .fm-ver button { height: 2.3rem; padding: 0 9px; font-size: 1.1rem; }
+
+      /* ===== AI Agent 标签（第 5 个标签）：对话界面 ===== */
+      .ag { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+      .ag-head { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--s-border); }
+      .ag-head .sp { flex: 1 1 auto; }
+      .ag-title { font-size: 1.5rem; font-weight: var(--s-fw-semi); color: var(--s-text-bright); }
+      .ag-status { font-size: 1.15rem; color: var(--s-text-dim); }
+      .ag-status.ok { color: var(--s-success); }
+      .ag-status.bad { color: var(--s-danger); }
+      .ag-log { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+      .ag-empty { margin: auto; max-width: 52rem; text-align: center; color: var(--s-text-faint); font-size: 1.25rem; line-height: 1.9; }
+      .ag-msg { max-width: 82%; padding: 10px 14px; border-radius: 8px; font-size: 1.25rem; line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
+      .ag-msg.user { align-self: flex-end; background: var(--s-primary600); color: #fff; }
+      .ag-msg.ai { align-self: flex-start; background: var(--s-bg-panel); border: 1px solid var(--s-border); color: var(--s-text); }
+      .ag-msg.err { align-self: flex-start; background: transparent; border: 1px solid var(--s-danger); color: var(--s-danger); }
+      .ag-tool { align-self: flex-start; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1.1rem; color: var(--s-text-dim); }
+      .ag-foot { display: flex; gap: 10px; align-items: flex-end; padding: 12px 18px; border-top: 1px solid var(--s-border); }
+      .ag-foot textarea { flex: 1; min-height: 4.4rem; max-height: 16rem; resize: vertical; padding: 9px 11px; font-family: inherit; font-size: 1.25rem; line-height: 1.6; background: var(--s-bg-deepest); color: var(--s-text); border: 1px solid var(--s-border-strong); border-radius: 6px; }
+      .ag-foot textarea:focus { outline: none; border-color: var(--s-primary); }
+      .ag-foot textarea:disabled { opacity: .6; }
 `
 
 const final = `<!DOCTYPE html>

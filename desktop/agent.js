@@ -97,7 +97,9 @@ function registerAgentIpc({ getWindow }) {
     const bin = findOpencode()
     if (!bin) return { ok: false, error: '未找到 opencode 可执行文件（npm i -g opencode-ai 安装后重启 IDE）' }
     if (current) { try { current.kill() } catch (_) {} current = null }
-    const args = ['run', String(prompt || '')]
+    // --format json 是**必须**的：不加它 opencode 输出的是人类可读文本，
+    // 下面的 JSON 事件解析会全部落空 → 界面上只有空气泡（实测踩过）。
+    const args = ['run', String(prompt || ''), '--format', 'json']
     if (model) args.push('--model', model)
     send('agent:start', { prompt: String(prompt || ''), bin })
     let child

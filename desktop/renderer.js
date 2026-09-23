@@ -2,7 +2,7 @@
 
 const $ = (id) => document.getElementById(id)
 // ---------------------------------------------------------------------------
-// 活动栏：4 个主标签（主菜单 / 项目 / AI Agent / 工具）
+// 活动栏：5 个主标签（主菜单 / 项目 / 文件中转站 / AI Agent / 工具）
 //
 // 为什么放在 initCore 而不是 wireUI：wireUI 只在 Monaco 加载成功后才跑，
 // Monaco 一挂活动栏就没了 —— 之前踩过这个坑（整个 UI 失效）。
@@ -10,9 +10,10 @@ const VIEW_META = {
   home: ['主菜单', '时钟 / 日历 / 日程 / 待办 / 便签'],
   project: ['资源管理器', '文件树 / 搜索 / 大纲'],
   agent: ['文件中转站', 'Office 文档备份与版本还原'],
+  ai: ['AI Agent', 'opencode 驱动的对话式编码助手'],
   tools: ['工具', '后端控制 / 接口调试 / 终端'],
 }
-const VIEW_ORDER = ['home', 'project', 'agent', 'tools']
+const VIEW_ORDER = ['home', 'project', 'agent', 'ai', 'tools']
 
 // 各标签内容填好后挂在这里，切过去时惰性初始化一次
 const VIEW_HOOKS = {
@@ -20,6 +21,8 @@ const VIEW_HOOKS = {
   home: () => { if (window.moonbitDash) window.moonbitDash.start() },
   // 文件中转站（第三个标签），实现在 relay.js
   agent: () => { if (window.moonbitRelay) window.moonbitRelay.refresh() },
+  // AI Agent（第五个标签），实现在 aiagent.js
+  ai: () => { if (window.moonbitAgent) window.moonbitAgent.start() },
 }
 
 function switchView(name, remember) {
@@ -73,7 +76,10 @@ function initActivityBar() {
   // 默认落在「主菜单」—— 主页是办公台，不是代码编辑器。
   // 另外：**未打开项目时忽略上次记忆的标签**。否则上次退出在「项目」标签的话，
   // 启动就直接落在只有「打开/新建」的欢迎页上，用户会以为整个 IDE 不可用。
-  const noProject = document.body.classList.contains('no-project')
+  // 用权威状态 rootDir 判定，**不要**读 body 的 no-project 类：
+  // initActivityBar 在 showWelcome()（由它添加 no-project 类）之前执行，
+  // 直接读类名会得到 false —— 「无项目时强制落主菜单」就会失效（实测踩过）。
+  const noProject = !rootDir
   const pick = (noProject || !saved || !VIEW_ORDER.includes(saved)) ? 'home' : saved
   switchView(pick, false)
 }
@@ -2024,7 +2030,7 @@ function initCore() {
   }
 
   step('installErrorReporting（前端错误兜底）', () => installErrorReporting())
-  step('活动栏（4 个主标签）', () => initActivityBar())
+  step('活动栏（5 个主标签）', () => initActivityBar())
   step('LSP 诊断 → Monaco 标记', () => {
     // LSP 会在文件打开/修改后主动推送 publishDiagnostics —— 这是「边写边报」。
     // 与手动的 moon check 是互补关系：LSP 管实时，check 管一次性完整检查。
