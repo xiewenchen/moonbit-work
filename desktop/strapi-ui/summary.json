@@ -1,0 +1,189 @@
+{
+  "sheets": [
+    {
+      "href": null,
+      "ownerTag": "STYLE",
+      "ownerAttrs": [],
+      "rules": 2
+    },
+    {
+      "href": null,
+      "ownerTag": "STYLE",
+      "ownerAttrs": [
+        "type=text/css"
+      ],
+      "rules": 97
+    },
+    {
+      "href": null,
+      "ownerTag": "STYLE",
+      "ownerAttrs": [
+        "type=text/css",
+        "data-vite-dev-id=C:/Users/33567/Desktop/strapi-backend/no"
+      ],
+      "rules": 17
+    },
+    {
+      "href": null,
+      "ownerTag": "STYLE",
+      "ownerAttrs": [
+        "type=text/css",
+        "data-vite-dev-id=C:/Users/33567/Desktop/strapi-backend/no"
+      ],
+      "rules": 11
+    },
+    {
+      "href": null,
+      "ownerTag": "STYLE",
+      "ownerAttrs": [
+        "data-styled=active",
+        "data-styled-version=6.5.3"
+      ],
+      "rules": 244
+    },
+    {
+      "href": null,
+      "ownerTag": "STYLE",
+      "ownerAttrs": [],
+      "rules": 2
+    },
+    {
+      "href": null,
+      "ownerTag": "STYLE",
+      "ownerAttrs": [],
+      "rules": 2
+    },
+    {
+      "href": null,
+      "ownerTag": "STYLE",
+      "ownerAttrs": [],
+      "rules": 2
+    },
+    {
+      "href": null,
+      "ownerTag": "STYLE",
+      "ownerAttrs": [],
+      "rules": 2
+    },
+    {
+      "href": null,
+      "ownerTag": "STYLE",
+      "ownerAttrs": [],
+      "rules": 2
+    },
+    {
+      "href": null,
+      "ownerTag": "STYLE",
+      "ownerAttrs": [],
+      "rules": 2
+    }
+  ],
+  "styleTags": [
+    {
+      "len": 160,
+      "attrs": []
+    },
+    {
+      "len": 14859,
+      "attrs": [
+        "type=text/css"
+      ]
+    },
+    {
+      "len": 2606,
+      "attrs": [
+        "type=text/css",
+        "data-vite-dev-id=C:/Users/33567/Desktop/strapi-backend/no"
+      ]
+    },
+    {
+      "len": 1145,
+      "attrs": [
+        "type=text/css",
+        "data-vite-dev-id=C:/Users/33567/Desktop/strapi-backend/no"
+      ]
+    },
+    {
+      "len": 18644,
+      "attrs": [
+        "data-styled=active",
+        "data-styled-version=6.5.3"
+      ]
+    },
+    {
+      "len": 179,
+      "attrs": []
+    },
+    {
+      "len": 179,
+      "attrs": []
+    },
+    {
+      "len": 179,
+      "attrs": []
+    },
+    {
+      "len": 179,
+      "attrs": []
+    },
+    {
+      "len": 179,
+      "attrs": []
+    },
+    {
+      "len": 179,
+      "attrs": []
+    }
+  ],
+  "globals": {
+    "htmlFontSize": "10px",
+    "htmlBg": "rgba(0, 0, 0, 0)",
+    "htmlColor": "rgb(0, 0, 0)",
+    "bodyFontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Oxygen, Ubuntu, Cantarell, \"Open Sans\", \"Helvetica Neue\", sans-serif",
+    "bodyFontSize": "10px",
+    "bodyBg": "rgb(24, 24, 38)",
+    "bodyColor": "rgb(255, 255, 255)",
+    "bodyLineHeight": "15px",
+    "cssVarsOnHtml": {}
+  },
+  "ruleCount": 383,
+  "samples": {
+    "bodyRules": [
+      "html, body, #strapi { height: 100%; }",
+      "body { margin: 0px; -webkit-font-smoothing: antialiased; }",
+      "html { font-size: 62.5%; }",
+      "body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Oxygen, Ubuntu, Cantarell, \"Open Sans\", \"Helvetica Neue\", sans-serif; color: rgb(255, 255, 255); line-height: 1.5; -webkit-font-smoothing: antialiased; }",
+      "body { background: rgb(24, 24, 38); }"
+    ],
+    "buttonRules": [
+      "[data-sonner-toaster][dir=\"ltr\"], html[dir=\"ltr\"] { --toast-icon-margin-start: -3px; --toast-icon-margin-end: 4px; --toast-svg-margin-start: -1px; --toast-svg-margin-end: 0px; --toast-button-margin-start: auto; --toast-button-margin-end: 0; --toast-close-button-start: 0; --toast-close-button-end: unset; --toast-close-button-transform: translate(-35%, -35%); }",
+      "[data-sonner-toaster][dir=\"rtl\"], html[dir=\"rtl\"] { --toast-icon-margin-start: 4px; --toast-icon-margin-end: -3px; --toast-svg-margin-start: 0px; --toast-svg-margin-end: -1px; --toast-button-margin-start: 0; --toast-button-margin-end: auto; --toast-close-button-start: unset; --toast-close-button-end: 0; --toast-close-button-transform: translate(35%, -35%); }",
+      "[data-sonner-toast][data-styled=\"true\"] [data-button] { border-radius: 4px; padding-left: 8px; padding-right: 8px; height: 24px; font-size: 12px; color: var(--normal-bg); background: var(--normal-text); margin-left: var(--toast-button-margin-start); margin-right: var(--toast-button-margin-end); border-width: medium; border-style: none; border-color: currentcolor; border-image: none; font-weight: 500; cursor: pointer; outline: 0px; display: flex; align-items: center; flex-shrink: 0; transition: opacity 0.4s, box-shadow 0.2s; }",
+      "[data-sonner-toast][data-styled=\"true\"] [data-button]:focus-visible { box-shadow: rgba(0, 0, 0, 0.4) 0px 0px 0px 2px; }",
+      "[data-sonner-toast][data-styled=\"true\"] [data-button]:first-of-type { margin-left: var(--toast-button-margin-start); margin-right: var(--toast-button-margin-end); }",
+      "[data-sonner-toast][data-styled=\"true\"] [data-close-button] { position: absolute; left: var(--toast-close-button-start); right: var(--toast-close-button-end); top: 0px; height: 20px; width: 20px; display: flex; justify-content: center; align-items: center; padding: 0px; color: var(--gray12); background: var(--normal-bg); border: 1px solid var(--gray4); transform: var(--toast-close-button-transform); border-radius: 50%; cursor: pointer; z-index: 1; transition: opacity 0.1s, background 0.2s, border-color 0.2s; }",
+      "[data-sonner-toast][data-styled=\"true\"] [data-close-button]:focus-visible { box-shadow: rgba(0, 0, 0, 0.1) 0px 4px 12px, rgba(0, 0, 0, 0.2) 0px 0px 0px 2px; }",
+      "[data-sonner-toast][data-styled=\"true\"]:hover [data-close-button]:hover { background: var(--gray2); border-color: var(--gray5); }",
+      "[data-sonner-toaster][data-sonner-theme=\"dark\"] [data-sonner-toast] [data-close-button] { background: var(--normal-bg); border-color: var(--normal-border); color: var(--normal-text); }",
+      "[data-sonner-toaster][data-sonner-theme=\"dark\"] [data-sonner-toast] [data-close-button]:hover { background: var(--normal-bg-hover); border-color: var(--normal-border-hover); }",
+      "[data-rich-colors=\"true\"][data-sonner-toast][data-type=\"success\"] [data-close-button] { background: var(--success-bg); border-color: var(--success-border); color: var(--success-text); }",
+      "[data-rich-colors=\"true\"][data-sonner-toast][data-type=\"info\"] [data-close-button] { background: var(--info-bg); border-color: var(--info-border); color: var(--info-text); }"
+    ],
+    "focusRules": [
+      "[data-sonner-toast]:focus-visible { box-shadow: rgba(0, 0, 0, 0.1) 0px 4px 12px, rgba(0, 0, 0, 0.2) 0px 0px 0px 2px; }",
+      "[data-sonner-toast][data-styled=\"true\"] [data-button]:focus-visible { box-shadow: rgba(0, 0, 0, 0.4) 0px 0px 0px 2px; }",
+      "[data-sonner-toast][data-styled=\"true\"] [data-close-button]:focus-visible { box-shadow: rgba(0, 0, 0, 0.1) 0px 4px 12px, rgba(0, 0, 0, 0.2) 0px 0px 0px 2px; }",
+      ":focus-visible { outline: rgb(123, 121, 255) solid 2px; outline-offset: 2px; }",
+      ":focus:not(:focus-visible) { outline: none; }",
+      ".guaqfD:focus-visible { outline: none; }",
+      ".jIEaYq:focus { left: 12px; top: 12px; }",
+      ".iWCkTB:focus-within .sc-fpYaNP { display: flex; }",
+      ".iWCkTB:focus-within .sc-lnDrAC { pointer-events: none; }",
+      "@media (min-width: 768px) {\n  .iWCkTB:focus-within .sc-lnDrAC { pointer-events: auto; }\n}"
+    ],
+    "varRules": [
+      "[data-sonner-toaster][dir=\"ltr\"], html[dir=\"ltr\"] { --toast-icon-margin-start: -3px; --toast-icon-margin-end: 4px; --toast-svg-margin-start: -1px; --toast-svg-margin-end: 0px; --toast-button-margin-start: auto; --toast-button-margin-end: 0; --toast-close-button-start: 0; --toast-close-button-end: unset; --toast-close-button-transform: translate(-35%, -35%); }",
+      "[data-sonner-toaster][dir=\"rtl\"], html[dir=\"rtl\"] { --toast-icon-margin-start: 4px; --toast-icon-margin-end: -3px; --toast-svg-margin-start: 0px; --toast-svg-margin-end: -1px; --toast-button-margin-start: 0; --toast-button-margin-end: auto; --toast-close-button-start: unset; --toast-close-button-end: 0; --toast-close-button-transform: translate(35%, -35%); }"
+    ]
+  }
+}

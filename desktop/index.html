@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: http://127.0.0.1:* http://localhost:*" />
+  <title>MoonBit IDE</title>
+  <!-- Strapi 原装样式（dark 基础，从运行中的 admin 导出）。加载顺序有讲究：
+       base 在前 → light 覆盖表居中（默认 disabled）→ 我们自己的规则放最后，
+       这样主题变量与自定义组件的优先级最高。 -->
+  <link rel="stylesheet" href="moonbit-ui.css" />
+  <link rel="stylesheet" href="moonbit-ui-light.css" id="themeOverride" disabled />
+  <style>
+      /* ===========================================================================
+         Strapi 设计 token（取自 @strapi/design-system 的 dist/index.js 与 common-theme）
+         ---------------------------------------------------------------------------
+         为什么要抽成变量：以前色值散落在 150 行 CSS 里，改一次主题要全局搜替换。
+         现在集中在这里 —— 想换主题只改这一段。
+         token 来源与取值：
+           · 品牌色   #7b79ff（primary600）/ #4945ff（primary700，hover）
+           · 中性色阶 #f6f6f9 → #181826（Strapi 的 neutral100…neutral900）
+           · 语义色   success #5cb176 / danger #ee5e52 / warning var(--s-warning) / info #66b7f1
+           · 圆角     统一 4px（Strapi 的 borderRadius 就是一个值，不分级）
+           · 间距     4 的倍数（4/8/12/16/20/24）
+           · 字重     400/500/600（Strapi 不用 700）
+         =========================================================================== */
+      :root {
+        /* =======================================================================
+           第一层：Strapi design-system 的 token 原值（dark theme，逐值照抄）
+           来源：@strapi/design-system/dist/index.mjs 里 darkTheme 的 color 对象
+           注意：dark 模式下色阶是整体翻转的：neutral0 反而是「卡片底」，
+             neutral800 是「最亮的字」。所以下面按「档位」照抄，不按直觉。
+           ======================================================================= */
+        --s-neutral0: #212134;
+        --s-neutral100: #181826;
+        --s-neutral150: #32324d;
+        --s-neutral200: #4a4a6a;
+        --s-neutral300: #666687;
+        --s-neutral400: #a5a5ba;
+        --s-neutral500: #c0c0cf;
+        --s-neutral600: #a5a5ba;
+        --s-neutral700: #eaeaef;
+        --s-neutral800: #ffffff;
+        --s-neutral900: #ffffff;
+        --s-neutral1000: #ffffff;
+
+        --s-primary100: #181826;
+        --s-primary200: #4a4a6a;
+        --s-primary500: #4945ff;
+        --s-primary600: #7b79ff;
+        --s-primary700: #7b79ff;
+
+        /* 按钮专用（Strapi 单独留了一组，主按钮底用的是 buttonPrimary600） */
+        --s-button-primary500: #7b79ff;
+        --s-button-primary600: #4945ff;
+        --s-button-neutral0: #ffffff;
+
+        --s-danger100: #181826;
+        --s-danger200: #4a4a6a;
+        --s-danger500: #ee5e52;
+        --s-danger600: #ee5e52;
+        --s-danger700: #ee5e52;
+
+        --s-success100: #181826;
+        --s-success200: #4a4a6a;
+        --s-success500: #5cb176;
+        --s-success600: #5cb176;
+        --s-success700: #c6f0c2;
+
+        --s-warning100: #181826;
+        --s-warning200: #4a4a6a;
+        --s-warning500: #f29d41;
+        --s-warning600: #f29d41;
+        --s-warning700: #fae7b9;
+
+        --s-secondary100: #181826;
+        --s-secondary200: #4a4a6a;
+        --s-secondary500: #66b7f1;
+        --s-secondary600: #66b7f1;
+        --s-secondary700: #b8e1ff;
+
+        --s-alternative100: #181826;
+        --s-alternative200: #4a4a6a;
+        --s-alternative500: #ac73e6;
+        --s-alternative600: #ac73e6;
+        --s-alternative700: #e0c1f4;
+
+        /* =======================================================================
+           第二层：结构 token。Strapi 的 common-theme 里就是这些值
+           （spaces 是 12 档、borderRadius 只有一个值、字重不用 700）
+           ======================================================================= */
+        --s-radius: 4px;
+        --s-radius-sm: 2px;
+        --s-space-1: 4px;
+        --s-space-2: 8px;
+        --s-space-3: 12px;
+        --s-space-4: 16px;
+        --s-space-5: 20px;
+        --s-space-6: 24px;
+        --s-space-7: 32px;
+        --s-space-8: 40px;
+        --s-fw-regular: 400;
+        --s-fw-semi: 500;
+        --s-fw-bold: 600;
+        /* 行高：Strapi 的 lineHeights 数组取前几档 */
+        --s-lh-tight: 1.14;
+        --s-lh-snug: 1.25;
+        --s-lh-base: 1.43;
+        --s-lh-loose: 1.5;
+        /* 阴影：dark 用的是「更重更黑」的一套（实测 1px 1px 10px rgba(3,3,5,.35)） */
+        --s-shadow-popup: 1px 1px 10px rgba(3, 3, 5, 0.35);
+        --s-shadow-table: 1px 1px 10px rgba(3, 3, 5, 0.2);
+        --s-shadow-filter: 1px 1px 10px rgba(3, 3, 5, 0.35);
+        /* z-index 层级（照抄 Strapi） */
+        --s-z-nav: 100;
+        --s-z-overlay: 300;
+        --s-z-modal: 310;
+        --s-z-dialog: 320;
+        --s-z-popover: 500;
+        --s-z-notification: 700;
+        --s-z-tooltip: 1000;
+
+        /* =======================================================================
+           第三层：语义映射。上层 CSS 只引用这一组 —— 想换浅色主题只改这里。
+           值一律等价于 Strapi dark theme 里对应角色的 token。
+           ======================================================================= */
+        --s-bg-deepest: var(--s-neutral100);   /* #181826 页面底（实测 bodyBg）*/
+        --s-bg-panel: var(--s-neutral0);       /* #212134 面板/卡片（实测出现最多）*/
+        --s-bg-raised: var(--s-neutral150);    /* #32324d 输入框/悬浮层 */
+        --s-bg-hover: var(--s-neutral150);     /* #32324d hover */
+        --s-bg-active: var(--s-neutral200);    /* #4a4a6a 选中 */
+        --s-border: var(--s-neutral150);       /* #32324d */
+        --s-border-strong: var(--s-neutral200);/* #4a4a6a */
+        --s-text: var(--s-neutral500);         /* #c0c0cf 正文（实测出现 29 次，最多）*/
+        --s-text-dim: var(--s-neutral400);     /* #a5a5ba 次要 */
+        --s-text-faint: var(--s-neutral300);   /* #666687 更弱 */
+        --s-text-bright: var(--s-neutral800);  /* #ffffff 标题/强文字 */
+        --s-primary: var(--s-primary600);      /* #7b79ff 强调色（文字/图标/边框）*/
+        --s-primary-dark: var(--s-primary500); /* #4945ff hover 更深 */
+        --s-primary-dim: #b2b1ff;
+        --s-success: var(--s-success500);
+        --s-danger: var(--s-danger500);
+        --s-warning: var(--s-warning500);
+        --s-info: var(--s-secondary500);
+        --s-alternative: var(--s-alternative500);
+      }
+      /* Strapi 风格的细滚动条（原来用系统默认的粗白条，很跳） */
+      ::-webkit-scrollbar { width: 10px; height: 10px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: var(--s-border-strong); border-radius: 5px; border: 2px solid transparent; background-clip: content-box; }
+      ::-webkit-scrollbar-thumb:hover { background: var(--s-text-dim); background-clip: content-box; }
+
+      /* ===========================================================================
+         全局基础样式：照抄 @strapi/design-system 的 global（运行时 CSS 原文）
+         原文（light 模式）：
+           *,*::before,*::after{box-sizing:border-box;}  *{margin:0;}  html{font-size:62.5%;}
+           body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,
+                Oxygen,Ubuntu,Cantarell,'Open Sans','Helvetica Neue',sans-serif;
+                color:#32324d;line-height:1.5;-webkit-font-smoothing:antialiased;}
+           img,picture,video,canvas{display:block;max-width:100%;}
+           ol,ul{list-style:none;padding:unset;margin:unset;}
+           *:focus-visible{outline:2px solid #4945ff;outline-offset:2px;}
+           *:focus:not(:focus-visible){outline:none;}
+         颜色换成 dark token，结构与过渡原样保留。
+         =========================================================================== */
+      *, *::before, *::after { box-sizing: border-box; }
+      * { margin: 0; }
+      /* Strapi 的 62.5% 技巧：1rem = 10px，所以它源码里的 1.4rem 就是 14px */
+      html { font-size: 62.5%; }
+      html, body {
+        height: 100%;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+        background: var(--s-bg-deepest);
+        color: var(--s-text);
+      }
+      /* 注意：字号只能设在 body 上。如果写在 `html, body` 里就会把 html 的 62.5% 覆盖掉，
+         1rem 就不再是 10px（踩过：按钮 3.2rem 变成了 41.6px）。 */
+      body { font-size: 1.3rem; }
+      img, picture, video, canvas { display: block; max-width: 100%; }
+      ol, ul { list-style: none; padding: unset; margin: unset; }
+      /* 焦点轮廓：Strapi 原文的 2px 实线 + 2px 偏移 */
+      *:focus-visible { outline: 2px solid var(--s-primary); outline-offset: 2px; }
+      *:focus:not(:focus-visible) { outline: none; }
+      #app { display: flex; flex-direction: column; height: 100vh; background: var(--s-bg-deepest); color: var(--s-text); }
+
+      /* 标题栏 */
+      #titlebar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--s-bg-panel); border-bottom: 1px solid var(--s-border); }
+      #titlebar .brand { font-weight: var(--s-fw-bold); color: var(--s-primary); margin-right: 6px; letter-spacing: .01em; }
+      #titlebar .spacer { flex: 1; }
+      #titlebar input { background: var(--s-bg-raised); color: var(--s-text); border: 1px solid var(--s-bg-raised); border-radius: 4px; padding: 4px 8px; font-family: ui-monospace, monospace; font-size: 12px; }
+      #cwd { width: 360px; }
+      /* 按钮：照抄 Strapi 的实现（运行时 CSS 原文）
+         原文：.lfaogF{height:4.4rem;border:1px solid #4945ff;background:#4945ff;color:#ffffff;}
+              @media(min-width:768px){.lfaogF{height:3.6rem;}}      ← 桌面 3.6rem = 36px
+              .lfaogF:hover{border:1px solid #7b79ff;background:#7b79ff;}
+              .lfaogF:active{border:1px solid #4945ff;background:#4945ff;}
+              .clEvgS{...border:1px solid #dcdce4;background:#ffffff;}   ← 次要按钮有描边
+              .jCaTqe{...border:1px solid transparent;background:transparent;}  ← 幽灵按钮无边
+              过渡：background-color 120ms cubic-bezier(.25,.46,.45,.94),
+                    color 120ms …，border-color 200ms …（三个属性两个时长）*/
+      button {
+        display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+        height: 3.2rem;
+        padding: 0 1.2rem;
+        border: 1px solid var(--s-button-primary600);
+        background: var(--s-button-primary600);
+        color: var(--s-button-neutral0);
+        border-radius: var(--s-radius);
+        font-size: 1.2rem; font-weight: var(--s-fw-semi); cursor: pointer;
+      }
+      button:hover { border-color: var(--s-button-primary500); background: var(--s-button-primary500); }
+      button:active { border-color: var(--s-button-primary600); background: var(--s-button-primary600); }
+      @media (prefers-reduced-motion: no-preference) {
+        button { transition: background-color 120ms cubic-bezier(0.25, 0.46, 0.45, 0.94), color 120ms cubic-bezier(0.25, 0.46, 0.45, 0.94), border-color 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94); }
+      }
+      /* 次要按钮：Strapi 用描边（.clEvgS），不是灰底 */
+      button.ghost { background: transparent; border: 1px solid var(--s-border-strong); color: var(--s-text); }
+      button.ghost:hover { background: var(--s-bg-hover); border-color: var(--s-text-dim); }
+      button.ghost:active { background: var(--s-bg-active); }
+
+      /* 输入框：逐条对齐 Strapi 的实际规则（源码 + 实测）——
+         底 #212134、无边框（这里留 1px 透明占位，避免聚焦时布局跳动）、
+         聚焦时「1px 实线 + **同色 2px 实心环**」，
+         过渡为 0.2s 且 transition-property 含 border-color/box-shadow/fill。 */
+      input, textarea, select {
+        background: var(--s-bg-panel);
+        color: var(--s-text-bright);
+        border: 1px solid transparent;
+        border-radius: var(--s-radius);
+        transition-property: border-color, box-shadow, fill;
+        transition-duration: 0.2s;
+        transition-timing-function: ease;
+      }
+      input:focus, textarea:focus, select:focus {
+        outline: none;
+        border-color: var(--s-primary) !important;
+        box-shadow: var(--s-primary) 0 0 0 2px;
+      }
+
+      /* 主体 */
+      #body { flex: 1; display: flex; min-height: 0; }
+
+      /* 活动栏：最左侧的 4 个主标签（主菜单 / 项目 / AI Agent / 工具）
+         active 态照抄 Strapi 的导航项原文（.hMMibZ）：
+           .hMMibZ.active{background:#f0f0ff;}  .hMMibZ.active svg path{fill:#4945ff;}
+         即「浅色底 + 图标变主色」——**不是**左侧 2px 竖条（我上一版自己做错了）。
+         dark 模式下 #f0f0ff 对应 primary200 = #4a4a6a。*/
+      #activitybar { width: 48px; flex: 0 0 48px; background: var(--s-bg-panel); border-right: 1px solid var(--s-border); display: flex; flex-direction: column; align-items: center; padding: 6px 0; gap: 2px; }
+      .act { position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: var(--s-radius); color: var(--s-text-faint); cursor: pointer; }
+      .act:hover { background: var(--s-bg-hover); color: var(--s-text-dim); }
+      .act.active { background: var(--s-primary200); color: var(--s-primary); }
+      .act svg { width: 20px; height: 20px; display: block; }
+      #activitybar .spacer { flex: 1; }
+
+      /* 侧栏视图：四个标签各占一个 .view，同一时刻只显示 .active 那个 */
+      #sidebar .view { display: none; flex-direction: column; flex: 1; min-height: 0; overflow: auto; }
+      #sidebar .view.active { display: flex; }
+
+      #sidebar { width: 240px; min-width: 160px; background: var(--s-bg-panel); border-right: 1px solid var(--s-border); display: flex; flex-direction: column; }
+      #sidebar .head { padding: 8px 12px 4px; text-transform: uppercase; font-size: 10px; letter-spacing: .08em; color: var(--s-text-faint); font-weight: var(--s-fw-bold); }
+
+      /* EmptyState：空文件夹 / 无搜索结果时给一句说明，而不是留一片空白（Strapi 的 EmptyState 同思路） */
+      .empty-state { padding: 18px 14px; color: var(--s-text-faint); font-size: 12px; text-align: center; line-height: 1.6; }
+      .empty-state .t { display: block; color: var(--s-text-dim); margin-bottom: 4px; font-weight: var(--s-fw-semi); }
+
+      /* Toast：操作反馈（保存 / 编译 / 错误），右下角浮层 */
+      #toast { position: fixed; right: 16px; bottom: 34px; display: flex; flex-direction: column; gap: 8px; z-index: 900; pointer-events: none; }
+      #toast .t {
+        min-width: 200px; max-width: 380px; padding: 10px 14px;
+        background: var(--s-bg-panel); color: var(--s-text);
+        border: 1px solid var(--s-border-strong); border-left: 3px solid var(--s-primary);
+        border-radius: var(--s-radius); box-shadow: 0 8px 24px rgba(0,0,0,.45);
+        font-size: 12px; opacity: 0; transform: translateY(6px);
+        transition: opacity .16s ease, transform .16s ease;
+        pointer-events: auto;
+      }
+      #toast .t.show { opacity: 1; transform: translateY(0); }
+      #toast .t.ok { border-left-color: var(--s-success); }
+      #toast .t.err { border-left-color: var(--s-danger); }
+      #toast .t.warn { border-left-color: var(--s-warning); }
+
+      /* ===========================================================================
+         Strapi Design System 桥接层
+         ---------------------------------------------------------------------------
+         取值全部来自运行中的 http://localhost:1337/admin 导出的原装 CSS
+         （strapi-ui/sheet-04-DESIGN-SYSTEM.css，dark 模式），**一个值没改**。
+         只换类名的原因：styled-components 的类名是每次渲染现生成的 hash（如 .hMMibZ），
+         刷新一次就变，无法在静态文件里复用。
+         原装证据（导出 CSS 里实际出现的值）：
+           box-shadow: rgba(3,3,5,.2) 1px 1px 10px
+           grid-template-columns: repeat(12, 1fr)
+           linear-gradient(90deg, rgb(123,121,255) 0%, rgb(172,115,230) 121.48%)
+           背景 rgb(24,24,38)×15 · rgb(50,50,77)×8 · rgb(33,33,52)×7 · rgb(123,121,255)×3
+           文字 rgb(165,165,186)×12 · rgb(192,192,207)×6 · rgb(255,255,255)×5
+
+         原装对照（light → dark，都能从源码/导出里对上）：
+           卡片底  #ffffff → rgb(33,33,52)     页面底 #f6f6f9 → rgb(24,24,38)
+           卡片边  #eaeaef → rgb(50,50,77)      卡片阴影 light rgba(33,33,52,.1) → dark rgba(3,3,5,.2)
+         =========================================================================== */
+
+      /* 卡片（原装：background + 1px 边框 + radius 4px + 阴影 + padding 24px）*/
+      .s-card { background: rgb(33, 33, 52); border: 1px solid rgb(50, 50, 77); border-radius: 4px; box-shadow: rgba(3, 3, 5, 0.2) 1px 1px 10px; padding: 24px; position: relative; width: 100%; }
+
+      /* 12 列网格（原装 .kWjZVl / .dBmuDi）*/
+      .s-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 20px; }
+      .s-cell { grid-column: span 12; max-width: 100%; }
+      @media (min-width: 1080px) { .s-cell { grid-column: span 6; } }
+
+      /* 顶部渐变横幅（原装 dark 值）*/
+      .s-banner { background: linear-gradient(90deg, rgb(123, 121, 255) 0%, rgb(172, 115, 230) 121.48%); }
+
+      /* 排版变体（原装 alpha / sigma 等）*/
+      .s-h1 { font-weight: 600; font-size: 2.8rem; line-height: 1.14; }
+      @media (min-width: 768px) { .s-h1 { font-size: 3.2rem; } }
+      .s-label { font-weight: 600; text-transform: uppercase; font-size: 1.1rem; line-height: 1.45; color: rgb(165, 165, 186); }
+      .s-value { font-size: 1.6rem; line-height: 1.5; color: rgb(255, 255, 255); font-weight: 600; }
+      @media (min-width: 768px) { .s-value { font-size: 1.4rem; line-height: 1.43; } }
+      .s-sub { font-size: 1.6rem; line-height: 1.5; color: rgb(165, 165, 186); }
+
+      /* 统计徽章（原装 7 种语义色，字用深底色压在亮徽章上）*/
+      .s-badge { border-radius: 4px; padding: 8px; display: inline-flex; align-items: center; color: rgb(24, 24, 38); }
+      .s-badge.primary { background: rgb(123, 121, 255); }
+      .s-badge.success { background: rgb(92, 177, 118); }
+      .s-badge.warning { background: rgb(242, 157, 65); }
+      .s-badge.danger { background: rgb(238, 94, 82); }
+      .s-badge.secondary { background: rgb(102, 183, 241); }
+      .s-badge.alternative { background: rgb(172, 115, 230); }
+      .s-badge.neutral { background: rgb(165, 165, 186); }
+      #tree { flex: 1; overflow: auto; padding-bottom: 8px; }
+      .node { padding: 2px 8px; white-space: nowrap; cursor: pointer; user-select: none; }
+      .node:hover { background: var(--s-bg-hover); }
+      .node.active { background: var(--s-bg-active); }
+      .node .ico { display: inline-block; width: 14px; color: var(--s-text-dim); }
+      /* 文件树目录箭头：用 SVG + CSS 旋转表示展开态（不再用 ▸/▾ 字符） */
+      .node .ico.dir-i svg { width: 12px; height: 12px; transition: transform 0.12s ease; }
+      .node .ico.dir-i.open svg { transform: rotate(90deg); }
+
+      #editorArea { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+      /* 标签页：Strapi 是**下划线式**（透明底 + active 底部主色条），不是块状 */
+      #tabs { display: flex; background: var(--s-bg-panel); overflow-x: auto; min-height: 32px; border-bottom: 1px solid var(--s-border); }
+      .tab { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-right: none; border-bottom: 2px solid transparent; color: var(--s-text-dim); cursor: pointer; white-space: nowrap; font-weight: var(--s-fw-semi); }
+      .tab:hover { background: var(--s-bg-hover); }
+      .tab.active { background: transparent; color: var(--s-text-bright); border-bottom: 2px solid var(--s-primary); }
+      .tab .x { color: var(--s-text-dim); }
+      .tab .x:hover { color: var(--s-danger); }
+      #editor { flex: 1; min-height: 0; background: var(--s-bg-deepest); }
+
+      /* 底部面板 */
+      #panel { height: 180px; display: flex; flex-direction: column; background: var(--s-bg-panel); border-top: 1px solid var(--s-border); box-shadow: var(--s-shadow-table); }
+      #panelHead { display: flex; gap: 14px; padding: 0 12px; color: var(--s-text-dim); font-size: 11px; text-transform: uppercase; border-bottom: 1px solid var(--s-border); }
+      #panelHead span { cursor: pointer; padding: 8px 2px; border-bottom: 2px solid transparent; font-weight: var(--s-fw-semi); letter-spacing: .04em; }
+      #panelHead span:hover { color: var(--s-text); }
+      #panelHead span.active { color: var(--s-text-bright); border-bottom: 2px solid var(--s-primary); }
+      #panelHead .spacer { flex: 1; }
+      #output { flex: 1; overflow: auto; padding: 6px 12px; font-family: ui-monospace, monospace; font-size: 12px; white-space: pre-wrap; }
+      #output .cmd { color: var(--s-primary-dim); }
+      #output .err { color: var(--s-danger); }
+      #output .ok { color: var(--s-success); }
+
+      #searchBox { padding: 4px 8px; }
+      #searchBox input { width: 100%; background: var(--s-bg-raised); color: var(--s-text); border: 1px solid var(--s-bg-raised); border-radius: 4px; padding: 4px 6px; font-size: 12px; }
+      #searchResults { max-height: 32vh; overflow: auto; }
+      #searchResults .hit { padding: 3px 10px; cursor: pointer; border-bottom: 1px solid var(--s-border); font-family: ui-monospace, monospace; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      #searchResults .hit:hover { background: var(--s-bg-hover); }
+      #searchResults .hit .loc { color: var(--s-info); }
+      #outline { max-height: 34vh; overflow: auto; padding: 2px 0; }
+      #outline .sym { padding: 3px 10px 3px 16px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: ui-monospace, monospace; font-size: 12px; }
+      #outline .sym:hover { background: var(--s-bg-hover); }
+      #sidebar .hint { color: var(--s-text-faint); font-weight: 400; }
+      #problems { flex: 1; overflow: auto; padding: 4px 8px; display: none; font-family: ui-monospace, monospace; font-size: 12px; }
+      #panel.mode-problems #output { display: none; }
+      #panel.mode-problems #problems { display: block; }
+      #problems .diag { padding: 3px 4px; cursor: pointer; border-bottom: 1px solid var(--s-bg-panel); }
+      #problems .diag:hover { background: var(--s-bg-hover); }
+      #problems .diag.error { color: var(--s-danger); }
+      #problems .diag.warning { color: var(--s-warning); }
+      #problems .diag .loc { color: var(--s-info); }
+      /* 运行时错误行高亮（配合 highlightErrorLines 里用的 className / glyphMarginClassName） */
+      .runtime-error-line { background: rgba(255, 80, 80, 0.14); }
+      .runtime-error-glyph { background: var(--s-danger); width: 4px !important; margin-left: 3px; }
+      #backend { flex: 1; overflow: auto; padding: 6px 10px; display: none; font-family: ui-monospace, monospace; font-size: 12px; }
+      #panel.mode-backend #output { display: none; }
+      #panel.mode-backend #backend { display: block; }
+      #backend .grp { color: var(--s-primary-dim); margin: 6px 0 3px; }
+      #backend .item { padding: 2px 6px; cursor: pointer; color: var(--s-text); }
+      #backend .item:hover { background: var(--s-bg-hover); }
+      #backend pre { margin: 4px 0 8px; padding: 6px; background: var(--s-bg-deepest); overflow: auto; max-height: 40vh; color: var(--s-info); }
+
+      /* 接口调试器 */
+      #api { padding: 0; }
+      #apiBar { display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+                border-bottom: 1px solid var(--s-border); flex-wrap: wrap; }
+      #apiBar select, #apiBar input { background: var(--s-bg-deepest); color: var(--s-text); border: 1px solid var(--s-border);
+                                      border-radius: var(--s-radius); padding: 3px 6px; font-size: 11px; }
+      #apiEndpoint { min-width: 220px; }
+      #apiMethod { font-weight: 600; font-size: 11px; padding: 2px 6px; border-radius: var(--s-radius); }
+      #apiMethod.GET { background: #1f3d2b; color: var(--s-success); }
+      #apiMethod.POST { background: #3d341f; color: var(--s-warning); }
+      #apiMethod.PUT { background: #1f2f3d; color: var(--s-info); }
+      #apiMethod.DELETE { background: #3d1f1f; color: var(--s-danger); }
+      #apiPath { font-family: Consolas, monospace; font-size: 11px; flex: 1; min-width: 200px; }
+      #apiToken { width: 130px; }
+      #apiBase { width: 165px; }
+      #apiBar button { background: var(--s-primary); color: var(--s-text-bright); border: 0; border-radius: var(--s-radius);
+                       padding: 4px 12px; font-size: 11px; cursor: pointer; }
+      #apiBar button:hover:not(:disabled) { background: var(--s-primary-dark); }
+      #apiBar button:disabled { background: var(--s-border); color: var(--s-text-faint); cursor: not-allowed; }
+      #apiBody { display: flex; gap: 8px; padding: 6px 10px; }
+      #apiReqCol { flex: 0 0 38%; display: flex; flex-direction: column; }
+      #apiRespCol { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+      #apiBody textarea { background: var(--s-bg-deepest); color: var(--s-text); border: 1px solid var(--s-border);
+                          border-radius: var(--s-radius); padding: 6px; font-family: Consolas, monospace;
+                          font-size: 11px; height: 96px; resize: vertical; }
+      #apiResp { background: var(--s-bg-deepest); border: 1px solid var(--s-border); border-radius: var(--s-radius);
+                 padding: 6px; font-family: Consolas, monospace; font-size: 11px;
+                 white-space: pre-wrap; overflow: auto; height: 96px; margin: 0; color: var(--s-text); }
+      #apiMeta { font-size: 11px; color: var(--s-text-dim); padding: 0 10px 6px; }
+      #apiMeta .ok { color: var(--s-success); } #apiMeta .bad { color: var(--s-danger); }
+      #panel.mode-api #output, #panel.mode-api #problems,
+      #panel.mode-api #backend, #panel.mode-api #terminal { display: none; }
+      #panel.mode-api #api { display: block; }
+      #api { display: none; }
+
+      /* 后端面板：一键启停 + 日志 */
+      #backend { padding: 0; }
+      #beBar { display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+               border-bottom: 1px solid var(--s-border); flex-wrap: wrap; }
+      #beBar button { background: var(--s-primary); color: var(--s-text-bright); border: 0; border-radius: var(--s-radius);
+                      padding: 4px 10px; font-size: 11px; cursor: pointer; }
+      #beBar button:hover:not(:disabled) { background: var(--s-primary-dark); }
+      #beBar button:disabled { background: var(--s-border); color: var(--s-text-faint); cursor: not-allowed; }
+      #beBar button.stop { background: var(--s-danger); }
+      #beBar button.stop:hover:not(:disabled) { background: var(--s-danger); }
+      #beBar button.ghost { background: var(--s-border); }
+      #beBar .spacer { flex: 1; }
+      #beState { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+      #beState.stopped { background: var(--s-border); color: var(--s-text-dim); }
+      #beState.starting { background: #5a4a00; color: var(--s-warning); }
+      #beState.running { background: #14532d; color: var(--s-success); }
+      #beState.error { background: #5a1d1d; color: var(--s-danger); }
+      #beMeta { font-size: 11px; color: var(--s-text-dim); }
+      #beClear { font-size: 11px; color: var(--s-text-dim); cursor: pointer; }
+      #beLog { font-family: Consolas, monospace; font-size: 11.5px; white-space: pre-wrap;
+               overflow: auto; max-height: 140px; padding: 6px 10px; color: var(--s-text); }
+      #beLog .err { color: var(--s-danger); }
+      #beLog .ok { color: var(--s-success); }
+      #beData { padding: 6px 10px; border-top: 1px solid var(--s-border); }
+
+      /* 集成终端 */
+      #terminal { flex: 1; overflow: hidden; padding: 2px 4px; display: none; }
+      #panel.mode-term #output { display: none; }
+      #panel.mode-term #terminal { display: block; }
+
+      /* 状态栏 */
+      #statusbar { display: flex; align-items: center; gap: 14px; padding: 3px 12px; background: var(--s-primary); color: var(--s-text-bright); font-size: 12px; }
+      #statusbar .right { margin-left: auto; }
+
+      /* 命令面板 */
+      #palette { position: fixed; inset: 0; display: none; background: rgba(0,0,0,.35); z-index: 50; }
+      #palette.open { display: block; }
+      #paletteBox { width: 560px; margin: 80px auto; background: var(--s-bg-panel); border: 1px solid var(--s-border-strong); border-radius: var(--s-radius); overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,.45); }
+      #paletteInput { width: 100%; padding: 12px 14px; background: var(--s-bg-raised); color: var(--s-text-bright); border: none; border-bottom: 1px solid var(--s-border); outline: none; font-size: 14px; }
+      #paletteList { max-height: 320px; overflow: auto; }
+      .cmd { padding: 8px 14px; cursor: pointer; font-size: 12px; }
+      .cmd.sel, .cmd:hover { background: var(--s-bg-active); }
+    
+      /* ===========================================================================
+         主题：日间（浅色、护眼）/ 夜间（深色）
+         ---------------------------------------------------------------------------
+         依据（均为实测，不是报的）：
+           · W3C WCAG 2.1 SC 1.4.3：正文对比度 ≥ 4.5:1（AA）· 大字/UI ≥ 3:1 · AAA 为 7:1
+           · Solarized 的设计原则：「屏幕上纯黑字纯白底 ≈ 在直射阳光下看书，最累眼」
+             ——要降的是【亮度对比】，但色相对比要保留，否则可读性崩
+           · 实测：夜间 #c0c0cf on #181826 = 9.76:1（舒适）；
+             #ffffff on #181826 = 17.54:1（偏刺眼）；日间 #32324d on #f6f6f9 = 11.46:1
+         =========================================================================== */
+
+      /* 夜间微调：强文字从 #ffffff(17.5:1) 降到 ~13:1，治“刺眼” */
+      :root { --s-text-bright: #dcdce8; }
+
+      /* 日间：完整采用 Strapi light theme 的原装 token（逐值照抄其源码）*/
+      :root[data-theme="light"] {
+        --s-neutral0: #ffffff;
+        --s-neutral100: #f6f6f9;
+        --s-neutral150: #eaeaef;
+        --s-neutral200: #dcdce4;
+        --s-neutral300: #c0c0cf;
+        --s-neutral400: #a5a5ba;
+        --s-neutral500: #8e8ea9;
+        --s-neutral600: #666687;
+        --s-neutral700: #4a4a6a;
+        --s-neutral800: #32324d;
+        --s-neutral900: #212134;
+        --s-neutral1000: #212134;
+        --s-primary100: #f0f0ff;
+        --s-primary200: #d9d8ff;
+        --s-primary500: #7b79ff;
+        --s-primary600: #4945ff;
+        --s-primary700: #271fe0;
+        --s-button-primary500: #7b79ff;
+        --s-button-primary600: #4945ff;
+        --s-button-neutral0: #ffffff;
+        --s-danger100: #fcecea; --s-danger200: #f5c0b8; --s-danger500: #ee5e52; --s-danger600: #d02b20; --s-danger700: #b72b1a;
+        --s-success100: #eafbe7; --s-success200: #c6f0c2; --s-success500: #5cb176; --s-success600: #328048; --s-success700: #2f6846;
+        --s-warning100: #fdf4dc; --s-warning200: #fae7b9; --s-warning500: #f29d41; --s-warning600: #d9822f; --s-warning700: #be5d01;
+        --s-secondary100: #eaf5ff; --s-secondary200: #b8e1ff; --s-secondary500: #66b7f1; --s-secondary600: #0c75af; --s-secondary700: #006096;
+        --s-alternative100: #f6ecfc; --s-alternative200: #e0c1f4; --s-alternative500: #ac73e6; --s-alternative600: #9736e8; --s-alternative700: #8312d1;
+
+        /* 语义映射：与 Strapi light theme 的角色一一对应 */
+        --s-bg-deepest: #f6f6f9;
+        --s-bg-panel: #ffffff;
+        --s-bg-raised: #eaeaef;
+        --s-bg-hover: #eaeaef;
+        --s-bg-active: #dcdce4;
+        --s-border: #eaeaef;
+        --s-border-strong: #dcdce4;
+        --s-text: #32324d;
+        --s-text-dim: #666687;
+        --s-text-faint: #8e8ea9;
+        --s-text-bright: #212134;
+        --s-primary: #4945ff;
+        --s-primary-dark: #271fe0;
+        --s-primary-dim: #b2b1ff;
+        --s-success: #328048;
+        --s-danger: #d02b20;
+        --s-warning: #d9822f;
+        --s-info: #0c75af;
+        --s-alternative: #9736e8;
+        --s-shadow-popup: 0px 2px 15px rgba(33, 33, 52, 0.1);
+        --s-shadow-table: 0px 1px 4px rgba(33, 33, 52, 0.1);
+        --s-shadow-filter: 0px 1px 4px rgba(33, 33, 52, 0.1);
+      }
+
+      /* 日间下，Strapi 外壳里写死的深色值（如 body 背景）也要让位 */
+      :root[data-theme="light"] body { background: #f6f6f9; color: #32324d; }
+
+      /* 主题切换按钮：固定右下角 —— 它必须「哪个标签下都看得到」，
+         而状态栏只在「项目」标签里，所以不能挂状态栏。 */
+      #themeToggle { position: fixed; right: 14px; bottom: 14px; z-index: 950; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; font-size: 1.2rem; padding: 6px 12px; border-radius: 4px; background: var(--s-bg-panel); color: var(--s-text-dim); border: 1px solid var(--s-border-strong); box-shadow: var(--s-shadow-popup); }
+      #themeToggle:hover { color: var(--s-text-bright); border-color: var(--s-primary); }
+      #themeToggle .theme-ico { display: inline-flex; }
+      #themeToggle .theme-ico svg { width: 14px; height: 14px; }
+
+      /* 通用确认框（替代原生 confirm）——颜色全走 token，日间/夜间自动跟随 */
+      .ask-mask { position: fixed; inset: 0; background: rgba(3, 3, 5, 0.55); z-index: var(--s-z-overlay); display: flex; align-items: center; justify-content: center; cursor: default; }
+      .ask-mask[hidden] { display: none; }
+      .ask-box { background: var(--s-bg-panel); border: 1px solid var(--s-border); border-radius: var(--s-radius); box-shadow: var(--s-shadow-popup); width: 440px; max-width: 92vw; padding: 20px; }
+      .ask-title { font-size: 1.4rem; font-weight: var(--s-fw-semi); color: var(--s-text-bright); margin-bottom: 10px; }
+      .ask-body { font-size: 1.2rem; line-height: 1.6; color: var(--s-text-dim); white-space: pre-wrap; margin-bottom: 18px; }
+      .ask-actions { display: flex; justify-content: flex-end; gap: 8px; }
+      :root[data-theme="light"] .ask-mask { background: rgba(33, 33, 52, 0.35); }
+      :root[data-theme="light"] .ask-box { background: #ffffff; border-color: #eaeaef; }
+
+      /* 主视图：同一时刻只显示一个（主页不该也是编辑器）*/
+      .mainview { display: none; height: 100%; min-height: 0; }
+      .mainview.active { display: flex; flex-direction: column; }
+      main#main-content { height: 100%; }
+      #workbench { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+
+      /* 主菜单（工作台）：**均匀大小**的 widget 网格，可拖拽排序 + 增删
+         网格用 auto-fill 保证每个卡片等宽（这就是「均匀大小」），
+         拖拽用 SortableJS（31k star / MIT / 零依赖），只给手柄 .drag 开拖拽。 */
+      .dash { padding: 24px; height: 100%; overflow: auto; }
+      .dash-banner { border-radius: 4px; padding: 24px; display: flex; align-items: center; justify-content: space-between; color: #ffffff; margin-bottom: 20px; }
+      .dash-banner .s-sub { color: rgba(255, 255, 255, 0.85); }
+      .dash-clock { font-size: 3.2rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+      .dash-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+      .dash-bar .s-label { flex: none; }
+      .dash-hint { color: rgb(102, 102, 103); font-size: 1.1rem; }
+      .dash-bar #dashAdd { margin-left: auto; }
+      /* 行高固定为 310px —— 日历（内容最高的组件）在「6 行月份 + 节假日文字换行」
+         这种最坏情况下量到约 302px，留 8px 余量。所有卡片尺寸一致；
+         内容超出的在自己卡内滚动，不会把整行撑高。 */
+      .dash-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); grid-auto-rows: 310px; gap: 20px; }
+
+      /* widget 卡片（外壳用 Strapi 的 .s-card 同款值）*/
+      .widget { background: rgb(33, 33, 52); border: 1px solid rgb(50, 50, 77); border-radius: 4px; box-shadow: rgba(3, 3, 5, 0.2) 1px 1px 10px; padding: 20px; position: relative; }
+      .widget-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex: none; }
+      .widget-head .s-label { flex: 1; }
+      .widget-actions { display: flex; gap: 2px; opacity: 0; transition: opacity 0.15s ease; }
+      .widget:hover .widget-actions { opacity: 1; }
+      .wbtn { height: 2rem; width: 2rem; padding: 0; border: none; background: transparent; color: rgb(165, 165, 186); cursor: pointer; border-radius: 2px; font-size: 1.3rem; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+      .wbtn:hover { background: rgb(50, 50, 77); color: rgb(255, 255, 255); }
+      .wbtn.drag { cursor: grab; }
+      .wbtn.drag:active { cursor: grabbing; }
+      .widget-ghost { opacity: 0.35; }
+      .dash-slot { flex: 1; min-height: 0; overflow: auto; }
+      .dash-slot .row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 1.3rem; color: rgb(192, 192, 207); }
+      .dash-slot .row input { accent-color: rgb(123, 121, 255); }
+      .dash-slot .mine { margin-left: auto; color: rgb(165, 165, 186); cursor: pointer; font-size: 1.2rem; }
+      .dash-slot .mine:hover { color: rgb(238, 94, 82); }
+      .dash-slot .add { display: flex; gap: 8px; margin-top: 10px; }
+      .dash-slot .add input { flex: 1; padding: 6px 10px; font-size: 1.2rem; }
+      .dash-slot .empty { color: rgb(165, 165, 186); font-size: 1.2rem; padding: 8px 0; }
+      /* 日历网格：**高度固定 + 行高自适应均分**。
+         为什么不能靠 auto 行高：有的月份 1 号是周五/周六，前面空位多，
+         格子总数会超 42 从而多出一行（实测 2027-01 / 2027-05 就是 7 行），
+         自然撑高日历 → 卡片被顶出固定行高。固定高度 + 1fr 分成以后，
+         6 行与 7 行的总高完全一致。 */
+      .dash-cal { display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 1fr; gap: 3px; font-size: 1.1rem; height: 172px; }
+      .dash-cal .h { color: rgb(165, 165, 186); text-align: center; }
+      .dash-cal .d { text-align: center; padding: 5px 0; border-radius: 4px; color: rgb(192, 192, 207); cursor: pointer; position: relative; user-select: none; }
+      .dash-cal .d:hover { background: rgb(50, 50, 77); }
+      .dash-cal .d.today { background: rgb(123, 121, 255); color: rgb(24, 24, 38); font-weight: 600; }
+      /* 节假日标红（用户要求「一律按照法定节假日来」）*/
+      .dash-cal .d.holiday { color: rgb(238, 94, 82); font-weight: 600; }
+      .dash-cal .d.today.holiday { color: rgb(24, 24, 38); }
+      /* 选中的日期：内描边，和"今天"的实底区分开 */
+      .dash-cal .d.selected { box-shadow: inset 0 0 0 2px rgb(123, 121, 255); }
+      .dash-cal .d .has-event { position: absolute; left: 50%; bottom: 1px; transform: translateX(-50%); width: 4px; height: 4px; border-radius: 50%; background: rgb(92, 177, 118); }
+
+      /* 日历：月份导航 */
+      .cal-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+      .cal-title { flex: 1; text-align: center; font-weight: var(--s-fw-bold); font-size: 1.3rem; color: rgb(255, 255, 255); }
+      .cal-today-btn { height: 2.2rem; padding: 0 8px; font-size: 1.1rem; }
+
+      /* 日历下方：节假日小字、标红 */
+     /* 节假日列表：小字标红，**固定为一行**（nowrap + 省略号）——
+         否则节日名字一长就换行，把那两个月的卡片顶出固定行高（实测 2027-01/05 溢出 9px）。
+         完整文本通过 title 提示。 */
+      .cal-holidays { margin-top: 8px; font-size: 1.05rem; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: rgb(238, 94, 82); }
+      .cal-holidays.none { color: rgb(102, 102, 103); }
+
+      /* 日历右键菜单 */
+      .day-menu { position: fixed; z-index: 999; background: rgb(33, 33, 52); border: 1px solid rgb(74, 74, 106); border-radius: 4px; box-shadow: rgba(3, 3, 5, 0.35) 1px 1px 10px; padding: 8px; min-width: 200px; }
+      .day-menu-head { font-size: 1.1rem; color: rgb(165, 165, 186); margin-bottom: 6px; }
+      .day-menu-input { width: 100%; padding: 6px 8px; font-size: 1.2rem; margin-bottom: 6px; }
+      .wbtn-add { display: block; width: 100%; text-align: left; height: auto; padding: 6px 8px; font-size: 1.2rem; margin-bottom: 4px; border: none; background: transparent; color: rgb(192, 192, 207); border-radius: 4px; }
+      .wbtn-add:hover { background: rgb(50, 50, 77); color: rgb(255, 255, 255); }
+
+      /* 日程组件顶部：当前编辑的是哪一天 */
+      .agenda-date { font-size: 1.2rem; color: rgb(123, 121, 255); margin-bottom: 6px; font-weight: var(--s-fw-bold); }
+      .dash-note { width: 100%; min-height: 84px; resize: vertical; padding: 8px 10px; font-size: 1.2rem; font-family: inherit; }
+
+      /* ===========================================================================
+         组件样式统一走 token（这是上一轮漏掉的）
+         ---------------------------------------------------------------------------
+         上一轮只做了主题「机制」，但组件里的颜色是**写死的深色值** ——
+         所以切到日间时卡片 / widget / 右键菜单仍旧是黑的。
+         这里按 token 重写一遍，深浅两套自动跟随；
+         因此也不再需要为浅色单独写一批 :root[data-theme="light"] .xxx 覆盖（已删）。
+         =========================================================================== */
+      .dash-banner { background: linear-gradient(90deg, var(--s-primary) 0%, var(--s-alternative) 121.48%); }
+      .dash-hint { color: var(--s-text-faint); }
+      .widget { background: var(--s-bg-panel); border-color: var(--s-border); box-shadow: var(--s-shadow-table); height: 100%; display: flex; flex-direction: column; }
+      .s-card { background: var(--s-bg-panel); border-color: var(--s-border); box-shadow: var(--s-shadow-table); }
+      .wbtn { color: var(--s-text-dim); }
+      .wbtn:hover { background: var(--s-bg-hover); color: var(--s-text-bright); }
+      .dash-slot .row { color: var(--s-text); }
+      .dash-slot .row input { accent-color: var(--s-primary); }
+      .dash-slot .mine, .dash-slot .empty, .dash-cal .h, .day-menu-head { color: var(--s-text-dim); }
+      .dash-slot .mine:hover { color: var(--s-danger); }
+      .dash-cal .d { color: var(--s-text); }
+      .dash-cal .d:hover { background: var(--s-bg-hover); }
+      .dash-cal .d.today { background: var(--s-primary); color: #ffffff; }
+      .dash-cal .d.today.holiday { color: #ffffff; }
+      .dash-cal .d.holiday { color: var(--s-danger); }
+      .dash-cal .d.selected { box-shadow: inset 0 0 0 2px var(--s-primary); }
+      .dash-cal .d .has-event { background: var(--s-success); }
+      .cal-title { color: var(--s-text-bright); }
+      .cal-holidays { color: var(--s-danger); }
+      .cal-holidays.none { color: var(--s-text-faint); }
+      .day-menu { background: var(--s-bg-panel); border-color: var(--s-border-strong); box-shadow: var(--s-shadow-popup); }
+      .wbtn-add { color: var(--s-text); }
+      .wbtn-add:hover { background: var(--s-bg-hover); color: var(--s-text-bright); }
+      .agenda-date { color: var(--s-primary); }
+      /* s-badge 的底色就是语义亮色（两套主题下都是亮的），所以字色固定用深色即可 */
+
+      /* ===========================================================================
+         文件中转站（第三个标签）
+         参照成熟文件管理器的通用做法（Windows 资源管理器 / Google Drive 的文件列表）：
+           · 左分类 + 计数；图标一律 SVG，不用 emoji
+           · 顶栏：搜索 + 面包屑 + 宫格/列表分段切换
+           · 列表视图带「列头」，点列头排序并显示方向箭头
+           · 文件类型用「单色文档图标 + 类型色」区分（Word 蓝 / Excel 绿 / PPT 橙 / PDF 红）
+           · 双击用系统默认程序打开、右键出菜单、Ctrl/Shift 多选、状态栏显示选中数
+         =========================================================================== */
+      /* 转译后 mainview 直接挂在 Strapi 的内容网格下，
+         而 Strapi 原来的主内容包装（[data-strapi-main-content]）成了一个空壳，
+         仍占着约 203px 高度 —— 就是用户看到的「上方一大块空白」。收掉它。 */
+      [data-strapi-main-content] { display: none !important; }
+
+      /* 欢迎页（未打开项目时）*/
+      .welcome { padding: 18px 14px; }
+      .welcome .w-t { color: var(--s-text-bright); font-size: 1.35rem; font-weight: var(--s-fw-semi); }
+      .welcome .w-h { color: var(--s-text-dim); font-size: 1.15rem; line-height: 1.6; margin: 6px 0 14px; }
+      .welcome button { width: 100%; }
+
+      .fm { display: flex; height: 100%; overflow: hidden; }
+
+      .fm-side { width: 216px; flex: none; overflow: auto; padding: 10px 8px 16px; background: var(--s-bg-panel); border-right: 1px solid var(--s-border); }
+      .fm-sec { color: var(--s-text-faint); font-size: 1.05rem; font-weight: var(--s-fw-bold); text-transform: uppercase; letter-spacing: 0.06em; padding: 14px 10px 5px; }
+      .fm-nav { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 4px; cursor: pointer; color: var(--s-text); font-size: 1.25rem; user-select: none; }
+      .fm-nav:hover { background: var(--s-bg-hover); }
+      .fm-nav.active { background: var(--s-primary200); color: var(--s-primary); font-weight: var(--s-fw-semi); }
+      .fm-nav .ic { width: 16px; height: 16px; flex: none; }
+      .fm-nav .ic svg { width: 100%; height: 100%; }
+      .fm-nav .lb { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .fm-nav .n { color: var(--s-text-faint); font-size: 1.05rem; }
+      .fm-nav.active .n { color: var(--s-primary); }
+      .fm-watched { padding: 2px 2px 0; }
+      .fm-watch { display: flex; align-items: center; gap: 9px; padding: 6px 10px; border-radius: 4px; color: var(--s-text-dim); font-size: 1.15rem; }
+      .fm-watch:hover { background: var(--s-bg-hover); }
+      .fm-watch .ic { width: 15px; height: 15px; flex: none; }
+      .fm-watch .ic svg { width: 100%; height: 100%; }
+      .fm-watch .lb { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .fm-watch .x { flex: none; cursor: pointer; display: flex; opacity: 0.6; }
+      .fm-watch .x:hover { opacity: 1; color: var(--s-danger); }
+      .fm-watch .x svg { width: 13px; height: 13px; }
+      .fm-root { color: var(--s-text-faint); font-size: 1rem; padding: 12px 10px 0; word-break: break-all; }
+
+      .fm-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+      .fm-bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--s-border); flex: none; }
+      .fm-search { display: flex; align-items: center; gap: 7px; padding: 0 10px; height: 3rem; border: 1px solid var(--s-border); border-radius: 4px; background: var(--s-bg-deepest); width: 240px; }
+      .fm-search:focus-within { border-color: var(--s-primary); box-shadow: var(--s-primary) 0 0 0 2px; }
+      .fm-search svg { width: 15px; height: 15px; flex: none; color: var(--s-text-dim); }
+      .fm-search input { flex: 1; min-width: 0; border: none !important; background: transparent !important; box-shadow: none !important; padding: 0; font-size: 1.2rem; }
+      .fm-crumb { color: var(--s-text-dim); font-size: 1.2rem; }
+      .fm-bar .sp { flex: 1; }
+
+      .fm-seg { display: flex; border: 1px solid var(--s-border); border-radius: 4px; overflow: hidden; }
+      .fm-seg .seg { height: 2.8rem; width: 3.2rem; padding: 0; border: none; border-radius: 0; background: transparent; color: var(--s-text-dim); display: inline-flex; align-items: center; justify-content: center; }
+      .fm-seg .seg svg { width: 15px; height: 15px; }
+      .fm-seg .seg:hover { background: var(--s-bg-hover); color: var(--s-text); }
+      .fm-seg .seg.on { background: var(--s-primary200); color: var(--s-primary); }
+
+      .fm-cols { display: grid; grid-template-columns: 1fr 148px 88px 152px; align-items: center; gap: 10px; padding: 0 16px; height: 3.1rem; border-bottom: 1px solid var(--s-border); flex: none; }
+      .fm-cols button { display: inline-flex; align-items: center; gap: 4px; border: none; background: transparent; color: var(--s-text-dim); font-size: 1.1rem; cursor: pointer; padding: 0; height: auto; }
+      .fm-cols button:hover { color: var(--s-text-bright); }
+      .fm-cols .c-size { justify-content: flex-end; }
+      .fm-cols .ar { display: inline-flex; }
+      .fm-cols .ar svg { width: 12px; height: 12px; }
+      .fm-cols button.on { color: var(--s-primary); }
+
+      .fm-list { flex: 1; overflow: auto; padding: 12px 16px; }
+      .fm-list.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; align-content: start; }
+      .fm-list.list { display: block; padding: 0; }
+
+      /* 文件类型着色：单色 SVG 文档图标 + 类型色（不依赖彩色 emoji）*/
+      .ftype { display: inline-flex; color: var(--s-text-dim); }
+      .ftype svg { width: 100%; height: 100%; }
+      .ftype[data-ext="docx"], .ftype[data-ext="doc"], .ftype[data-ext="wps"], .ftype[data-ext="odt"] { color: #2b579a; }
+      .ftype[data-ext="xlsx"], .ftype[data-ext="xls"], .ftype[data-ext="et"], .ftype[data-ext="ods"] { color: #217346; }
+      .ftype[data-ext="pptx"], .ftype[data-ext="ppt"], .ftype[data-ext="dps"], .ftype[data-ext="odp"] { color: #d24726; }
+      .ftype[data-ext="pdf"] { color: #d93025; }
+
+      .fm-card { border: 1px solid var(--s-border); border-radius: 4px; padding: 14px 10px 10px; text-align: center; cursor: pointer; background: var(--s-bg-panel); position: relative; }
+      .fm-card:hover { border-color: var(--s-primary); }
+      .fm-card.sel { border-color: var(--s-primary); background: var(--s-primary100); box-shadow: inset 0 0 0 1px var(--s-primary); }
+      .fm-card .ico { width: 34px; height: 34px; margin: 0 auto 8px; }
+      .fm-card .nm { color: var(--s-text-bright); font-size: 1.15rem; word-break: break-all; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 3.2rem; }
+      .fm-card .ms { color: var(--s-text-faint); font-size: 1rem; margin-top: 5px; }
+      .fm-card .ops { display: flex; gap: 4px; justify-content: center; margin-top: 7px; opacity: 0; transition: opacity 0.12s ease; }
+      .fm-card:hover .ops, .fm-card.sel .ops { opacity: 1; }
+      .fm-card .ops button { height: 2.2rem; width: 2.4rem; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+      .fm-card .ops button svg { width: 13px; height: 13px; }
+      .fm-card .gone { position: absolute; top: 6px; right: 6px; color: var(--s-danger); display: flex; }
+      .fm-card .gone svg { width: 14px; height: 14px; }
+
+      .fm-row { display: grid; grid-template-columns: 1fr 148px 88px 152px; align-items: center; gap: 10px; padding: 0 16px; height: 3.6rem; border-bottom: 1px solid var(--s-border); cursor: pointer; }
+      .fm-row:hover { background: var(--s-bg-hover); }
+      .fm-row.sel { background: var(--s-primary100); }
+      .fm-row .nm { display: flex; align-items: center; gap: 9px; min-width: 0; color: var(--s-text-bright); font-size: 1.25rem; }
+      .fm-row .nm .ico { width: 17px; height: 17px; flex: none; }
+      .fm-row .nm .tx { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .fm-row .ms, .fm-row .sz { color: var(--s-text-dim); font-size: 1.1rem; }
+      .fm-row .sz { text-align: right; }
+      .fm-row .ops { display: flex; gap: 4px; justify-content: flex-end; }
+      .fm-row .ops button { height: 2.3rem; width: 2.5rem; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+      .fm-row .ops button svg { width: 13px; height: 13px; }
+
+      .fm-empty { color: var(--s-text-dim); font-size: 1.25rem; padding: 48px 0; text-align: center; }
+      .fm-empty .ic { width: 40px; height: 40px; margin: 0 auto 10px; color: var(--s-text-faint); }
+      .fm-empty .ic svg { width: 100%; height: 100%; }
+
+      .fm-foot { flex: none; display: flex; align-items: center; gap: 10px; height: 3rem; padding: 0 16px; border-top: 1px solid var(--s-border); color: var(--s-text-dim); font-size: 1.1rem; }
+      .fm-foot .sp { flex: 1; }
+
+      .fm-ctx { position: fixed; z-index: 999; background: var(--s-bg-panel); border: 1px solid var(--s-border-strong); border-radius: 4px; box-shadow: var(--s-shadow-popup); padding: 5px; min-width: 190px; }
+      .fm-ctx button { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; height: auto; padding: 7px 10px; font-size: 1.2rem; border: none; background: transparent; color: var(--s-text); border-radius: 4px; }
+      .fm-ctx button:hover { background: var(--s-bg-hover); color: var(--s-text-bright); }
+      .fm-ctx button svg { width: 14px; height: 14px; flex: none; }
+      .fm-ctx hr { border: none; border-top: 1px solid var(--s-border); margin: 5px 0; }
+      .fm-ctx .hdr { color: var(--s-text-faint); font-size: 1.05rem; padding: 4px 10px 6px; word-break: break-all; }
+
+      .fm-ver-panel { border: 1px solid var(--s-border); border-radius: 4px; margin: 12px; padding: 12px; background: var(--s-bg-panel); }
+      .fm-ver-panel .ttl { color: var(--s-text-bright); font-size: 1.25rem; margin-bottom: 4px; display: flex; align-items: center; gap: 7px; }
+      .fm-ver-panel .ttl svg { width: 15px; height: 15px; color: var(--s-primary); }
+      .fm-ver { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 4px; border: 1px solid var(--s-border); margin-top: 6px; font-size: 1.15rem; }
+      .fm-ver .t { color: var(--s-text); }
+      .fm-ver .sz { color: var(--s-text-dim); margin-left: auto; }
+      .fm-ver.cur { border-color: var(--s-success); }
+      .fm-ver.cur .t::after { content: '（当前内容）'; color: var(--s-success); font-size: 1rem; }
+      .fm-ver button { height: 2.3rem; padding: 0 9px; font-size: 1.1rem; }
+</style>
+</head>
+<body>
+<div id="toast"></div>
+
+    <div id="strapi"><section aria-label="Notifications alt+T" tabindex="-1" aria-live="polite" aria-relevant="additions text" aria-atomic="false"></section><div class="sc-bdvwhi fOpXlX"><a href="#main-content" class="sc-bdvwhi djtATL sc-evcgTf jIEaYq">Skip to content</a><div class="sc-bdvwhi dyfTci sc-gsDMPd lcwsEm"><nav class="sc-bdvwhi giKbqi sc-gsDMPd dyzSCD sc-iNpxwW dMZONm"><div class="sc-bdvwhi IGXJt sc-gsDMPd gEiNkw"><div class="sc-bdvwhi bDDbwU"><div class="sc-bdvwhi dnQRzc sc-gsDMPd kksjey sc-iODzlQ gsvtjL"><img src="data:image/svg+xml,%3csvg width='800' height='800' viewBox='0 0 800 800' fill='none' xmlns='http://www.w3.org/2000/svg'%3e %3cpath d='M39 282c0-118 0-176.9 36.6-213.5C112.2 32 171.1 32 288.9 32h221.2c117.8 0 176.7 0 213.3 36.6C760 105.2 760 164.1 760 281.9v221.2c0 117.8 0 176.7-36.6 213.3C686.8 753 627.9 753 510.1 753H288.9c-117.8 0-176.7 0-213.3-36.6C39 679.8 39 620.9 39 503.1V281.9Z' fill='%234945FF'/%3e %3cpath fill-rule='evenodd' clip-rule='evenodd' d='M536.4 250.7H293.7v123.8h123.8v123.7h123.8V255.5c0-2.6-2.2-4.8-4.9-4.8Z' fill='white'/%3e %3cpath fill='white' d='M412.7 374.5h4.8v4.8h-4.8z'/%3e %3cpath d='M293.8 374.5h119c2.6 0 4.8 2.1 4.8 4.8v119h-119a4.8 4.8 0 0 1-4.8-4.9v-119Z' fill='%239593FF'/%3e %3cpath d='M417.5 498.2h123.8L421.6 618a2.4 2.4 0 0 1-4-1.7v-118ZM293.8 374.5h-118a2.4 2.4 0 0 1-1.7-4.1l119.7-119.7v123.8Z' fill='%239593FF'/%3e%3c/svg%3e" alt="Application logo" width="100%" height="100%"><span class="sc-kDTkBQ jdbkwO"><span>MoonBit Dashboard</span><span>Workplace</span></span></div></div></div><div data-orientation="horizontal" role="separator" class="sc-bdvwhi hpbQbv sc-ctqRxX ibifUS"></div><div class="sc-bdvwhi gqBWyv sc-gsDMPd gEiNkw sc-eCFXGg farJBN"><ul class="sc-bdvwhi hYdcRO sc-gsDMPd fFLyIQ sc-jashRn ghxWlJ"><li class="sc-bdvwhi gqBWyv sc-gsDMPd gEiNkw"><div><span data-state="closed"><a data-view="home" aria-label="主菜单" class="sc-iyyTuz sc-kOcEki cPNLT jmnMTE active" href="#"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="20" height="20" fill="#c0c0cf" aria-hidden="true"><rect x="4" y="4" width="10" height="10" rx="2"/><rect x="18" y="4" width="10" height="10" rx="2"/><rect x="4" y="18" width="10" height="10" rx="2"/><rect x="18" y="18" width="10" height="10" rx="2"/></svg><span class="sc-kDTkBQ jdbkwO">主菜单</span></a></span></div></li><li class="sc-bdvwhi gqBWyv sc-gsDMPd gEiNkw"><div><span data-state="closed"><a data-view="project" aria-label="项目" class="sc-iyyTuz sc-kOcEki cPNLT jmnMTE " href="#"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="20" height="20" fill="#c0c0cf" aria-hidden="true"><path d="M4 8a2 2 0 0 1 2-2h6l2 2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/></svg><span class="sc-kDTkBQ jdbkwO">项目</span></a></span></div></li><li class="sc-bdvwhi gqBWyv sc-gsDMPd gEiNkw"><div><span data-state="closed"><a data-view="agent" aria-label="文件中转站" class="sc-iyyTuz sc-kOcEki cPNLT jmnMTE " href="#"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="20" height="20" fill="#c0c0cf" aria-hidden="true"><path d="M7 3h18a2 2 0 0 1 2 2v3H5V5a2 2 0 0 1 2-2z"/><path d="M5 10h22v17a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"/><rect x="12" y="14" width="8" height="3" rx="1" fill="#181820"/></svg><span class="sc-kDTkBQ jdbkwO">文件中转站</span></a></span></div></li><li class="sc-bdvwhi gqBWyv sc-gsDMPd gEiNkw"><div><span data-state="closed"><a data-view="tools" aria-label="工具" class="sc-iyyTuz sc-kOcEki cPNLT jmnMTE " href="#"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="20" height="20" fill="#c0c0cf" aria-hidden="true"><path d="M21.5 6.5a6 6 0 0 0 7.9 7.9l-9.7 9.6a3.5 3.5 0 0 1-5-5z"/><path d="M21.5 6.5l3.5-3.5a4 4 0 0 1 0 5.6"/><circle cx="8.5" cy="23.5" r="2"/></svg><span class="sc-kDTkBQ jdbkwO">工具</span></a></span></div></li></ul><div class="sc-bdvwhi dcWvXc"><div class="sc-bdvwhi gqBWyv sc-gsDMPd gEiNkw"><button class="sc-bdvwhi ExYOD sc-gsDMPd hFAGbO sc-fKVoIy eEEoTe sc-gmCOPf dlVlqO" aria-disabled="false" type="button" id="radix-:rg:" aria-haspopup="menu" aria-expanded="false" data-state="closed"><span class="sc-bdvwhi gqBWyv sc-dkPwfY kMTURw"><div class="sc-bdvwhi gqBWyv sc-gsDMPd eHjCAW"><div class="sc-bdvwhi gqBWyv sc-gsDMPd iwhkGK sc-UMwcW gABokG"><span data-state="closed" class="sc-bqiQyc bkfMdU"><span><span class="sc-bdvwhi gqBWyv sc-dkPwfY kkvXIw">MA</span></span></span></div><span class="sc-kDTkBQ jdbkwO">Moonbit Admin</span></div></span></button></div></div></div><div class="sc-bdvwhi hBkpLh"><button class="sc-bdvwhi gQpdAr sc-gsDMPd iwhkGK sc-iwjfEg gXCYDz" aria-disabled="false" aria-expanded="false" aria-controls="burger-menu" type="button" data-state="closed" style="border-width: medium; border-style: none; border-color: currentcolor; border-image: none;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="16" height="16" fill="#ffffff" aria-hidden="true" focusable="false"><path d="M28.5 16a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 1 1 0-3h22a1.5 1.5 0 0 1 1.5 1.5M5 9.5h22a1.5 1.5 0 0 0 0-3H5a1.5 1.5 0 0 0 0 3m22 13H5a1.5 1.5 0 1 0 0 3h22a1.5 1.5 0 1 0 0-3"></path></svg><span class="sc-kDTkBQ jdbkwO">Menu</span></button></div></nav><div class="sc-bdvwhi cHgppv sc-gsDMPd ndA-Ds"><div class="sc-bdvwhi bjfYTI sc-gsDMPd iwhkGK sc-ibkwDZ dHSiXe"><div class="sc-bdvwhi hbAFoo sc-gsDMPd gyTsYH"><div class="sc-bdvwhi lnmTPo sc-gsDMPd fdyZai"><div class="sc-bdvwhi gqBWyv"><span class="sc-bdvwhi irfbVM sc-dkPwfY ctKiCE">MoonBit 工作台</span><span class="sc-bdvwhi bictbn sc-dkPwfY dnmzsv">时钟 · 日历 · 日程 · 待办 · 便签，都在左边「主菜单」里</span></div><div class="sc-bdvwhi gqBWyv"><a target="_blank" href="#" aria-disabled="false" class="sc-bdvwhi iCdydP sc-dJjZnq cSbYWd sc-bdvwhi frpJcH sc-gsDMPd gGFitX sc-fKVoIy fipIAm"><span class="sc-bdvwhi gqBWyv sc-dkPwfY kMTURw">去主菜单看看</span></a></div></div><div class="sc-bdvwhi laFEt"><button class="sc-bdvwhi gQpdAr sc-gsDMPd iwhkGK sc-iwjfEg gXCYDz" aria-disabled="false" type="button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="16" height="16" fill="currentColor" aria-hidden="true" focusable="false"><path d="M26.061 23.939a1.503 1.503 0 0 1-2.125 2.125L16 18.125l-7.939 7.936a1.503 1.503 0 1 1-2.125-2.125L13.875 16 5.939 8.061a1.503 1.503 0 1 1 2.125-2.125L16 13.875l7.939-7.94a1.502 1.502 0 1 1 2.125 2.125L18.125 16z"></path></svg><span class="sc-kDTkBQ jdbkwO">关闭</span></button></div></div></div><div class="sc-bdvwhi gqBWyv sc-igXiIo bbknlM">
+                  <div id="mainview-home" class="mainview active">
+                    <div class="dash">
+                      <div class="s-banner dash-banner">
+                        <div>
+                          <div class="s-h1">你好，MoonBit</div>
+                          <div id="dashDate" class="s-sub"></div>
+                        </div>
+                        <div id="dashClock" class="dash-clock">--:--:--</div>
+                      </div>
+                      <div class="dash-bar">
+                        <span class="s-label">我的工作台</span>
+                        <span class="dash-hint">拖动手柄排序 · 点右侧按钮移除</span>
+                        <button id="dashAdd" class="ghost">+ 添加组件</button>
+                      </div>
+                      <div id="dashGrid" class="dash-grid"></div>
+                    </div>
+                  </div>
+                  <div id="mainview-project" class="mainview">
+                    <div id="workbench">
+
+      <div id="titlebar">
+        <span class="brand">MoonBit IDE</span>
+        <button class="ghost" id="openFolder">打开文件夹</button>
+        <button class="ghost" id="cmdBtn">命令面板 ⌃⇧P</button>
+        <input id="cwd" placeholder="模块根目录" />
+        <span class="spacer"></span>
+        <button data-cmd="check">check</button>
+        <button data-cmd="build">build</button>
+        <button data-cmd="test">test</button>
+        <button data-cmd="fmt">fmt</button>
+        <button data-cmd="run">运行</button>
+      </div>
+      <div id="body">
+        <div id="sidebar">
+          <div class="view" id="view-home"></div>
+          <div class="view active" id="view-project">
+            <div class="head">资源管理器</div>
+            <div id="tree"></div>
+            <div class="head">搜索</div>
+            <div id="searchBox">
+              <input id="searchInput" placeholder="搜索工作区（回车/自动）…" />
+            </div>
+            <div id="searchResults"></div>
+            <div class="head">大纲 <span id="outlineHint" class="hint"></span></div>
+            <div id="outline"></div>
+          </div>
+          <div class="view" id="view-agent"></div>
+          <div class="view" id="view-tools"></div>
+        </div>
+        <div id="editorArea">
+          <div id="tabs"></div>
+          <div id="editor"></div>
+        </div>
+      </div>
+      <div id="panel">
+        <div id="panelHead">
+          <span class="active" data-panel="output">输出</span>
+          <span data-panel="problems">问题</span>
+          <span data-panel="backend">后端</span>
+          <span data-panel="api">接口</span>
+          <span data-panel="terminal">终端</span>
+          <span class="spacer"></span>
+          <span id="clearPanel">清空</span>
+        </div>
+        <div id="output"></div>
+        <div id="problems"></div>
+        <div id="backend">
+          <div id="beBar">
+            <button id="beStart"><span class="bi"></span>启动后端</button>
+            <button id="beStop" class="stop" disabled><span class="bi"></span>停止</button>
+            <button id="beBuild" class="ghost">编译</button>
+            <span id="beState" class="stopped">已停止</span>
+            <span id="beMeta"></span>
+            <span class="spacer"></span>
+            <span id="beClear">清空日志</span>
+          </div>
+          <div id="beLog"></div>
+          <div id="beData"></div>
+        </div>
+        <div id="api">
+          <div id="apiBar">
+            <span id="apiMethod">GET</span>
+            <select id="apiEndpoint" title="从 conduit/openapi.yml 解析出的端点"></select>
+            <input id="apiPath" placeholder="/api/..." />
+            <input id="apiBase" value="http://127.0.0.1:8110" title="后端地址" />
+            <input id="apiToken" placeholder="token" title="登录后自动填入；受保护接口需要" />
+            <button id="apiSend">发送</button>
+          </div>
+          <div id="apiMeta"></div>
+          <div id="apiBody">
+            <div id="apiReqCol">
+              <textarea id="apiReqBody" placeholder="请求体（JSON，GET 可留空）"></textarea>
+            </div>
+            <div id="apiRespCol">
+              <pre id="apiResp">尚未发送请求</pre>
+            </div>
+          </div>
+        </div>
+        <div id="terminal"></div>
+      </div>
+      <div id="statusbar">
+        <span id="stProject">项目：—</span>
+        <span id="stModule">模块：—</span>
+        <span id="stFile">—</span>
+        <span class="right" id="stMsg">就绪</span>
+      </div>
+    </div>
+                    </div>
+                  </div>
+                  <div id="mainview-agent" class="mainview">
+                    <div class="fm">
+                      <!-- 左侧分类。图标一律用内联 SVG（stroke=currentColor），
+                           不用 emoji —— emoji 依赖系统字体、彩色、大小基线不可控、语义也模糊。 -->
+                      <aside class="fm-side">
+                        <div class="fm-sec">我的文件</div>
+                        <div class="fm-nav active" data-cat="recent">
+                          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 2"/></svg>
+                          <span class="lb">最近</span><span class="n"></span>
+                        </div>
+                        <div class="fm-nav" data-cat="desktop">
+                          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="12.5" rx="2"/><path d="M9 20h6M12 16.5V20"/></svg>
+                          <span class="lb">桌面</span><span class="n"></span>
+                        </div>
+                        <div class="fm-nav" data-cat="downloads">
+                          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5v10.5m0 0l-4-4m4 4l4-4M4.5 19h15"/></svg>
+                          <span class="lb">下载</span><span class="n"></span>
+                        </div>
+                        <div class="fm-nav" data-cat="other">
+                          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 7a2 2 0 0 1 2-2h3.6l2 2h7.4a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2z"/></svg>
+                          <span class="lb">其他位置</span><span class="n"></span>
+                        </div>
+                        <div class="fm-sec">备份</div>
+                        <div class="fm-nav" data-cat="backed">
+                          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 4.5h15a1 1 0 0 1 1 1v3.5h-17V5.5a1 1 0 0 1 1-1z"/><path d="M6 9v9a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V9"/><path d="M10.5 13h3"/></svg>
+                          <span class="lb">已备份</span><span class="n"></span>
+                        </div>
+                        <div class="fm-sec">正在监控</div>
+                        <div id="relayWatched" class="fm-watched"></div>
+                        <div class="fm-root" id="relayRoot"></div>
+                      </aside>
+
+                      <section class="fm-main">
+                        <div class="fm-bar">
+                          <label class="fm-search">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+                            <input id="fmSearch" placeholder="搜索文件" />
+                          </label>
+                          <span id="fmCrumb" class="fm-crumb">最近</span>
+                          <span class="sp"></span>
+                          <div class="fm-seg">
+                            <button id="fmViewGrid" class="seg on" title="宫格视图">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>
+                            </button>
+                            <button id="fmViewList" class="seg" title="列表视图">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 6.5h16M4 12h16M4 17.5h16"/></svg>
+                            </button>
+                          </div>
+                          <button id="relayWatchAdd" class="ghost">+ 监控文件夹</button>
+                        </div>
+                        <div class="fm-cols" id="fmCols" hidden>
+                          <button class="c-name" data-sort="name">名称<span class="ar"></span></button>
+                          <button class="c-time" data-sort="time">修改时间<span class="ar"></span></button>
+                          <button class="c-size" data-sort="size">大小<span class="ar"></span></button>
+                          <span class="c-ops"></span>
+                        </div>
+                        <div id="fmList" class="fm-list grid"></div>
+                        <div class="fm-foot" id="fmFoot"></div>
+                      </section>
+                    </div>
+                  </div>
+                  <div id="mainview-tools" class="mainview"></div>></div></div></div></div></div><span class="sc-kDTkBQ jdbkwO"><p role="log" aria-live="polite" id="live-region-log" aria-relevant="all"></p><p role="status" aria-live="polite" id="live-region-status" aria-relevant="all"></p><p role="alert" aria-live="assertive" id="live-region-alert" aria-relevant="all"></p></span></div>
+    
+    
+  
+
+<div class="sc-bdvwhi gqBWyv"></div>
+<div id="palette">
+      <div id="paletteBox">
+        <input id="paletteInput" placeholder="输入命令…" />
+        <div id="paletteList"></div>
+      </div>
+    </div>
+
+    
+<!-- 通用确认框：替代原生 confirm()。原生 confirm 是同步阻塞的 —— 弹窗期间渲染
+     进程不刷新，叠上 Monaco 的光标样式，用户会看到「鼠标消失」。 -->
+<div id="askMask" class="ask-mask" hidden>
+  <div class="ask-box" role="dialog" aria-modal="true" aria-labelledby="askTitle">
+    <div class="ask-title" id="askTitle"></div>
+    <div class="ask-body" id="askBody"></div>
+    <div class="ask-actions">
+      <button class="ghost" id="askCancel">取消</button>
+      <button id="askOk">确认</button>
+    </div>
+  </div>
+</div>
+<script src="./vendor/sortable.min.js"></script>
+    <link rel="stylesheet" href="./node_modules/@xterm/xterm/css/xterm.css" />
+    <!--
+      注意顺序：xterm / addon-fit 必须放在 Monaco 的 loader.js **之前**。
+      它们都是 UMD 包，检测到全局 `define.amd` 就会注册成 AMD 模块而不挂到 window；
+      而 loader.js 恰好会定义全局 define —— 放后面的话 window.Terminal 永远不存在，
+      终端面板就一直是空的（这个坑踩过一次）。
+    -->
+    <script src="./node_modules/@xterm/xterm/lib/xterm.js"></script>
+    <script src="./node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
+    <script src="./node_modules/monaco-editor/min/vs/loader.js"></script>
+    <script src="./moonbit-lang.js"></script>
+    <script src="./renderer.js"></script>
+    <script src="./icons.js"></script>
+    <script src="./holidays.js"></script>
+    <script src="./theme.js"></script>
+    <script src="./dash.js"></script>
+    <script src="./relay.js"></script>
+</body>
+</html>

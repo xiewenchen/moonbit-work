@@ -1,0 +1,11 @@
+.hljs { display: block; overflow-x: auto; padding: 0.5em; background: rgb(0, 43, 54); color: rgb(131, 148, 150); }
+.hljs-comment, .hljs-quote { color: rgb(88, 110, 117); }
+.hljs-keyword, .hljs-selector-tag, .hljs-addition { color: rgb(133, 153, 0); }
+.hljs-number, .hljs-string, .hljs-meta .hljs-meta-string, .hljs-literal, .hljs-doctag, .hljs-regexp { color: rgb(42, 161, 152); }
+.hljs-title, .hljs-section, .hljs-name, .hljs-selector-id, .hljs-selector-class { color: rgb(38, 139, 210); }
+.hljs-attribute, .hljs-attr, .hljs-variable, .hljs-template-variable, .hljs-class .hljs-title, .hljs-type { color: rgb(181, 137, 0); }
+.hljs-symbol, .hljs-bullet, .hljs-subst, .hljs-meta, .hljs-meta .hljs-keyword, .hljs-selector-attr, .hljs-selector-pseudo, .hljs-link { color: rgb(203, 75, 22); }
+.hljs-built_in, .hljs-deletion { color: rgb(220, 50, 47); }
+.hljs-formula { background: rgb(7, 54, 66); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: bold; }

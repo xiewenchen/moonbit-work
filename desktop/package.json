@@ -1,0 +1,33 @@
+{
+  "name": "moonbit-ide",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MoonBit 后端一站式开发平台 — 桌面 IDE 壳（Electron + Monaco）",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test:backend": "node test-backend.js",
+    "test:api": "node test-api-debug.js",
+    "test:project": "node test-project-detect.js",
+    "test:gui": "electron e2e-gui.js",
+    "test:features": "electron e2e-features.js",
+    "test:term": "electron test-term.js",
+    "test:lsp": "node test-lsp.js",
+    "test:search": "node test-search.js",
+    "test:all": "node test-lsp.js && node test-search.js && node test-symbols.js && node test-lsp-client.js",
+    "test:lsp-client": "node test-lsp-client.js",
+    "test:symbols": "node test-symbols.js"
+  },
+  "devDependencies": {
+    "electron": "^44.4.2",
+    "monaco-editor": "^0.56.0",
+    "@xterm/xterm": "^5.5.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "node-pty": "^1.0.0"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "node-pty": "^1.1.0"
+  }
+}

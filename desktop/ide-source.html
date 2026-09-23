@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:;"
+    />
+    <title>MoonBit IDE</title>
+    <!-- ===================================================================
+         Strapi Design System 的原装样式（从运行中的 Strapi admin 导出，原样未改）
+         来源：strapi-ui/sheet-04-DESIGN-SYSTEM.css（即 <style data-styled="active"> 的全部 244 条规则）
+         注意：其中的组件类名（.hMMibZ 之类）是 styled-components 每次渲染现生成的 hash，
+         所以它只能提供【全局基础样式 + 原装数值】；具体组件的绑定见下方“桥接层”。
+         =================================================================== -->
+    <style>
+      /* ===========================================================================
+         Strapi 设计 token（取自 @strapi/design-system 的 dist/index.js 与 common-theme）
+         ---------------------------------------------------------------------------
+         为什么要抽成变量：以前色值散落在 150 行 CSS 里，改一次主题要全局搜替换。
+         现在集中在这里 —— 想换主题只改这一段。
+         token 来源与取值：
+           · 品牌色   #7b79ff（primary600）/ #4945ff（primary700，hover）
+           · 中性色阶 #f6f6f9 → #181826（Strapi 的 neutral100…neutral900）
+           · 语义色   success #5cb176 / danger #ee5e52 / warning var(--s-warning) / info #66b7f1
+           · 圆角     统一 4px（Strapi 的 borderRadius 就是一个值，不分级）
+           · 间距     4 的倍数（4/8/12/16/20/24）
+           · 字重     400/500/600（Strapi 不用 700）
+         =========================================================================== */
+      :root {
+        /* =======================================================================
+           第一层：Strapi design-system 的 token 原值（dark theme，逐值照抄）
+           来源：@strapi/design-system/dist/index.mjs 里 darkTheme 的 color 对象
+           注意：dark 模式下色阶是整体翻转的：neutral0 反而是「卡片底」，
+             neutral800 是「最亮的字」。所以下面按「档位」照抄，不按直觉。
+           ======================================================================= */
+        --s-neutral0: #212134;
+        --s-neutral100: #181826;
+        --s-neutral150: #32324d;
+        --s-neutral200: #4a4a6a;
+        --s-neutral300: #666687;
+        --s-neutral400: #a5a5ba;
+        --s-neutral500: #c0c0cf;
+        --s-neutral600: #a5a5ba;
+        --s-neutral700: #eaeaef;
+        --s-neutral800: #ffffff;
+        --s-neutral900: #ffffff;
+        --s-neutral1000: #ffffff;
+
+        --s-primary100: #181826;
+        --s-primary200: #4a4a6a;
+        --s-primary500: #4945ff;
+        --s-primary600: #7b79ff;
+        --s-primary700: #7b79ff;
+
+        /* 按钮专用（Strapi 单独留了一组，主按钮底用的是 buttonPrimary600） */
+        --s-button-primary500: #7b79ff;
+        --s-button-primary600: #4945ff;
+        --s-button-neutral0: #ffffff;
+
+        --s-danger100: #181826;
+        --s-danger200: #4a4a6a;
+        --s-danger500: #ee5e52;
+        --s-danger600: #ee5e52;
+        --s-danger700: #ee5e52;
+
+        --s-success100: #181826;
+        --s-success200: #4a4a6a;
+        --s-success500: #5cb176;
+        --s-success600: #5cb176;
+        --s-success700: #c6f0c2;
+
+        --s-warning100: #181826;
+        --s-warning200: #4a4a6a;
+        --s-warning500: #f29d41;
+        --s-warning600: #f29d41;
+        --s-warning700: #fae7b9;
+
+        --s-secondary100: #181826;
+        --s-secondary200: #4a4a6a;
+        --s-secondary500: #66b7f1;
+        --s-secondary600: #66b7f1;
+        --s-secondary700: #b8e1ff;
+
+        --s-alternative100: #181826;
+        --s-alternative200: #4a4a6a;
+        --s-alternative500: #ac73e6;
+        --s-alternative600: #ac73e6;
+        --s-alternative700: #e0c1f4;
+
+        /* =======================================================================
+           第二层：结构 token。Strapi 的 common-theme 里就是这些值
+           （spaces 是 12 档、borderRadius 只有一个值、字重不用 700）
+           ======================================================================= */
+        --s-radius: 4px;
+        --s-radius-sm: 2px;
+        --s-space-1: 4px;
+        --s-space-2: 8px;
+        --s-space-3: 12px;
+        --s-space-4: 16px;
+        --s-space-5: 20px;
+        --s-space-6: 24px;
+        --s-space-7: 32px;
+        --s-space-8: 40px;
+        --s-fw-regular: 400;
+        --s-fw-semi: 500;
+        --s-fw-bold: 600;
+        /* 行高：Strapi 的 lineHeights 数组取前几档 */
+        --s-lh-tight: 1.14;
+        --s-lh-snug: 1.25;
+        --s-lh-base: 1.43;
+        --s-lh-loose: 1.5;
+        /* 阴影：dark 用的是「更重更黑」的一套（实测 1px 1px 10px rgba(3,3,5,.35)） */
+        --s-shadow-popup: 1px 1px 10px rgba(3, 3, 5, 0.35);
+        --s-shadow-table: 1px 1px 10px rgba(3, 3, 5, 0.2);
+        --s-shadow-filter: 1px 1px 10px rgba(3, 3, 5, 0.35);
+        /* z-index 层级（照抄 Strapi） */
+        --s-z-nav: 100;
+        --s-z-overlay: 300;
+        --s-z-modal: 310;
+        --s-z-dialog: 320;
+        --s-z-popover: 500;
+        --s-z-notification: 700;
+        --s-z-tooltip: 1000;
+
+        /* =======================================================================
+           第三层：语义映射。上层 CSS 只引用这一组 —— 想换浅色主题只改这里。
+           值一律等价于 Strapi dark theme 里对应角色的 token。
+           ======================================================================= */
+        --s-bg-deepest: var(--s-neutral100);   /* #181826 页面底（实测 bodyBg）*/
+        --s-bg-panel: var(--s-neutral0);       /* #212134 面板/卡片（实测出现最多）*/
+        --s-bg-raised: var(--s-neutral150);    /* #32324d 输入框/悬浮层 */
+        --s-bg-hover: var(--s-neutral150);     /* #32324d hover */
+        --s-bg-active: var(--s-neutral200);    /* #4a4a6a 选中 */
+        --s-border: var(--s-neutral150);       /* #32324d */
+        --s-border-strong: var(--s-neutral200);/* #4a4a6a */
+        --s-text: var(--s-neutral500);         /* #c0c0cf 正文（实测出现 29 次，最多）*/
+        --s-text-dim: var(--s-neutral400);     /* #a5a5ba 次要 */
+        --s-text-faint: var(--s-neutral300);   /* #666687 更弱 */
+        --s-text-bright: var(--s-neutral800);  /* #ffffff 标题/强文字 */
+        --s-primary: var(--s-primary600);      /* #7b79ff 强调色（文字/图标/边框）*/
+        --s-primary-dark: var(--s-primary500); /* #4945ff hover 更深 */
+        --s-primary-dim: #b2b1ff;
+        --s-success: var(--s-success500);
+        --s-danger: var(--s-danger500);
+        --s-warning: var(--s-warning500);
+        --s-info: var(--s-secondary500);
+        --s-alternative: var(--s-alternative500);
+      }
+      /* Strapi 风格的细滚动条（原来用系统默认的粗白条，很跳） */
+      ::-webkit-scrollbar { width: 10px; height: 10px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: var(--s-border-strong); border-radius: 5px; border: 2px solid transparent; background-clip: content-box; }
+      ::-webkit-scrollbar-thumb:hover { background: var(--s-text-dim); background-clip: content-box; }
+
+      /* ===========================================================================
+         全局基础样式：照抄 @strapi/design-system 的 global（运行时 CSS 原文）
+         原文（light 模式）：
+           *,*::before,*::after{box-sizing:border-box;}  *{margin:0;}  html{font-size:62.5%;}
+           body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,
+                Oxygen,Ubuntu,Cantarell,'Open Sans','Helvetica Neue',sans-serif;
+                color:#32324d;line-height:1.5;-webkit-font-smoothing:antialiased;}
+           img,picture,video,canvas{display:block;max-width:100%;}
+           ol,ul{list-style:none;padding:unset;margin:unset;}
+           *:focus-visible{outline:2px solid #4945ff;outline-offset:2px;}
+           *:focus:not(:focus-visible){outline:none;}
+         颜色换成 dark token，结构与过渡原样保留。
+         =========================================================================== */
+      *, *::before, *::after { box-sizing: border-box; }
+      * { margin: 0; }
+      /* Strapi 的 62.5% 技巧：1rem = 10px，所以它源码里的 1.4rem 就是 14px */
+      html { font-size: 62.5%; }
+      html, body {
+        height: 100%;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+        background: var(--s-bg-deepest);
+        color: var(--s-text);
+      }
+      /* 注意：字号只能设在 body 上。如果写在 `html, body` 里就会把 html 的 62.5% 覆盖掉，
+         1rem 就不再是 10px（踩过：按钮 3.2rem 变成了 41.6px）。 */
+      body { font-size: 1.3rem; }
+      img, picture, video, canvas { display: block; max-width: 100%; }
+      ol, ul { list-style: none; padding: unset; margin: unset; }
+      /* 焦点轮廓：Strapi 原文的 2px 实线 + 2px 偏移 */
+      *:focus-visible { outline: 2px solid var(--s-primary); outline-offset: 2px; }
+      *:focus:not(:focus-visible) { outline: none; }
+      #app { display: flex; flex-direction: column; height: 100vh; background: var(--s-bg-deepest); color: var(--s-text); }
+
+      /* 标题栏 */
+      #titlebar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--s-bg-panel); border-bottom: 1px solid var(--s-border); }
+      #titlebar .brand { font-weight: var(--s-fw-bold); color: var(--s-primary); margin-right: 6px; letter-spacing: .01em; }
+      #titlebar .spacer { flex: 1; }
+      #titlebar input { background: var(--s-bg-raised); color: var(--s-text); border: 1px solid var(--s-bg-raised); border-radius: 4px; padding: 4px 8px; font-family: ui-monospace, monospace; font-size: 12px; }
+      #cwd { width: 360px; }
+      /* 按钮：照抄 Strapi 的实现（运行时 CSS 原文）
+         原文：.lfaogF{height:4.4rem;border:1px solid #4945ff;background:#4945ff;color:#ffffff;}
+              @media(min-width:768px){.lfaogF{height:3.6rem;}}      ← 桌面 3.6rem = 36px
+              .lfaogF:hover{border:1px solid #7b79ff;background:#7b79ff;}
+              .lfaogF:active{border:1px solid #4945ff;background:#4945ff;}
+              .clEvgS{...border:1px solid #dcdce4;background:#ffffff;}   ← 次要按钮有描边
+              .jCaTqe{...border:1px solid transparent;background:transparent;}  ← 幽灵按钮无边
+              过渡：background-color 120ms cubic-bezier(.25,.46,.45,.94),
+                    color 120ms …，border-color 200ms …（三个属性两个时长）*/
+      button {
+        display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+        height: 3.2rem;
+        padding: 0 1.2rem;
+        border: 1px solid var(--s-button-primary600);
+        background: var(--s-button-primary600);
+        color: var(--s-button-neutral0);
+        border-radius: var(--s-radius);
+        font-size: 1.2rem; font-weight: var(--s-fw-semi); cursor: pointer;
+      }
+      button:hover { border-color: var(--s-button-primary500); background: var(--s-button-primary500); }
+      button:active { border-color: var(--s-button-primary600); background: var(--s-button-primary600); }
+      @media (prefers-reduced-motion: no-preference) {
+        button { transition: background-color 120ms cubic-bezier(0.25, 0.46, 0.45, 0.94), color 120ms cubic-bezier(0.25, 0.46, 0.45, 0.94), border-color 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94); }
+      }
+      /* 次要按钮：Strapi 用描边（.clEvgS），不是灰底 */
+      button.ghost { background: transparent; border: 1px solid var(--s-border-strong); color: var(--s-text); }
+      button.ghost:hover { background: var(--s-bg-hover); border-color: var(--s-text-dim); }
+      button.ghost:active { background: var(--s-bg-active); }
+
+      /* 输入框：逐条对齐 Strapi 的实际规则（源码 + 实测）——
+         底 #212134、无边框（这里留 1px 透明占位，避免聚焦时布局跳动）、
+         聚焦时「1px 实线 + **同色 2px 实心环**」，
+         过渡为 0.2s 且 transition-property 含 border-color/box-shadow/fill。 */
+      input, textarea, select {
+        background: var(--s-bg-panel);
+        color: var(--s-text-bright);
+        border: 1px solid transparent;
+        border-radius: var(--s-radius);
+        transition-property: border-color, box-shadow, fill;
+        transition-duration: 0.2s;
+        transition-timing-function: ease;
+      }
+      input:focus, textarea:focus, select:focus {
+        outline: none;
+        border-color: var(--s-primary) !important;
+        box-shadow: var(--s-primary) 0 0 0 2px;
+      }
+
+      /* 主体 */
+      #body { flex: 1; display: flex; min-height: 0; }
+
+      /* 活动栏：最左侧的 4 个主标签（主菜单 / 项目 / AI Agent / 工具）
+         active 态照抄 Strapi 的导航项原文（.hMMibZ）：
+           .hMMibZ.active{background:#f0f0ff;}  .hMMibZ.active svg path{fill:#4945ff;}
+         即「浅色底 + 图标变主色」——**不是**左侧 2px 竖条（我上一版自己做错了）。
+         dark 模式下 #f0f0ff 对应 primary200 = #4a4a6a。*/
+      #activitybar { width: 48px; flex: 0 0 48px; background: var(--s-bg-panel); border-right: 1px solid var(--s-border); display: flex; flex-direction: column; align-items: center; padding: 6px 0; gap: 2px; }
+      .act { position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: var(--s-radius); color: var(--s-text-faint); cursor: pointer; }
+      .act:hover { background: var(--s-bg-hover); color: var(--s-text-dim); }
+      .act.active { background: var(--s-primary200); color: var(--s-primary); }
+      .act svg { width: 20px; height: 20px; display: block; }
+      #activitybar .spacer { flex: 1; }
+
+      /* 侧栏视图：四个标签各占一个 .view，同一时刻只显示 .active 那个 */
+      #sidebar .view { display: none; flex-direction: column; flex: 1; min-height: 0; overflow: auto; }
+      #sidebar .view.active { display: flex; }
+
+      #sidebar { width: 240px; min-width: 160px; background: var(--s-bg-panel); border-right: 1px solid var(--s-border); display: flex; flex-direction: column; }
+      #sidebar .head { padding: 8px 12px 4px; text-transform: uppercase; font-size: 10px; letter-spacing: .08em; color: var(--s-text-faint); font-weight: var(--s-fw-bold); }
+
+      /* EmptyState：空文件夹 / 无搜索结果时给一句说明，而不是留一片空白（Strapi 的 EmptyState 同思路） */
+      .empty-state { padding: 18px 14px; color: var(--s-text-faint); font-size: 12px; text-align: center; line-height: 1.6; }
+      .empty-state .t { display: block; color: var(--s-text-dim); margin-bottom: 4px; font-weight: var(--s-fw-semi); }
+
+      /* Toast：操作反馈（保存 / 编译 / 错误），右下角浮层 */
+      #toast { position: fixed; right: 16px; bottom: 34px; display: flex; flex-direction: column; gap: 8px; z-index: 900; pointer-events: none; }
+      #toast .t {
+        min-width: 200px; max-width: 380px; padding: 10px 14px;
+        background: var(--s-bg-panel); color: var(--s-text);
+        border: 1px solid var(--s-border-strong); border-left: 3px solid var(--s-primary);
+        border-radius: var(--s-radius); box-shadow: 0 8px 24px rgba(0,0,0,.45);
+        font-size: 12px; opacity: 0; transform: translateY(6px);
+        transition: opacity .16s ease, transform .16s ease;
+        pointer-events: auto;
+      }
+      #toast .t.show { opacity: 1; transform: translateY(0); }
+      #toast .t.ok { border-left-color: var(--s-success); }
+      #toast .t.err { border-left-color: var(--s-danger); }
+      #toast .t.warn { border-left-color: var(--s-warning); }
+
+      /* ===========================================================================
+         Strapi Design System 桥接层
+         ---------------------------------------------------------------------------
+         取值全部来自运行中的 http://localhost:1337/admin 导出的原装 CSS
+         （strapi-ui/sheet-04-DESIGN-SYSTEM.css，dark 模式），**一个值没改**。
+         只换类名的原因：styled-components 的类名是每次渲染现生成的 hash（如 .hMMibZ），
+         刷新一次就变，无法在静态文件里复用。
+         原装证据（导出 CSS 里实际出现的值）：
+           box-shadow: rgba(3,3,5,.2) 1px 1px 10px
+           grid-template-columns: repeat(12, 1fr)
+           linear-gradient(90deg, rgb(123,121,255) 0%, rgb(172,115,230) 121.48%)
+           背景 rgb(24,24,38)×15 · rgb(50,50,77)×8 · rgb(33,33,52)×7 · rgb(123,121,255)×3
+           文字 rgb(165,165,186)×12 · rgb(192,192,207)×6 · rgb(255,255,255)×5
+
+         原装对照（light → dark，都能从源码/导出里对上）：
+           卡片底  #ffffff → rgb(33,33,52)     页面底 #f6f6f9 → rgb(24,24,38)
+           卡片边  #eaeaef → rgb(50,50,77)      卡片阴影 light rgba(33,33,52,.1) → dark rgba(3,3,5,.2)
+         =========================================================================== */
+
+      /* 卡片（原装：background + 1px 边框 + radius 4px + 阴影 + padding 24px）*/
+      .s-card { background: rgb(33, 33, 52); border: 1px solid rgb(50, 50, 77); border-radius: 4px; box-shadow: rgba(3, 3, 5, 0.2) 1px 1px 10px; padding: 24px; position: relative; width: 100%; }
+
+      /* 12 列网格（原装 .kWjZVl / .dBmuDi）*/
+      .s-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 20px; }
+      .s-cell { grid-column: span 12; max-width: 100%; }
+      @media (min-width: 1080px) { .s-cell { grid-column: span 6; } }
+
+      /* 顶部渐变横幅（原装 dark 值）*/
+      .s-banner { background: linear-gradient(90deg, rgb(123, 121, 255) 0%, rgb(172, 115, 230) 121.48%); }
+
+      /* 排版变体（原装 alpha / sigma 等）*/
+      .s-h1 { font-weight: 600; font-size: 2.8rem; line-height: 1.14; }
+      @media (min-width: 768px) { .s-h1 { font-size: 3.2rem; } }
+      .s-label { font-weight: 600; text-transform: uppercase; font-size: 1.1rem; line-height: 1.45; color: rgb(165, 165, 186); }
+      .s-value { font-size: 1.6rem; line-height: 1.5; color: rgb(255, 255, 255); font-weight: 600; }
+      @media (min-width: 768px) { .s-value { font-size: 1.4rem; line-height: 1.43; } }
+      .s-sub { font-size: 1.6rem; line-height: 1.5; color: rgb(165, 165, 186); }
+
+      /* 统计徽章（原装 7 种语义色，字用深底色压在亮徽章上）*/
+      .s-badge { border-radius: 4px; padding: 8px; display: inline-flex; align-items: center; color: rgb(24, 24, 38); }
+      .s-badge.primary { background: rgb(123, 121, 255); }
+      .s-badge.success { background: rgb(92, 177, 118); }
+      .s-badge.warning { background: rgb(242, 157, 65); }
+      .s-badge.danger { background: rgb(238, 94, 82); }
+      .s-badge.secondary { background: rgb(102, 183, 241); }
+      .s-badge.alternative { background: rgb(172, 115, 230); }
+      .s-badge.neutral { background: rgb(165, 165, 186); }
+      #tree { flex: 1; overflow: auto; padding-bottom: 8px; }
+      .node { padding: 2px 8px; white-space: nowrap; cursor: pointer; user-select: none; }
+      .node:hover { background: var(--s-bg-hover); }
+      .node.active { background: var(--s-bg-active); }
+      .node .ico { display: inline-block; width: 14px; color: var(--s-text-dim); }
+      /* 文件树目录箭头：用 SVG + CSS 旋转表示展开态（不再用 ▸/▾ 字符） */
+      .node .ico.dir-i svg { width: 12px; height: 12px; transition: transform 0.12s ease; }
+      .node .ico.dir-i.open svg { transform: rotate(90deg); }
+
+      #editorArea { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+      /* 标签页：Strapi 是**下划线式**（透明底 + active 底部主色条），不是块状 */
+      #tabs { display: flex; background: var(--s-bg-panel); overflow-x: auto; min-height: 32px; border-bottom: 1px solid var(--s-border); }
+      .tab { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-right: none; border-bottom: 2px solid transparent; color: var(--s-text-dim); cursor: pointer; white-space: nowrap; font-weight: var(--s-fw-semi); }
+      .tab:hover { background: var(--s-bg-hover); }
+      .tab.active { background: transparent; color: var(--s-text-bright); border-bottom: 2px solid var(--s-primary); }
+      .tab .x { color: var(--s-text-dim); }
+      .tab .x:hover { color: var(--s-danger); }
+      #editor { flex: 1; min-height: 0; background: var(--s-bg-deepest); }
+
+      /* 底部面板 */
+      #panel { height: 180px; display: flex; flex-direction: column; background: var(--s-bg-panel); border-top: 1px solid var(--s-border); box-shadow: var(--s-shadow-table); }
+      #panelHead { display: flex; gap: 14px; padding: 0 12px; color: var(--s-text-dim); font-size: 11px; text-transform: uppercase; border-bottom: 1px solid var(--s-border); }
+      #panelHead span { cursor: pointer; padding: 8px 2px; border-bottom: 2px solid transparent; font-weight: var(--s-fw-semi); letter-spacing: .04em; }
+      #panelHead span:hover { color: var(--s-text); }
+      #panelHead span.active { color: var(--s-text-bright); border-bottom: 2px solid var(--s-primary); }
+      #panelHead .spacer { flex: 1; }
+      #output { flex: 1; overflow: auto; padding: 6px 12px; font-family: ui-monospace, monospace; font-size: 12px; white-space: pre-wrap; }
+      #output .cmd { color: var(--s-primary-dim); }
+      #output .err { color: var(--s-danger); }
+      #output .ok { color: var(--s-success); }
+
+      #searchBox { padding: 4px 8px; }
+      #searchBox input { width: 100%; background: var(--s-bg-raised); color: var(--s-text); border: 1px solid var(--s-bg-raised); border-radius: 4px; padding: 4px 6px; font-size: 12px; }
+      #searchResults { max-height: 32vh; overflow: auto; }
+      #searchResults .hit { padding: 3px 10px; cursor: pointer; border-bottom: 1px solid var(--s-border); font-family: ui-monospace, monospace; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      #searchResults .hit:hover { background: var(--s-bg-hover); }
+      #searchResults .hit .loc { color: var(--s-info); }
+      #outline { max-height: 34vh; overflow: auto; padding: 2px 0; }
+      #outline .sym { padding: 3px 10px 3px 16px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: ui-monospace, monospace; font-size: 12px; }
+      #outline .sym:hover { background: var(--s-bg-hover); }
+      #sidebar .hint { color: var(--s-text-faint); font-weight: 400; }
+      #problems { flex: 1; overflow: auto; padding: 4px 8px; display: none; font-family: ui-monospace, monospace; font-size: 12px; }
+      #panel.mode-problems #output { display: none; }
+      #panel.mode-problems #problems { display: block; }
+      #problems .diag { padding: 3px 4px; cursor: pointer; border-bottom: 1px solid var(--s-bg-panel); }
+      #problems .diag:hover { background: var(--s-bg-hover); }
+      #problems .diag.error { color: var(--s-danger); }
+      #problems .diag.warning { color: var(--s-warning); }
+      #problems .diag .loc { color: var(--s-info); }
+      /* 运行时错误行高亮（配合 highlightErrorLines 里用的 className / glyphMarginClassName） */
+      .runtime-error-line { background: rgba(255, 80, 80, 0.14); }
+      .runtime-error-glyph { background: var(--s-danger); width: 4px !important; margin-left: 3px; }
+      #backend { flex: 1; overflow: auto; padding: 6px 10px; display: none; font-family: ui-monospace, monospace; font-size: 12px; }
+      #panel.mode-backend #output { display: none; }
+      #panel.mode-backend #backend { display: block; }
+      #backend .grp { color: var(--s-primary-dim); margin: 6px 0 3px; }
+      #backend .item { padding: 2px 6px; cursor: pointer; color: var(--s-text); }
+      #backend .item:hover { background: var(--s-bg-hover); }
+      #backend pre { margin: 4px 0 8px; padding: 6px; background: var(--s-bg-deepest); overflow: auto; max-height: 40vh; color: var(--s-info); }
+
+      /* 接口调试器 */
+      #api { padding: 0; }
+      #apiBar { display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+                border-bottom: 1px solid var(--s-border); flex-wrap: wrap; }
+      #apiBar select, #apiBar input { background: var(--s-bg-deepest); color: var(--s-text); border: 1px solid var(--s-border);
+                                      border-radius: var(--s-radius); padding: 3px 6px; font-size: 11px; }
+      #apiEndpoint { min-width: 220px; }
+      #apiMethod { font-weight: 600; font-size: 11px; padding: 2px 6px; border-radius: var(--s-radius); }
+      #apiMethod.GET { background: #1f3d2b; color: var(--s-success); }
+      #apiMethod.POST { background: #3d341f; color: var(--s-warning); }
+      #apiMethod.PUT { background: #1f2f3d; color: var(--s-info); }
+      #apiMethod.DELETE { background: #3d1f1f; color: var(--s-danger); }
+      #apiPath { font-family: Consolas, monospace; font-size: 11px; flex: 1; min-width: 200px; }
+      #apiToken { width: 130px; }
+      #apiBase { width: 165px; }
+      #apiBar button { background: var(--s-primary); color: var(--s-text-bright); border: 0; border-radius: var(--s-radius);
+                       padding: 4px 12px; font-size: 11px; cursor: pointer; }
+      #apiBar button:hover:not(:disabled) { background: var(--s-primary-dark); }
+      #apiBar button:disabled { background: var(--s-border); color: var(--s-text-faint); cursor: not-allowed; }
+      #apiBody { display: flex; gap: 8px; padding: 6px 10px; }
+      #apiReqCol { flex: 0 0 38%; display: flex; flex-direction: column; }
+      #apiRespCol { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+      #apiBody textarea { background: var(--s-bg-deepest); color: var(--s-text); border: 1px solid var(--s-border);
+                          border-radius: var(--s-radius); padding: 6px; font-family: Consolas, monospace;
+                          font-size: 11px; height: 96px; resize: vertical; }
+      #apiResp { background: var(--s-bg-deepest); border: 1px solid var(--s-border); border-radius: var(--s-radius);
+                 padding: 6px; font-family: Consolas, monospace; font-size: 11px;
+                 white-space: pre-wrap; overflow: auto; height: 96px; margin: 0; color: var(--s-text); }
+      #apiMeta { font-size: 11px; color: var(--s-text-dim); padding: 0 10px 6px; }
+      #apiMeta .ok { color: var(--s-success); } #apiMeta .bad { color: var(--s-danger); }
+      #panel.mode-api #output, #panel.mode-api #problems,
+      #panel.mode-api #backend, #panel.mode-api #terminal { display: none; }
+      #panel.mode-api #api { display: block; }
+      #api { display: none; }
+
+      /* 后端面板：一键启停 + 日志 */
+      #backend { padding: 0; }
+      #beBar { display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+               border-bottom: 1px solid var(--s-border); flex-wrap: wrap; }
+      #beBar button { background: var(--s-primary); color: var(--s-text-bright); border: 0; border-radius: var(--s-radius);
+                      padding: 4px 10px; font-size: 11px; cursor: pointer; }
+      #beBar button:hover:not(:disabled) { background: var(--s-primary-dark); }
+      #beBar button:disabled { background: var(--s-border); color: var(--s-text-faint); cursor: not-allowed; }
+      #beBar button.stop { background: var(--s-danger); }
+      #beBar button.stop:hover:not(:disabled) { background: var(--s-danger); }
+      #beBar button.ghost { background: var(--s-border); }
+      #beBar .spacer { flex: 1; }
+      #beState { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+      #beState.stopped { background: var(--s-border); color: var(--s-text-dim); }
+      #beState.starting { background: #5a4a00; color: var(--s-warning); }
+      #beState.running { background: #14532d; color: var(--s-success); }
+      #beState.error { background: #5a1d1d; color: var(--s-danger); }
+      #beMeta { font-size: 11px; color: var(--s-text-dim); }
+      #beClear { font-size: 11px; color: var(--s-text-dim); cursor: pointer; }
+      #beLog { font-family: Consolas, monospace; font-size: 11.5px; white-space: pre-wrap;
+               overflow: auto; max-height: 140px; padding: 6px 10px; color: var(--s-text); }
+      #beLog .err { color: var(--s-danger); }
+      #beLog .ok { color: var(--s-success); }
+      #beData { padding: 6px 10px; border-top: 1px solid var(--s-border); }
+
+      /* 集成终端 */
+      #terminal { flex: 1; overflow: hidden; padding: 2px 4px; display: none; }
+      #panel.mode-term #output { display: none; }
+      #panel.mode-term #terminal { display: block; }
+
+      /* 状态栏 */
+      #statusbar { display: flex; align-items: center; gap: 14px; padding: 3px 12px; background: var(--s-primary); color: var(--s-text-bright); font-size: 12px; }
+      #statusbar .right { margin-left: auto; }
+
+      /* 命令面板 */
+      #palette { position: fixed; inset: 0; display: none; background: rgba(0,0,0,.35); z-index: 50; }
+      #palette.open { display: block; }
+      #paletteBox { width: 560px; margin: 80px auto; background: var(--s-bg-panel); border: 1px solid var(--s-border-strong); border-radius: var(--s-radius); overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,.45); }
+      #paletteInput { width: 100%; padding: 12px 14px; background: var(--s-bg-raised); color: var(--s-text-bright); border: none; border-bottom: 1px solid var(--s-border); outline: none; font-size: 14px; }
+      #paletteList { max-height: 320px; overflow: auto; }
+      .cmd { padding: 8px 14px; cursor: pointer; font-size: 12px; }
+      .cmd.sel, .cmd:hover { background: var(--s-bg-active); }
+    </style>
+  </head>
+  <body>
+    <div id="toast"></div>
+    <div id="app">
+      <div id="titlebar">
+        <span class="brand">MoonBit IDE</span>
+        <button class="ghost" id="openFolder">打开文件夹</button>
+        <button class="ghost" id="cmdBtn">命令面板 ⌃⇧P</button>
+        <input id="cwd" placeholder="模块根目录" />
+        <span class="spacer"></span>
+        <button data-cmd="check">check</button>
+        <button data-cmd="build">build</button>
+        <button data-cmd="test">test</button>
+        <button data-cmd="fmt">fmt</button>
+        <button data-cmd="run">运行</button>
+      </div>
+      <div id="body">
+        <div id="activitybar">
+          <div class="act" data-view="home" title="主菜单 —— 时钟 / 日历 / 日程 / 待办 / 便签">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.6"/></svg>
+          </div>
+          <div class="act active" data-view="project" title="项目 —— 打开本机任意项目">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.2l1.8 2.2h8A2.5 2.5 0 0 1 21 9.7v6.8A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"/></svg>
+          </div>
+          <div class="act" data-view="agent" title="AI Agent —— opencode 驱动">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l1.7 4.8 4.8 1.7-4.8 1.7L12 16.5l-1.7-4.8L5.5 10l4.8-1.7z"/><path d="M18.8 15.6l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z"/></svg>
+          </div>
+          <div class="act" data-view="tools" title="工具 —— 后端 / 接口 / 终端 / 系统信息">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.6 6.4a4.2 4.2 0 0 0 5.1 5.1l-8.4 8.4a2.1 2.1 0 0 1-3-3z"/><path d="M14.6 6.4l2.6-2.6a4.2 4.2 0 0 1 0 5.9"/></svg>
+          </div>
+          <div class="spacer"></div>
+        </div>
+        <div id="sidebar">
+          <div class="view" id="view-home"></div>
+          <div class="view active" id="view-project">
+            <div class="head">资源管理器</div>
+            <div id="tree"></div>
+            <div class="head">搜索</div>
+            <div id="searchBox">
+              <input id="searchInput" placeholder="搜索工作区（回车/自动）…" />
+            </div>
+            <div id="searchResults"></div>
+            <div class="head">大纲 <span id="outlineHint" class="hint"></span></div>
+            <div id="outline"></div>
+          </div>
+          <div class="view" id="view-agent"></div>
+          <div class="view" id="view-tools"></div>
+        </div>
+        <div id="editorArea">
+          <div id="tabs"></div>
+          <div id="editor"></div>
+        </div>
+      </div>
+      <div id="panel">
+        <div id="panelHead">
+          <span class="active" data-panel="output">输出</span>
+          <span data-panel="problems">问题</span>
+          <span data-panel="backend">后端</span>
+          <span data-panel="api">接口</span>
+          <span data-panel="terminal">终端</span>
+          <span class="spacer"></span>
+          <span id="clearPanel">清空</span>
+        </div>
+        <div id="output"></div>
+        <div id="problems"></div>
+        <div id="backend">
+          <div id="beBar">
+            <button id="beStart"><span class="bi"></span>启动后端</button>
+            <button id="beStop" class="stop" disabled><span class="bi"></span>停止</button>
+            <button id="beBuild" class="ghost">编译</button>
+            <span id="beState" class="stopped">已停止</span>
+            <span id="beMeta"></span>
+            <span class="spacer"></span>
+            <span id="beClear">清空日志</span>
+          </div>
+          <div id="beLog"></div>
+          <div id="beData"></div>
+        </div>
+        <div id="api">
+          <div id="apiBar">
+            <span id="apiMethod">GET</span>
+            <select id="apiEndpoint" title="从 conduit/openapi.yml 解析出的端点"></select>
+            <input id="apiPath" placeholder="/api/..." />
+            <input id="apiBase" value="http://127.0.0.1:8110" title="后端地址" />
+            <input id="apiToken" placeholder="token" title="登录后自动填入；受保护接口需要" />
+            <button id="apiSend">发送</button>
+          </div>
+          <div id="apiMeta"></div>
+          <div id="apiBody">
+            <div id="apiReqCol">
+              <textarea id="apiReqBody" placeholder="请求体（JSON，GET 可留空）"></textarea>
+            </div>
+            <div id="apiRespCol">
+              <pre id="apiResp">尚未发送请求</pre>
+            </div>
+          </div>
+        </div>
+        <div id="terminal"></div>
+      </div>
+      <div id="statusbar">
+        <span id="stProject">项目：—</span>
+        <span id="stModule">模块：—</span>
+        <span id="stFile">—</span>
+        <span class="right" id="stMsg">就绪</span>
+      </div>
+    </div>
+
+    <div id="palette">
+      <div id="paletteBox">
+        <input id="paletteInput" placeholder="输入命令…" />
+        <div id="paletteList"></div>
+      </div>
+    </div>
+
+    <link rel="stylesheet" href="./node_modules/@xterm/xterm/css/xterm.css" />
+    <!--
+      注意顺序：xterm / addon-fit 必须放在 Monaco 的 loader.js **之前**。
+      它们都是 UMD 包，检测到全局 `define.amd` 就会注册成 AMD 模块而不挂到 window；
+      而 loader.js 恰好会定义全局 define —— 放后面的话 window.Terminal 永远不存在，
+      终端面板就一直是空的（这个坑踩过一次）。
+    -->
+    <script src="./node_modules/@xterm/xterm/lib/xterm.js"></script>
+    <script src="./node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
+    <script src="./node_modules/monaco-editor/min/vs/loader.js"></script>
+    <script src="./moonbit-lang.js"></script>
+    <script src="./renderer.js"></script>
+  </body>
+</html>

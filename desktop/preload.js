@@ -1,0 +1,121 @@
+const { contextBridge, ipcRenderer } = require('electron')
+
+// 渲染进程可用的能力（contextIsolation 开启，只暴露这些）
+contextBridge.exposeInMainWorld('moonAPI', {
+  // 运行 moon 命令
+  run: (args, cwd) => ipcRenderer.invoke('moon', { args, cwd }),
+  defaultCwd: () => ipcRenderer.invoke('defaultCwd'),
+  startInfo: () => ipcRenderer.invoke('startInfo'),
+  // 文件系统
+  listDir: (dir) => ipcRenderer.invoke('fs:list', dir),
+  readFile: (file) => ipcRenderer.invoke('fs:read', file),
+  writeFile: (file, content) => ipcRenderer.invoke('fs:write', { file, content }),
+  findModule: (dir) => ipcRenderer.invoke('module', dir),
+  pickDir: () => ipcRenderer.invoke('pickDir'),
+
+  // ---- LSP 能力（基于 moon check / moon ide）----
+  runCheck: (cwd) => ipcRenderer.invoke('diag:check', { cwd }),
+  getOutline: (cwd, file) => ipcRenderer.invoke('outline:get', { cwd, file }),
+
+  // ---- 后端面板（转发到本地管理接口）----
+  adminGet: (path) => ipcRenderer.invoke('admin:get', { path }),
+
+  // ---- 符号索引（补全 / 跳转定义）----
+  loadSymbols: (cwd, force) => ipcRenderer.invoke('symbols:load', { cwd, force }),
+  hoverSymbol: (cwd, word) => ipcRenderer.invoke('symbols:hover', { cwd, word }),
+
+  // ---- 后端服务控制（IDE 内一键启停）----
+  backendStatus: (cwd, port) => ipcRenderer.invoke('backend:status', { cwd, port }),
+  backendDeps: () => ipcRenderer.invoke('backend:deps'),
+  backendBuild: () => ipcRenderer.invoke('backend:build'),
+  backendStart: (cwd, port, build) => ipcRenderer.invoke('backend:start', { cwd, port, build }),
+  backendStop: () => ipcRenderer.invoke('backend:stop'),
+  onBackendLog: (cb) => ipcRenderer.on('backend:log', (_e, p) => cb(p)),
+  onBackendState: (cb) => ipcRenderer.on('backend:state', (_e, p) => cb(p)),
+  notifyExit: () => ipcRenderer.send('backend:kill-on-exit'),
+
+  // ── 文件中转站（Office 文档备份 / 版本回滚）—— 见 relay-main.js ──
+  relayStatus: () => ipcRenderer.invoke('relay:status'),
+  relayTouch: (file) => ipcRenderer.invoke('relay:touch', file),
+  relayList: () => ipcRenderer.invoke('relay:list'),
+  relayMeta: (file) => ipcRenderer.invoke('relay:meta', file),
+  relayBackup: (file, note) => ipcRenderer.invoke('relay:backup', { file, note }),
+  relayVersions: (file) => ipcRenderer.invoke('relay:versions', file),
+  relayRestore: (file, stamp) => ipcRenderer.invoke('relay:restore', { file, stamp }),
+  relayDelete: (file, stamp) => ipcRenderer.invoke('relay:delete', { file, stamp }),
+  relayWatchAdd: (dir) => ipcRenderer.invoke('relay:watch:add', dir),
+  relayWatchRemove: (dir) => ipcRenderer.invoke('relay:watch:remove', dir),
+  relayOpen: (file) => ipcRenderer.invoke('relay:open', file),
+  relayReveal: (file) => ipcRenderer.invoke('relay:reveal', file),
+  relayExists: (file) => ipcRenderer.invoke('relay:exists', file),
+  onRelayChanged: (cb) => ipcRenderer.on('relay:changed', (_e, p) => cb(p)),
+
+  // ── 可执行入口（自动识别 + 运行，不写死 moon）── 见 runners.js ──
+  runnerList: (root) => ipcRenderer.invoke('runner:list', root),
+  runnerRun: (spec) => ipcRenderer.invoke('runner:run', spec),
+  runnerStop: () => ipcRenderer.invoke('runner:stop'),
+  onRunnerStart: (cb) => ipcRenderer.on('runner:start', (_e, p) => cb(p)),
+  onRunnerData: (cb) => ipcRenderer.on('runner:data', (_e, p) => cb(p)),
+  onRunnerEnd: (cb) => ipcRenderer.on('runner:end', (_e, p) => cb(p)),
+
+  // ── LSP（接官方 moon-lsp）── 见 lsp-manager.js ──
+  lspStart: (root) => ipcRenderer.invoke('lsp:start', root),
+  lspStop: (root) => ipcRenderer.invoke('lsp:stop', root),
+  lspStatus: (root) => ipcRenderer.invoke('lsp:status', root),
+  lspOpen: (spec) => ipcRenderer.invoke('lsp:open', spec),
+  lspChange: (spec) => ipcRenderer.invoke('lsp:change', spec),
+  lspClose: (spec) => ipcRenderer.invoke('lsp:close', spec),
+  lspDefinition: (spec) => ipcRenderer.invoke('lsp:definition', spec),
+  lspHover: (spec) => ipcRenderer.invoke('lsp:hover', spec),
+  lspReferences: (spec) => ipcRenderer.invoke('lsp:references', spec),
+  lspDocumentSymbol: (spec) => ipcRenderer.invoke('lsp:documentSymbol', spec),
+  lspRename: (spec) => ipcRenderer.invoke('lsp:rename', spec),
+  lspCompletion: (spec) => ipcRenderer.invoke('lsp:completion', spec),
+  onLspDiagnostics: (cb) => ipcRenderer.on('lsp:diagnostics', (_e, p) => cb(p)),
+  onLspLog: (cb) => ipcRenderer.on('lsp:log', (_e, p) => cb(p)),
+
+  // ---- 接口调试器（IDE 内直接调后端）----
+  apiEndpoints: () => ipcRenderer.invoke('apidbg:endpoints'),
+  apiSend: (payload) => ipcRenderer.invoke('apidbg:send', payload),
+
+  // ---- 项目类型识别 ----
+  projectInfo: (cwd) => ipcRenderer.invoke('project:info', { cwd }),
+
+  // ---- 依赖管理 / 任务流式输出 ----
+  formatFile: (cwd, file) => ipcRenderer.invoke('moon:format', { cwd, file }),
+  runMoonStream: (args, cwd, timeoutMs) =>
+    ipcRenderer.invoke('moon:stream', { args, cwd, timeoutMs }),
+  stopMoonStream: () => ipcRenderer.send('moon:stream-stop'),
+  onMoonStreamData: (cb) => ipcRenderer.on('moon:stream-data', (_e, p) => cb(p)),
+  onMoonStreamEnd: (cb) => ipcRenderer.on('moon:stream-end', (_e, p) => cb(p)),
+
+  // ---- 新建项目模板 ----
+  pickProjectPath: (parentDir, defaultName) => ipcRenderer.invoke('pickProjectPath', { parentDir, defaultName }),
+  newProject: (dir) => ipcRenderer.invoke('newProject', { dir }),
+
+  // ---- 跨文件搜索 ----
+  searchFiles: (cwd, query, caseInsensitive) =>
+    ipcRenderer.invoke('search:files', { cwd, query, caseInsensitive }),
+
+  // ---- 集成终端 ----
+  // 新建一个终端会话，返回会话 id（失败时返回 { error }）
+  termCreate: (cwd) => ipcRenderer.invoke('term:create', { cwd }),
+  // 向终端写入（键盘输入 / 粘贴）
+  termInput: (id, data) => ipcRenderer.send('term:input', { id, data }),
+  // 调整终端尺寸（行/列）
+  termResize: (id, cols, rows) => ipcRenderer.send('term:resize', { id, cols, rows }),
+  // 关闭终端
+  termKill: (id) => ipcRenderer.send('term:kill', { id }),
+  // 订阅终端输出（返回取消订阅函数）
+  onTermData: (cb) => {
+    const handler = (_e, payload) => cb(payload)
+    ipcRenderer.on('term:data', handler)
+    return () => ipcRenderer.removeListener('term:data', handler)
+  },
+  // 订阅终端退出
+  onTermExit: (cb) => {
+    const handler = (_e, payload) => cb(payload)
+    ipcRenderer.on('term:exit', handler)
+    return () => ipcRenderer.removeListener('term:exit', handler)
+  },
+})
