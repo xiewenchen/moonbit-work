@@ -1,0 +1,17 @@
+import {
+  "mbp/platform/pg",
+  "moonbitlang/async",
+  "moonbitlang/async/io",
+  "moonbitlang/async/semaphore",
+  "moonbitlang/async/socket",
+  "moonbitlang/async/tls",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/random",
+  "moonbitlang/x/codec/base64",
+}
+
+supported_targets = "native"
+
+// `async test` 需要 import `moonbitlang/async`（编译器误报未使用）。
+
+warnings = "-29"

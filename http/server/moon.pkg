@@ -1,0 +1,16 @@
+import {
+  "mbp/platform/http",
+  "moonbitlang/async",
+  "moonbitlang/async/io",
+  "moonbitlang/async/semaphore",
+  "moonbitlang/async/signal",
+  "moonbitlang/async/socket",
+  "moonbitlang/async/tls",
+  "moonbitlang/core/encoding/utf8",
+}
+
+supported_targets = "native"
+
+// -29：`async test` 误报未使用；-14：schannel 的 server_from_pair 标了 internal（Windows HTTPS 用）
+
+warnings = "-29-14"

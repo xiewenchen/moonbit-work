@@ -1,0 +1,17 @@
+import {
+  "mbp/platform/http",
+  "moonbitlang/async",
+  "moonbitlang/async/io",
+  "moonbitlang/async/socket",
+  "moonbitlang/core/encoding/utf8",
+}
+
+import {
+  "mbp/platform/http/server",
+} for "test"
+
+supported_targets = "native"
+
+// `async test` 需要 import `moonbitlang/async`（编译器误报未使用）。
+
+warnings = "-29"

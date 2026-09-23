@@ -1,0 +1,10 @@
+import {
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/x/codec/base64",
+  "moonbitlang/x/crypto",
+}
+
+import {
+  "moonbitlang/core/random",
+  "moonbitlang/core/env",
+} for "test"
