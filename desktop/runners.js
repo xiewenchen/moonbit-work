@@ -8,6 +8,7 @@
 const fs = require('fs')
 const path = require('path')
 const { spawn } = require('child_process')
+const { resolveSpawn } = require('./spawn-util')
 
 const has = (p) => { try { return fs.existsSync(p) } catch (_) { return false } }
 const isFile = (p) => { try { return fs.statSync(p).isFile() } catch (_) { return false } }
@@ -87,7 +88,12 @@ function findRunners(root) {
 function spawnRunner({ bin, args, cwd }, onData, onEnd) {
   let child
   try {
-    child = spawn(bin, args || [], { cwd: cwd || process.cwd(), shell: false })
+    // .cmd/.bat（npm 在 Windows 上就是 npm.cmd）不能直接 spawn —— 会抛 EINVAL。
+    // 这是「IDE 里跑 npm 项目失败」的真正原因，交给 resolveSpawn 走 cmd.exe。
+    const sp = resolveSpawn(bin, args)
+    // stdin 置 ignore：spawn 默认给子进程一个 stdin 管道，
+    // 服务类/CLI 类程序会等它 → 非交互场景下可能一直不退出。
+    child = spawn(sp.bin, sp.args, { cwd: cwd || process.cwd(), shell: sp.shell, stdio: ['ignore', 'pipe', 'pipe'] })
   } catch (e) {
     onEnd({ ok: false, error: '启动失败：' + e.message })
     return null

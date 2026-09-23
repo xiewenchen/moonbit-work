@@ -15,6 +15,7 @@ const { registerApiDebugIpc } = require('./api-debug')
 const { registerProjectIpc } = require('./project-detect')
 const { registerRelayIpc } = require('./relay-main')
 const { registerRunnerIpc } = require('./runners')
+const { registerAgentIpc } = require('./agent')
 const { registerLspIpc } = require('./lsp-manager')
 
 // ── 环境准备：必须在任何 spawn 之前 ─────────────────────────────────────
@@ -99,6 +100,7 @@ registerRelayIpc({ ipcMain, getWindow: () => mainWindow })
 
 // 可执行入口发现与运行（moonbit / node / python / rust / go）—— 见 runners.js
 registerRunnerIpc({ ipcMain, getWindow: () => mainWindow })
+registerAgentIpc({ getWindow: () => mainWindow })
 
 // LSP 客户端（接官方 moon-lsp）—— 见 lsp-manager.js
 registerLspIpc({ ipcMain, getWindow: () => mainWindow })

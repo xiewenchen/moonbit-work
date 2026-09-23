@@ -59,6 +59,17 @@ contextBridge.exposeInMainWorld('moonAPI', {
   onRunnerEnd: (cb) => ipcRenderer.on('runner:end', (_e, p) => cb(p)),
   onRunnerUrl: (cb) => ipcRenderer.on('runner:url', (_e, p) => cb(p)),
 
+  // ── AI Agent（opencode 作后端，见 agent.js）──
+  agentStatus: () => ipcRenderer.invoke('agent:status'),
+  agentRun: (p) => ipcRenderer.invoke('agent:run', p),
+  agentStop: () => ipcRenderer.invoke('agent:stop'),
+  agentConfigGet: () => ipcRenderer.invoke('agent:config:get'),
+  agentConfigSet: (j) => ipcRenderer.invoke('agent:config:set', j),
+  agentOpenConfig: () => ipcRenderer.invoke('agent:open-config'),
+  onAgentStart: (cb) => ipcRenderer.on('agent:start', (_e, p) => cb(p)),
+  onAgentData: (cb) => ipcRenderer.on('agent:data', (_e, p) => cb(p)),
+  onAgentEnd: (cb) => ipcRenderer.on('agent:end', (_e, p) => cb(p)),
+
   // ── LSP（接官方 moon-lsp）── 见 lsp-manager.js ──
   lspStart: (root) => ipcRenderer.invoke('lsp:start', root),
   lspStop: (root) => ipcRenderer.invoke('lsp:stop', root),
