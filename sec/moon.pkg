@@ -1,0 +1,9 @@
+import {
+  "mbp/platform/app",
+  "mbp/platform/http",
+  "moonbitlang/async",
+}
+
+supported_targets = "native"
+
+warnings = "-29"
