@@ -23,7 +23,7 @@ app.whenReady().then(async () => {
     const off = window.moonAPI.onRunnerData((p) => chunks.push(typeof p === 'string' ? p : (p && p.data) || ''))
     window.moonAPI.onRunnerEnd((p) => chunks.push('\\n[进程结束 code=' + (p && p.code) + ']'))
     await window.moonAPI.runnerRun(spec)
-    await new Promise((res) => setTimeout(res, 20000))
+    await new Promise((res) => setTimeout(res, 70000))
     await window.moonAPI.runnerStop()
     await new Promise((res) => setTimeout(res, 800))
     return {

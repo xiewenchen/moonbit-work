@@ -1976,6 +1976,13 @@ function initCore() {
       logLine(`[已启动] ${p && p.label ? p.label : ''} —— 进程运行中，输出会实时出现在这里\n`, 'ok')
       setMsg('运行中…')
     })
+    // 服务就绪：主进程从输出里抓到本地 URL 并已尝试用系统浏览器打开。
+    // 这里再显示一次，一是让用户知道「可以看了」，二是万一自动打开被拦，地址就在眼前。
+    window.moonAPI.onRunnerUrl((p) => {
+      if (!p || !p.url) return
+      logLine(`\n[服务已就绪] ${p.url}  —— 已尝试用系统浏览器打开\n`, 'ok')
+      setMsg('服务已就绪：' + p.url)
+    })
     window.moonAPI.onRunnerEnd((p) => {
       const code = p && p.code != null ? p.code : '-'
       logLine(`\n[运行结束] 退出码 ${code}${p && p.error ? ' · ' + p.error : ''}\n`, p && p.code === 0 ? 'ok' : 'err')

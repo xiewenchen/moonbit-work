@@ -113,9 +113,29 @@ function registerRunnerIpc({ ipcMain, getWindow }) {
   ipcMain.handle('runner:run', (_e, { bin, args, cwd, label }) => {
     if (current) { try { current.kill() } catch (_) {} current = null }
     send('runner:start', { label: label || bin })
+    // 从运行输出里抓本地 URL 并自动用系统浏览器打开 ——
+    // 服务类项目（Strapi / 各类 web 框架）启动后会打印「访问 http://localhost:PORT」，
+    // 抓住它，用户点一次「运行」就能看到网站，而不是自己从日志里找地址。
+    // 注意 URL 可能被切成两个 chunk，所以累积一小段再匹配。
+    let buf = ''
+    let opened = false
+    const onChunk = (chunk) => {
+      send('runner:data', { data: chunk })
+      if (opened) return
+      // 先剥离 ANSI 色码：Strapi 这类程序的输出带颜色转义，URL 后面常紧跟 \u001b[39m，
+      // 不剥离就会把色码当成 URL 的一部分，打开必然失败（这是实测踩到的）。
+      const clean = chunk.replace(/\u001b\[[0-9;]*m/g, '')
+      buf = (buf + clean).slice(-2048)
+      const m = buf.match(/https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?[^\s'"<>)]*/i)
+      if (!m) return
+      opened = true
+      const url = m[0].replace(/[.,;:]+$/, '')
+      send('runner:url', { url })
+      try { require('electron').shell.openExternal(url) } catch (_) {}
+    }
     current = spawnRunner(
       { bin, args, cwd },
-      (chunk) => send('runner:data', { data: chunk }),
+      onChunk,
       (r) => { send('runner:end', r); current = null },
     )
     return { ok: !!current, pid: current ? current.pid : null }

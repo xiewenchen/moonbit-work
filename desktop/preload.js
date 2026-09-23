@@ -57,6 +57,7 @@ contextBridge.exposeInMainWorld('moonAPI', {
   onRunnerStart: (cb) => ipcRenderer.on('runner:start', (_e, p) => cb(p)),
   onRunnerData: (cb) => ipcRenderer.on('runner:data', (_e, p) => cb(p)),
   onRunnerEnd: (cb) => ipcRenderer.on('runner:end', (_e, p) => cb(p)),
+  onRunnerUrl: (cb) => ipcRenderer.on('runner:url', (_e, p) => cb(p)),
 
   // ── LSP（接官方 moon-lsp）── 见 lsp-manager.js ──
   lspStart: (root) => ipcRenderer.invoke('lsp:start', root),
