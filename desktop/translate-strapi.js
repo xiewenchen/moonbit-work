@@ -238,8 +238,8 @@ ${myApp.trimEnd()}
                           <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 4.5h15a1 1 0 0 1 1 1v3.5h-17V5.5a1 1 0 0 1 1-1z"/><path d="M6 9v9a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V9"/><path d="M10.5 13h3"/></svg>
                           <span class="lb">已备份</span><span class="n"></span>
                         </div>
-                        <div class="fm-sec">正在监控</div>
-                        <div id="relayWatched" class="fm-watched"></div>
+                        <!-- 「正在监控」不展示给用户：固定就是下载+桌面，用户无需关心；
+                             只保留下方一行说明备份目录。 -->
                         <div class="fm-root" id="relayRoot"></div>
                       </aside>
 
@@ -681,6 +681,11 @@ const EXTRA_CSS = `
       .fm-ver-panel { border: 1px solid var(--s-border); border-radius: 4px; margin: 12px; padding: 12px; background: var(--s-bg-panel); }
       .fm-ver-panel .ttl { color: var(--s-text-bright); font-size: 1.25rem; margin-bottom: 4px; display: flex; align-items: center; gap: 7px; }
       .fm-ver-panel .ttl svg { width: 15px; height: 15px; color: var(--s-primary); }
+      .fm-ver-panel .ttl .tx { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      /* 历史版本面板的「收起」按钮（可折叠）*/
+      .fm-ver-panel .ttl .fm-ver-close { margin-left: auto; flex: none; display: inline-flex; align-items: center; justify-content: center; width: 2.4rem; height: 2.4rem; padding: 0; background: transparent; border: 0; border-radius: 4px; color: var(--s-text-dim); cursor: pointer; }
+      .fm-ver-panel .ttl .fm-ver-close:hover { background: var(--s-bg-hover); color: var(--s-text-bright); }
+      .fm-ver-panel .ttl .fm-ver-close svg { width: 13px; height: 13px; color: currentColor; }
       .fm-ver { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 4px; border: 1px solid var(--s-border); margin-top: 6px; font-size: 1.15rem; }
       .fm-ver .t { color: var(--s-text); }
       .fm-ver .sz { color: var(--s-text-dim); margin-left: auto; }

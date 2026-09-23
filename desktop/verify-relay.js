@@ -154,21 +154,30 @@ app.whenReady().then(async () => {
 
   console.log('\n=== ⑥ 备份 → 已备份分类 → 版本历史 ===')
   const backup = JSON.parse(await js(`(async () => {
-    const card = document.querySelector('#fmList .fm-card')
-    card.querySelector('.ops button').click()
-    await new Promise(r => setTimeout(r, 2200))
-    // 切到「已备份」分类
-    const nav = Array.from(document.querySelectorAll('.fm-nav')).find((n) => n.dataset.cat === 'backed')
-    nav.click()
-    await new Promise(r => setTimeout(r, 1400))
-    const cards = Array.from(document.querySelectorAll('#fmList .fm-card'))
-    return JSON.stringify({
-      cat: (document.getElementById('fmCrumb') || {}).textContent,
-      count: cards.length,
-      names: cards.map((c) => c.querySelector('.nm').textContent),
-      ops: cards[0] ? Array.from(cards[0].querySelectorAll('.ops button')).map((b) => b.title || '') : [],
-      navCount: nav.querySelector('.n').textContent,
-    })
+    try {
+      // 明确操作**我们的测试文件**，不要依赖「列表第一个」——
+      // 桌面上其它文件的 mtime 可能更新（用户随时会新增文件），会排到第一。
+      const cards = Array.from(document.querySelectorAll('#fmList .fm-card'))
+      const mine = cards.find((c) => ((c.querySelector('.nm') || {}).textContent || '') === '年度总结.docx')
+      if (!mine) return JSON.stringify({ err: 'test-file-not-in-list', names: cards.map((c) => (c.querySelector('.nm') || {}).textContent) })
+      const btn = mine.querySelector('.ops button')
+      if (!btn) return JSON.stringify({ err: 'no-op-button', html: mine.innerHTML.slice(0, 200) })
+      btn.click()
+      await new Promise(r => setTimeout(r, 2200))
+      // 切到「已备份」分类
+      const nav = Array.from(document.querySelectorAll('.fm-nav')).find((n) => n.dataset.cat === 'backed')
+      if (!nav) return JSON.stringify({ err: 'no-backed-nav' })
+      nav.click()
+      await new Promise(r => setTimeout(r, 1400))
+      const cards2 = Array.from(document.querySelectorAll('#fmList .fm-card'))
+      return JSON.stringify({
+        cat: (document.getElementById('fmCrumb') || {}).textContent,
+        count: cards2.length,
+        names: cards2.map((c) => (c.querySelector('.nm') || {}).textContent),
+        ops: cards2[0] ? Array.from(cards2[0].querySelectorAll('.ops button')).map((b) => b.title || '') : [],
+        navCount: (nav.querySelector('.n') || {}).textContent,
+      })
+    } catch (e) { return JSON.stringify({ err: String((e && e.stack) || e) }) }
   })()`))
   console.log('  ', J(backup))
   chk('备份后出现在「已备份」分类', backup.count >= 1 && backup.names.includes('年度总结.docx'), J(backup.names))
@@ -187,6 +196,7 @@ app.whenReady().then(async () => {
     return JSON.stringify({
       panel: !!document.querySelector('.fm-ver-panel'),
       rows: rows.length,
+      hasClose: !!document.querySelector('.fm-ver-close'),
       hasRestore: rows.some((r) => Array.from(r.querySelectorAll('button')).some((b) => b.textContent.includes('还原'))),
       hasDelete: rows.some((r) => Array.from(r.querySelectorAll('button')).some((b) => b.textContent === '删除')),
     })
@@ -195,7 +205,19 @@ app.whenReady().then(async () => {
   chk('展开版本历史面板', ver.panel === true && ver.rows >= 1, J(ver))
   chk('每个版本有「还原到此版本」', ver.hasRestore === true)
   chk('每个版本可单独删除', ver.hasDelete === true)
+  chk('面板标题带「收起」按钮（可折叠）', ver.hasClose === true)
   await safeShot('fm-versions.png')
+
+  // 折叠：点「收起」后面板应消失（用户要求历史版本是可折叠的）
+  const folded = JSON.parse(await js(`(async () => {
+    const x = document.querySelector('.fm-ver-close')
+    if (!x) return JSON.stringify({ clicked: false })
+    x.click()
+    await new Promise((r) => setTimeout(r, 700))
+    return JSON.stringify({ clicked: true, panel: !!document.querySelector('.fm-ver-panel') })
+  })()`))
+  console.log('  ', J(folded))
+  chk('面板可折叠：点「收起」后消失', folded.clicked === true && folded.panel === false, J(folded))
 
   console.log('\n=== ⑦ 真实还原（并可回退）===')
   const before = JSON.parse(await js(`(async () => {

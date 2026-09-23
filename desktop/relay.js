@@ -271,7 +271,13 @@
     const ttl = el('div', 'ttl')
     const hi = el('span'); I.into(hi, 'history', 15)
     ttl.appendChild(hi)
-    ttl.appendChild(el('span', null, '历史版本 · ' + f.name))
+    ttl.appendChild(el('span', 'tx', '历史版本 · ' + f.name))
+    // 收起按钮：这个面板是**可折叠**的 —— 右键菜单再点一次、按 Esc 也能收起
+    const cls = el('button', 'fm-ver-close')
+    I.into(cls, 'close', 13)
+    cls.title = '收起历史版本（Esc）'
+    cls.onclick = () => { state.verFor = null; renderList() }
+    ttl.appendChild(cls)
     p.appendChild(ttl)
 
     api.relayVersions(f.path).then((v) => {
@@ -343,7 +349,9 @@
       say(`备份完成：新增 ${ok}，跳过（内容未变）${skip}${bad ? '，失败 ' + bad : ''}`, bad ? 'err' : 'ok')
       refresh()
     })
-    add('history', '查看历史版本', () => { state.verFor = f.path; renderList() })
+    // 与文件卡上的「历史版本」按钮一致：再点一次就收起（可折叠）
+    const verOpen = state.verFor === f.path
+    add('history', verOpen ? '收起历史版本' : '查看历史版本', () => { state.verFor = verOpen ? null : f.path; renderList() })
     m.appendChild(el('hr'))
     add('refresh', '刷新列表', () => refresh())
 
