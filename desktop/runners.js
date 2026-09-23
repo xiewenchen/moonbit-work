@@ -42,6 +42,27 @@ function niceName(p) {
   return parts[parts.length - 1]
 }
 
+// 常见 npm 脚本名 → 中文（用户看不懂 dev/start/serve 这些词）
+const SCRIPT_CN = {
+  start: '启动服务', dev: '开发模式启动', develop: '开发模式启动', serve: '启动服务', server: '启动服务',
+  build: '构建', test: '跑测试', lint: '代码检查', format: '格式化', fmt: '格式化',
+  preview: '预览', watch: '监听模式（改文件自动重建）', clean: '清理产物', deploy: '部署',
+  electron: '启动桌面应用', dist: '打包安装包', pack: '打包', typecheck: '类型检查', e2e: '端到端测试',
+}
+
+// 给脚本名配中文标题：完整名优先；否则按「前缀:后缀」翻译（test:backend → 跑测试 · backend）；
+// 都不认识就退回原名（不硬翻，免得译错）。
+function scriptLabel(n) {
+  if (SCRIPT_CN[n]) return SCRIPT_CN[n]
+  const i = String(n).indexOf(':')
+  if (i > 0) {
+    const head = n.slice(0, i)
+    const tail = n.slice(i + 1)
+    if (SCRIPT_CN[head]) return SCRIPT_CN[head] + ' · ' + tail
+  }
+  return '运行 ' + n
+}
+
 // 这个包是否依赖外部服务（PG / Redis）？
 // 依赖的话，点了运行会**静默干等**（连不上就一直不监听），所以要先告诉用户。
 function needsBackends(pkgDir) {
@@ -101,14 +122,17 @@ function findRunners(root) {
     // start / dev / serve 这类优先排在前面
     const pref = ['start', 'dev', 'serve', 'develop']
     const names = Object.keys(scripts).sort((a, b) => (pref.indexOf(a) >= 0 ? -1 : 0) - (pref.indexOf(b) >= 0 ? -1 : 0))
-    for (const n of names) add('运行 ' + n, 'npm', ['run', n], root, 'npm run ' + n)
+    for (const n of names) {
+      // 中文释义当标题（看不懂 dev 是什么的人也能选对）；不认识的脚本名保留原名
+      add(scriptLabel(n), 'npm', ['run', n], root, 'npm run ' + n)
+    }
   } else if (kind === 'python') {
     for (const f of ['main.py', 'app.py', 'manage.py', 'run.py', '__main__.py']) {
       if (isFile(path.join(root, f))) add('运行 ' + f, 'python', [f], root, 'python ' + f)
     }
   } else if (kind === 'rust') {
-    add('运行（debug）', 'cargo', ['run'], root, 'cargo run')
-    add('运行（release）', 'cargo', ['run', '--release'], root, 'cargo run --release')
+    add('运行（调试版）', 'cargo', ['run'], root, 'cargo run')
+    add('运行（发行版，更快）', 'cargo', ['run', '--release'], root, 'cargo run --release')
   } else if (kind === 'go') {
     add('运行', 'go', ['run', '.'], root, 'go run .')
     add('构建并运行', 'go', ['build', '.'], root, 'go build .')
