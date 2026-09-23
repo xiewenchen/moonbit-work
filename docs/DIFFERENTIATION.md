@@ -1,71 +1,118 @@
 # 查重与差异说明
 
-> 依据：mooncakes.io 的 `moon search` **实测结果**（可复核，命令见文末）。
+> 全部数据来自 mooncakes.io 的 `moon view` **实测**（2026-09-23），复核命令见文末。
 > 章程审核原则：「mooncakes.io 上当前不存在类似项目。」
 
-## 一、查重实测结果
+## 一、原始材料清单与来源声明
 
-| 检索词 | 检出模块 | 下载量 | 它的自我介绍（原文意译） | 判定 |
-|---|---|---|---|---|
-| `redis` | `oboard/redis@0.2.0` | 51 | A modern, high performance **Redis client** for MoonBit | **部分重合** |
-| `postgres` | `Lfan-ke/moon-postgres@0.3.0` | 127 | Pure-MoonBit **PostgreSQL wire-protocol driver** implementing `@moondb.AsyncDriver` — no C | **部分重合** |
-| `http` | `mizchi/crater-browser-http@0.19.0` | 3599 | **HTTP, cache, cookie and request sandbox helpers for crater browser** | 不重合（浏览器侧工具） |
-| `pg` | `mizchi/bitx_openpgp@0.48.0` | 99 | Native **OpenPGP** signature verification | 不重合（无关） |
+### 1.1 参考来源（必填项）
 
-**结论**：Redis / PostgreSQL 方向**已有同类项目**，必须逐项说明差异（下文第二节）；
-**HTTP 方向未检出同类**（检出的 `crater-browser-http` 是浏览器测试工具，不是服务端实现）。
+本项目**为原创实现，非移植**。实现过程中参照的规范与文档如下：
 
-## 二、逐项差异
-
-### 2.1 与 `oboard/redis` 的差异
-
-| 维度 | `oboard/redis` | 本项目（`mbp/platform`） |
+| 部分 | 参照来源 | 性质 |
 |---|---|---|
-| 定位 | Redis **客户端库** | **三协议一体的平台**：Redis + PostgreSQL + **HTTP 服务端** |
-| 协议层 | 面向使用者的 API | **独立可测的 RESP 协议层**（含嵌套深度上限、安全字节访问） |
-| 之上有什么 | 无 | **应用框架层**（路由 / 中间件 / JWT / 限流）+ 工具链（迁移、压测、多进程） |
+| HTTP/1.1 协议层（`http/`） | **RFC 7230 / 7231 / 7235**（报文语法、语义、认证） | 公开标准 |
+| Redis 协议层（`redis/`） | **Redis 官方文档 RESP 章节**（`redis.io/docs/reference/protocol-spec`） | 公开协议文档 |
+| PostgreSQL 协议层（`pg/`） | **PostgreSQL 官方文档 Chapter 55–56**（Frontend/Backend Protocol、SASL 认证） | 公开协议文档 |
+| SCRAM-SHA-256 认证（`pg/sasl.mbt`） | **RFC 5802 / RFC 7677** | 公开标准 |
+| JWT / HS256（`app/auth.mbt`） | **RFC 7515 / 7519**（JWS、JWT） | 公开标准 |
+| HS256 的 HMAC / SHA-256 | **RFC 2104 / FIPS 180-4**（算法定义） | 公开标准 |
+| 令牌桶限流（`app/guard.mbt`） | 通用算法（无特定来源） | — |
+| 桌面 IDE（`desktop/`） | **Electron + Monaco Editor**（MIT）| **外部开源组件**，见 `docs/ATTRIBUTION.md` |
+| 语言分析能力 | **moon-lsp**（随 MoonBit 工具链分发） | **官方组件**，见 `docs/ATTRIBUTION.md` |
 
-即：**它是「一个 Redis 客户端」，本项目是「包含 Redis 客户端能力在内的后端平台」。**
-不是同一层的替代关系。
+**无移植代码**。所有协议实现依据上述公开标准自行编写，未复制任何开源项目的源码。
+`docs/ATTRIBUTION.md` 另有完整的第三方组件清单（名称、版本、许可证、用途）。
 
-### 2.2 与 `Lfan-ke/moon-postgres` 的差异
+### 1.2 本项目（发布名）
 
-| 维度 | `Lfan-ke/moon-postgres` | 本项目 |
+```
+模块名：xiewenchen/moonbit-platform@0.1.0
+仓库：  https://github.com/xiewenchen/moonbit-work
+```
+
+## 二、查重实测结果
+
+### 2.1 单包检索命中
+
+| 检索词 | 检出 | 下载 | 自述定位 |
+|---|---|---|---|
+| `redis` | `oboard/redis@0.2.0` | 51 | A modern, high performance **Redis client** for MoonBit |
+| `postgres` | `Lfan-ke/moon-postgres@0.3.0` | 127 | Pure-MoonBit **PostgreSQL wire-protocol driver**（**已标记 deprecated**，迁至 `moonbitstack/moonpostgres`）|
+| `pg` | `mizchi/bitx_openpgp@0.48.0` | 99 | **OpenPGP** 签名验证（与本项目方向无关）|
+| `http` | `mizchi/crater-browser-http@0.19.0` | **3599** | **浏览器测试工具**（HTTP/cache/cookie sandbox helpers for crater browser）—— **下载量高但与后端实现无关** |
+
+### 2.2 通过 `moonbitstack` 组织发现的规模化同类（**本节为原文档遗漏，特此更正**）
+
+按组织维度核查后，发现 `moonbitstack` 已提供成体系的后端组件：
+
+| 包 | 定位（原文意译） | 下载 |
 |---|---|---|
-| 抽象接口 | 实现 `@moondb.AsyncDriver` —— 面向**统一驱动接口** | 直接实现 **PostgreSQL v3 线协议**，不绑定任何 driver 抽象 |
-| 认证 | 未在简介中声称 | **SCRAM-SHA-256 + MD5**（`pg/sasl.mbt`），且**迭代次数上限**防恶意服务端 CPU 挂死 |
-| 类型系统 | — | `pg/types.mbt`：`Numeric(String)` **精确十进制**（金额场景不用 Double）、数组、UUID、JSON 等 |
-| 事务 | — | `begin/commit/rollback/with_transaction` |
-| 传输安全 | 未声称 | **SSL 请求握手**（`ssl_request()`）+ TLS 连接实测 |
-| 与 Redis 的关系 | 独立驱动 | **同一平台内与 Redis 协同**（连接池共享、`with_db` / `with_redis`） |
+| `moonbitstack/mooncat@0.14.4` | native **ASGI 3.0 server**（← uvicorn）| 33 |
+| `moonbitstack/moonhttp@0.11.0` | HTTP/3 framing、HPACK、QPACK、WebSocket、SSE、multipart（"Bytes in, events out; no sockets"）| 239 |
+| `moonbitstack/moonapi@0.13.0` | typed web framework（← FastAPI）：路由、类型提取器、OpenAPI、DI、OAuth2、CORS/gzip | 143 |
+| `moonbitstack/moondb@0.2.0` | 标准数据库访问接口（← Go `database/sql`、DB-API 2.0）| 402 |
+| `moonbitstack/moonpostgres@0.6.2` | PostgreSQL wire-protocol driver | 59 |
 
-注：`Lfan-ke/moon-postgres` 的项目名与设备声称的"pure-MoonBit, no C"方向与本项目**在精神上一致**，
-但在**协议实现范围、认证覆盖、类型精度、以及"是否作为平台一部分"**上定位不同。
+> **更正声明**：本文档早前版本称"HTTP 服务端方向未检出同类"，**该结论不成立** —— 仅按关键词检索未能覆盖以组织形式发布的系列包。现据 `moon view` 实测结果更正。
 
-### 2.3 本项目独有（查重未检出的部分）
+## 三、差异说明（只陈述本项目实现范围，不评价他人）
 
-| 独有能力 | 说明 |
+### 3.1 实现范围对照
+
+| 能力 | 本项目 | 说明 |
+|---|---|---|
+| HTTP/1.1 服务端 | ✅ `http/server/` | 路由、中间件链、keep-alive、超时与限额、TLS |
+| HTTP/2 · HTTP/3 · WebSocket · SSE · multipart | ❌ **未实现** | 见 3.2 |
+| Redis RESP 协议 | ✅ `redis/` | 协议解析 + 连接池 + 命令层 |
+| PostgreSQL v3 协议 | ✅ `pg/` | 含 SCRAM-SHA-256 / MD5 认证、SSL 请求握手、类型系统、事务 |
+| 应用框架 | ✅ `app/` | Config、路由、中间件、JWT(HS256)、令牌桶限流、统一错误处理、Prometheus 指标 |
+| OpenAPI / 依赖注入 / OAuth2 | ❌ **未实现** | 见 3.2 |
+| 数据库迁移工具 | ✅ `db/migrate.mbt` | 按文件名升序、事务包裹、幂等 |
+| 压测工具 | ✅ `bench/` | 含 p50 / p95 / max |
+| 多进程启动器 | ✅ `cluster/` | `@process.run` 派生 |
+| 桌面 IDE | ⚠️ `desktop/` | **Electron + JS 实现，非 MoonBit 交付物**，属配套开发工具 |
+
+### 3.2 本项目未覆盖的能力（如实列出）
+
+相对于 `moonbitstack` 系列，本项目**不具备**：HTTP/2、HTTP/3、QUIC、WebSocket、SSE、multipart、HPACK/QPACK、OpenAPI 文档生成、依赖注入、OAuth2、数据库访问抽象层（driver↔query 契约）。
+
+**不声称这些方向存在空白。**
+
+### 3.3 本项目的可验证特征
+
+以下为本项目自身特征，均有实测记录可复核：
+
+| 特征 | 依据 |
 |---|---|
-| **HTTP/1.1 服务端** | 检出的 HTTP 项目均为**客户端/浏览器侧**；本项目的 HTTP 是**服务端**：路由（含 percent-decode）、中间件链、keep-alive、超时/限额、TLS |
-| **应用框架层** | `Config`(env 覆盖/校验) + `App`/`Group` + 中间件 + JWT(HS256, 手写) + 令牌桶限流 + 统一错误处理 |
-| **协议层零依赖** | 协议层不依赖 native，**`wasm-gc` 目标可测**（19 个包） |
-| **工具链** | SQL 迁移（幂等，按文件名升序）、压测（含 p50/p95/max）、多进程启动器 |
-| **桌面 IDE** | Electron + Monaco，含 LSP 客户端、集成终端、主题系统、文件中转站 |
+| **单模块整体交付**（1 个 `moon.mod` 含 28 个包），未经组织拆分为多个独立模块 | `moon.mod` + `moon.pkg` 结构 |
+| **协议层零依赖且 `wasm-gc` 目标可测**（19 个包）| `moon test --target wasm-gc` 实测通过 |
+| **已完成系统性安全审计**：累计修复 41 个缺陷（含整数溢出致远程 DoS、头部注入、限流绕过、fd 泄漏）/ **四轮加固**，含 fuzz 测试 | `docs/VULNERABILITIES.md`、`SECURITY.md` |
+| **通过 RealWorld 官方规范套件验证**：hurl 13 个套件 / 154 请求 / 100% 通过，3 轮可重复 | `conduit/SPEC-COMPLIANCE.md` |
+| **真实端到端演示**：19 端点、91 项 e2e、30 步演示脚本 | `conduit/` |
 
-## 三、结论
+### 3.4 下载量观察（事实陈述）
 
-1. Redis / PostgreSQL 方向**存在同类**，但均为**单点客户端/驱动**；本项目是**多协议平台**，
-   且在这些方向上**协议实现更完整**（认证、类型精度、事务、TLS、协同）。
-2. HTTP 服务端方向**未检出同类**。
-3. 本项目**不与既有项目构成同层替代**：它们各自解决"如何连上某个服务"，
-   本项目解决"如何用纯 MoonBit 从零搭一套后端"。
+截至 2026-09-23，上述同类项目下载量为：`oboard/redis` 51、`moonbitstack/moonpostgres` 59、`Lfan-ke/moon-postgres` 127、`moonbitstack/moonapi` 143、`moonbitstack/moonhttp` 239、`moonbitstack/mooncat` 33。
 
-## 四、复核方式
+（`mizchi/crater-browser-http` 为 3599，但其定位是**浏览器测试工具**，与后端服务端实现不构成同类比较。）
+
+## 四、结论
+
+1. **本方向已存在成体系的同类项目**（`moonbitstack` 系列），其中 `mooncat`（ASGI 服务端）与 `moonapi`（web 框架）在功能覆盖上**超过本项目**。本项目**不声称填补空白**。
+2. 本项目的差异在于**集成形态与工程验证**：单模块整体交付、`wasm-gc` 可测的协议层、四轮安全加固（41 缺陷修复记录）、RealWorld 官方套件 100% 通过。这些是**可复核的工程记录**，而非功能覆盖的优势。
+3. 若评审认为上述差异不足以构成独立选题价值，**本项目接受该判断** —— 选材重合是事实，不宜以措辞掩盖。
+
+## 五、复核方式
 
 ```bash
 export PATH="$HOME/.moon/bin:$PATH"
-moon search redis
-moon search postgres
-moon search http
-moon search pg
+moon search redis ; moon search postgres ; moon search http ; moon search pg
+moon view oboard/redis
+moon view moonbitstack/mooncat
+moon view moonbitstack/moonhttp
+moon view moonbitstack/moonapi
+moon view moonbitstack/moondb
+moon view moonbitstack/moonpostgres
+moon view xiewenchen/moonbit-platform
 ```
