@@ -1,12 +1,29 @@
 // 项目类型识别验证：用真实项目跑，确认能说清「哪些能力可用」
 const path = require('path')
+const os = require('os')
+const fs = require('fs')
 const { detectProject } = require('./project-detect')
 
 let pass = 0, fail = 0
 const check = (n, c, d = '') => { if (c) { pass++; console.log(`  [PASS] ${n}`) } else { fail++; console.log(`  [FAIL] ${n}  ${d}`) } }
 
-const MOONBIT = 'C:/Users/33567/AppData/Roaming/reasonix/global-workspace/moonbit-platform'
-const STRAPI = 'C:/Users/33567/Desktop/strapi-backend'
+// 用脚本位置推导仓库根，跨平台
+const MOONBIT = path.resolve(__dirname, '..')
+
+// 用临时目录造一个最小 node 项目 fixture，不依赖本机桌面路径
+function makeStrapiFixture() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'strapi-fixture-'))
+  fs.writeFileSync(
+    path.join(dir, 'package.json'),
+    JSON.stringify({
+      name: 'strapi-backend-fixture',
+      version: '0.0.0',
+      scripts: { start: 'strapi start', develop: 'strapi develop' },
+    }, null, 2)
+  )
+  return dir
+}
+const STRAPI = makeStrapiFixture()
 
 console.log('=== ① MoonBit 项目（本仓库）===')
 {
@@ -38,7 +55,7 @@ console.log('\n=== ② Strapi 项目（Node）===')
 
 console.log('\n=== ③ 不存在的目录 ===')
 {
-  const i = detectProject('C:/definitely/not/here')
+  const i = detectProject(path.join(os.tmpdir(), 'definitely-not-here-' + Date.now()))
   check('未知类型不崩溃', i.kind === 'unknown', i.kind)
 }
 
