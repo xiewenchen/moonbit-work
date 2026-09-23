@@ -485,8 +485,12 @@ pub async fn serve(
 ///   openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 365 -subj "/CN=localhost"
 ///   openssl pkcs12 -export -out cert.pfx -inkey key.pem -in cert.pem -passout pass:
 ///
-/// ⚠️ 当前 async 的 schannel 后端把 `server_from_pair` 标为 internal，且 Windows 上
-/// 不提供 PEM 版入口；因此 Windows 下 HTTPS 属于「能跑但非正式支持」。
+/// Windows（schannel 后端）：用 **pfx** 启动 HTTPS 服务。
+///
+/// async 的两个 TLS 后端**签名不同**：
+///   · schannel（Windows）：`server_from_pair(reader, writer, pfx_file~)`
+///   · openssl（非 Windows）：`server_from_pair(r, w, private_key_file~, private_key_type~, certificate_file~, certificate_type~)`
+/// 所以这里必须分平台，不能共用一套参数。
 #cfg(platform="windows")
 pub async fn serve_tls_pfx(
   router : Router,
@@ -514,7 +518,10 @@ pub async fn serve_tls_pfx(
 }
 
 ///|
-/// 非 Windows（OpenSSL）：用 PEM 证书 + 私钥启动 HTTPS 服务。
+/// 非 Windows（openssl 后端）：用 **PEM 证书 + 私钥**启动 HTTPS 服务。
+///
+/// （顺带修了一个真 bug：这里原先写的是 `@tls.Tls::server(...)`，而 async **没有**这个方法 ——
+///  它被 `#cfg` 关着、在 Windows 上从不编译，所以一直没被发现。）
 #cfg(not(platform="windows"))
 pub async fn serve_tls(
   router : Router,
@@ -531,7 +538,11 @@ pub async fn serve_tls(
     async fn(tcp, addr) {
       let mut tls_ok = false
       defer (if !tls_ok { tcp.close() })
-      let tls = @tls.Tls::server(
+      // 注意：async 只有 `server_from_pair`，**没有** `Tls::server`。
+      // 之前这里写的 `Tls::server(...)` 一直没被发现，是因为它被关在非 Windows 的 cfg 里、
+      // Windows 上根本不编译。
+      let tls = @tls.Tls::server_from_pair(
+        tcp,
         tcp,
         private_key_file=key_file,
         private_key_type=@tls.X509FileType::PEM,

@@ -48,6 +48,17 @@ async fn[R : @io.Reader] tls_read_response(r : R) -> @http.Response {
 }
 
 ///|
+/// TLS 握手 + 请求（**Windows 专用**）。
+///
+/// 为什么限定平台：async 的两个 TLS 后端签名不同 ——
+///   · schannel（Windows）：`server_from_pair(r, w, pfx_file~)`
+///   · openssl（非 Windows）：`server_from_pair(r, w, private_key_file~, …, certificate_type~)`，
+///     而且它被标了 `#internal("do not use, for internal testing only")`，外部包本来也调不了。
+/// 所以这个用例用 pfx、只在 Windows 跑；非 Windows 上整体跳过。
+/// 证书由 testdata 提供（自签，仅测试用）：
+///   openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 365 -subj "/CN=localhost"
+///   openssl pkcs12 -export -out localhost.pfx -inkey key.pem -in cert.pem -passout pass:
+#cfg(platform="windows")
 async test "tls handshake and request" {
   let router = @server.Router::new()
   router.get("/secure", fn(_req) { @http.Response::text(200, "secret") })

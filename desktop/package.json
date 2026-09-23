@@ -20,7 +20,9 @@
     "test:symbols": "node test-symbols.js",
     "fetch:opencode": "node ../tools/fetch-opencode.js",
     "dist:dir": "electron-builder --dir",
-    "dist": "electron-builder --win --x64"
+    "dist": "electron-builder --win --x64",
+    "verify:demo": "node verify-demo.js",
+    "verify:demo:fast": "node verify-demo.js --fast"
   },
   "devDependencies": {
     "@xterm/addon-fit": "^0.10.0",
