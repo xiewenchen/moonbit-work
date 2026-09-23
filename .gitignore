@@ -1,6 +1,7 @@
 _build/
 target/
 .mooncakes/
+logs/
 **/symbols.jsonl
 desktop/node_modules/
 desktop/package-lock.json
