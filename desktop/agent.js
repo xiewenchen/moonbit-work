@@ -16,7 +16,15 @@ const os = require('os')
 const path = require('path')
 
 const CFG_DIR = path.join(os.homedir(), '.config', 'opencode')
-const CFG_FILE = path.join(CFG_DIR, 'opencode.json')
+// opencode 官方推荐 .jsonc（可写注释），但也支持 .json —— 两个都要找。
+// （之前只找 opencode.json，而用户机器上是 opencode.jsonc → 读到空、打开也打不开）
+function configPath() {
+  for (const p of [path.join(CFG_DIR, 'opencode.jsonc'), path.join(CFG_DIR, 'opencode.json')]) {
+    try { if (fs.statSync(p).isFile()) return p } catch (_) {}
+  }
+  return path.join(CFG_DIR, 'opencode.jsonc')   // 都不存在时，用官方推荐的那个
+}
+const CFG_FILE = configPath()
 
 // 找到 opencode 可执行文件。
 // npm 全局安装后 Windows 上是 opencode.cmd，且**不一定在当前进程的 PATH 里**
@@ -60,11 +68,12 @@ function findOpencode() {
 
 // 读用户模型配置（明文 read，写回时保留原结构）
 function readConfig() {
+  const p = configPath()
   try {
-    const raw = fs.readFileSync(CFG_FILE, 'utf8').replace(/^\s*\/\/.*$/gm, '')
-    return { ok: true, path: CFG_FILE, config: JSON.parse(raw) }
+    const raw = fs.readFileSync(p, 'utf8').replace(/^\s*\/\/.*$/gm, '')
+    return { ok: true, path: p, config: JSON.parse(raw) }
   } catch (e) {
-    return { ok: true, path: CFG_FILE, config: null, exists: false }
+    return { ok: true, path: p, config: null, exists: false }
   }
 }
 
@@ -195,10 +204,33 @@ function registerAgentIpc({ getWindow }) {
   ipcMain.handle('agent:config:get', () => readConfig())
   ipcMain.handle('agent:config:set', (_e, json) => writeConfig(json))
   // 打开配置目录，方便用户自己编辑（很多 provider 配置项我们不该替他猜）
-  ipcMain.handle('agent:open-config', () => {
+  // 注意：shell.openPath() 失败时是 **resolve 一个错误字符串**，不是 reject ——
+  // 所以必须看返回值，光靠 .catch() 兵底会永远不触发（之前就卡在这里：点了没反应）。
+  ipcMain.handle('agent:open-config', async () => {
     try { fs.mkdirSync(CFG_DIR, { recursive: true }) } catch (_) {}
-    shell.openPath(CFG_FILE).catch(() => shell.openPath(CFG_DIR))
-    return { ok: true, path: CFG_FILE }
+    const p = configPath()
+    let exists = false
+    try { exists = fs.statSync(p).isFile() } catch (_) {}
+    if (exists) {
+      const err = await shell.openPath(p)
+      if (!err) return { ok: true, path: p }
+      // 打开文件失败（没有关联程序等）→ 退而打开目录
+      const err2 = await shell.openPath(CFG_DIR)
+      return err2 ? { ok: false, error: err, path: p } : { ok: true, path: CFG_DIR, openedDir: true }
+    }
+    // 配置还不存在 → 写一份带示例的模板再打开（否则用户对着空目录不知道怎么配）
+    try {
+      fs.writeFileSync(p, JSON.stringify({
+        $schema: 'https://opencode.ai/config.json',
+        _hint: '把下面的 provider 换成你自己的（可参考 tools/setup-provider.js）：',
+        _example: {
+          provider: { deepseek: { npm: '@ai-sdk/openai-compatible', options: { baseURL: 'https://api.deepseek.com/v1', apiKey: 'sk-你的key' }, models: { 'deepseek-chat': {} } } },
+          model: 'deepseek/deepseek-chat',
+        },
+      }, null, 2), 'utf8')
+    } catch (_) {}
+    const err3 = await shell.openPath(p)
+    return err3 ? { ok: false, error: err3, path: p } : { ok: true, path: p, created: true }
   })
 }
 
