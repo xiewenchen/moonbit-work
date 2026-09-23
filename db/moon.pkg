@@ -1,0 +1,11 @@
+import {
+  "mbp/platform/pg",
+  "mbp/platform/pg/client",
+  "moonbitlang/async",
+  "moonbitlang/async/fs",
+  "moonbitlang/core/encoding/utf8",
+}
+
+supported_targets = "native"
+
+warnings = "-29"

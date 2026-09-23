@@ -1,0 +1,11 @@
+import {
+  "mbp/platform/app",
+  "mbp/platform/http",
+  "mbp/platform/redis",
+  "moonbitlang/async",
+  "moonbitlang/core/encoding/utf8",
+}
+
+supported_targets = "native"
+
+warnings = "-29"

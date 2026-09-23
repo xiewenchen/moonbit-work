@@ -1,0 +1,15 @@
+import {
+  "mbp/platform/http",
+  "mbp/platform/http/client",
+  "moonbitlang/async",
+  "moonbitlang/core/env",
+}
+
+import {
+  "mbp/platform/http/server",
+  "moonbitlang/async/socket",
+} for "test"
+
+supported_targets = "native"
+
+warnings = "-29"

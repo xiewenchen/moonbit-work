@@ -1,0 +1,9 @@
+import {
+  "mbp/platform/http/server",
+  "moonbitlang/async",
+  "moonbitlang/async/process",
+}
+
+supported_targets = "native"
+
+warnings = "-29"

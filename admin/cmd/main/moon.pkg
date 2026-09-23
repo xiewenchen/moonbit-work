@@ -1,0 +1,11 @@
+import {
+  "mbp/platform/admin",
+  "mbp/platform/app",
+  "moonbitlang/async",
+}
+
+pkgtype(kind: "executable")
+
+supported_targets = "native"
+
+warnings = "-29"
