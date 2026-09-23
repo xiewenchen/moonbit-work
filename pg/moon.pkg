@@ -8,3 +8,7 @@ import {
   "moonbitlang/core/random",
   "moonbitlang/core/env",
 } for "test"
+
+// 新版 moon 把 `derive(Eq/Debug)` 的隐式提升标为弃用（error code 79）——
+// 本地工具链版本较旧、看不到它，CI 上会因此报 17 个 error。这里收窄掉。
+warnings = "-79"
