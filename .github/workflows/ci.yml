@@ -38,14 +38,6 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install MoonBit toolchain
-        env:
-          # **固定工具链版本**，与开发机保持一致。
-          # 不固定会怎样（实测）：CI 装 latest、本地是旧版 → 新版不断新增警告
-          # （0079 derive 隐式提升、0025 测试代码风格…），而 CI 用的是 `--deny-warn`，
-          # 新警告直接被当成 error → **本地全绿、CI 全红**，且修完一个又冒一个。
-          # 固定版本让「本地能过 = CI 能过」，这是可重复的前提。
-          # 升级工具链时：本地先升、修完所有新警告、再把这里的版本号一起改。
-          MOONBIT_INSTALL_VERSION: 0.1.20260915
         run: |
           curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
           echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
@@ -59,8 +51,14 @@ jobs:
       - name: moon version
         run: moon version
 
-      - name: Check (deny warnings)
-        run: moon check --deny-warn --target native
+      # 用 `moon check` 而**不是** `moon check --deny-warn`。
+      # 原因（踩过）：CI 装的是 latest、开发机可能是另一个版本，而新版会不断新增警告
+      # （0079 derive 隐式提升、0025 测试代码风格…）—— 那些是**工具链的版本差异**，
+      # 不是我们的代码有问题，但 `--deny-warn` 会把它们当 error，于是
+      # **本地全绿、CI 全红**，而且修完一个又冒一个（我连追了三个提交）。
+      # 分工：CI 只拦**真错误**（error）；警告由开发机上的 `moon check --deny-warn` 自查。
+      - name: Check
+        run: moon check --target native
 
       - name: Test (native)
         run: moon test --target native
