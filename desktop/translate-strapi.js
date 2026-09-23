@@ -356,6 +356,30 @@ const EXTRA_CSS = `
       #themeToggle .theme-ico { display: inline-flex; }
       #themeToggle .theme-ico svg { width: 14px; height: 14px; }
 
+      /* ===== 未打开项目：**只影响「项目」标签**，其余标签照常可用 =====
+         之前写成全局 body.no-project，会把主菜单/中转站/工具一起锁住 —— 那是错的。 */
+      #welcomeScreen { display: none; }
+      body.no-project[data-view="project"] #welcomeScreen {
+        display: flex; position: fixed; inset: 0; z-index: 900;
+        align-items: center; justify-content: center; background: var(--s-bg-deepest);
+      }
+      /* 无项目且在项目标签时，收起会误点的东西：编译/运行按钮、命令面板、地址栏、编辑器、底部面板 */
+      body.no-project[data-view="project"] #titlebar button[data-cmd],
+      body.no-project[data-view="project"] #cmdBtn,
+      body.no-project[data-view="project"] #cwd,
+      body.no-project[data-view="project"] #body,
+      body.no-project[data-view="project"] #panel { display: none !important; }
+      /* 无项目时品牌与「打开文件夹」保留（给已经在用的用户一条退路） */
+      .ws-card { background: var(--s-bg-panel); border: 1px solid var(--s-border); border-radius: 8px; box-shadow: var(--s-shadow-popup); padding: 36px 44px; text-align: center; max-width: 92vw; }
+      .ws-title { font-size: 2.2rem; font-weight: var(--s-fw-semi); color: var(--s-text-bright); letter-spacing: .01em; }
+      .ws-sub { margin-top: 8px; font-size: 1.2rem; color: var(--s-text-dim); }
+      .ws-actions { margin-top: 26px; display: flex; gap: 12px; justify-content: center; }
+      .ws-actions button { height: 3.6rem; padding: 0 2rem; font-size: 1.3rem; }
+      .ws-secondary { background: transparent !important; color: var(--s-text) !important; border: 1px solid var(--s-border-strong) !important; }
+      .ws-secondary:hover { background: var(--s-bg-hover) !important; border-color: var(--s-text-dim) !important; }
+      .ws-hint { margin-top: 20px; font-size: 1.1rem; color: var(--s-text-faint); }
+      :root[data-theme="light"] .ws-card { background: #ffffff; border-color: #eaeaef; }
+
       /* 工具标签：工具入口卡（点击切到项目标签并激活对应底部面板）*/
       .tv-head { padding: 18px 20px 6px; font-size: 1.4rem; font-weight: var(--s-fw-semi); color: var(--s-text-bright); }
       .tv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; padding: 12px 20px 20px; }
@@ -638,6 +662,20 @@ const final = `<!DOCTYPE html>
 ${myToast}
 ${shell}
 ${myTail}
+<!-- 未打开项目时的全屏欢迎页：只留「打开 / 新建」两个动作。
+     其余功能（编译/运行/面板/侧栏）由 body.no-project 统一隐藏 ——
+     避免用户对着一堆点了没反应的按钮猜。 -->
+<div id="welcomeScreen">
+  <div class="ws-card">
+    <div class="ws-title">MoonBit IDE</div>
+    <div class="ws-sub">还没有打开项目</div>
+    <div class="ws-actions">
+      <button id="wsOpen" class="ws-primary">打开项目</button>
+      <button id="wsNew" class="ws-secondary">新建项目</button>
+    </div>
+    <div class="ws-hint">也可以把项目文件夹直接拖进窗口</div>
+  </div>
+</div>
 <!-- 通用确认框：替代原生 confirm()。原生 confirm 是同步阻塞的 —— 弹窗期间渲染
      进程不刷新，叠上 Monaco 的光标样式，用户会看到「鼠标消失」。 -->
 <div id="askMask" class="ask-mask" hidden>

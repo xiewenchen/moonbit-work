@@ -35,6 +35,10 @@ function switchView(name, remember) {
   for (const el of document.querySelectorAll('.mainview')) {
     el.classList.toggle('active', el.id === 'mainview-' + name)
   }
+  // 记录当前所在标签。无项目态的样式只作用于「项目」标签
+  // （见 CSS：body.no-project[data-view="project"]），
+  // 主菜单/文件中转站/工具等标签在未打开项目时照常可用。
+  document.body.dataset.view = name
   if (remember !== false) {
     try { localStorage.setItem('moonbit-view', name) } catch (_) {}
   }
@@ -66,8 +70,12 @@ function initActivityBar() {
   }
   let saved = null
   try { saved = localStorage.getItem('moonbit-view') } catch (_) {}
-  // 默认落在「主菜单」—— 主页是办公台，不是代码编辑器
-  switchView(saved && VIEW_ORDER.includes(saved) ? saved : 'home', false)
+  // 默认落在「主菜单」—— 主页是办公台，不是代码编辑器。
+  // 另外：**未打开项目时忽略上次记忆的标签**。否则上次退出在「项目」标签的话，
+  // 启动就直接落在只有「打开/新建」的欢迎页上，用户会以为整个 IDE 不可用。
+  const noProject = document.body.classList.contains('no-project')
+  const pick = (noProject || !saved || !VIEW_ORDER.includes(saved)) ? 'home' : saved
+  switchView(pick, false)
 }
 
 const outEl = $('output')
@@ -593,6 +601,43 @@ async function createNewProject() {
 // ── 欢迎页 ────────────────────────────────────────────────────────────
 // 初始化不打开任何项目时显示（成熟 IDE 的做法），而不是偷偷打开一个目录。
 // 用户自己选项目 —— 这也是他明确要求的验收点之一。
+// 有项目 / 无项目两种界面状态。无项目时由 CSS（body.no-project）只留欢迎页，
+// 把编译/运行按钮、命令面板、编辑器、底部面板全部收起 ——
+// 不让用户对着一堆点了没反应的控件猜。
+function setProjectOpen(open) {
+  document.body.classList.toggle('no-project', !open)
+}
+
+// 欢迎页两个动作：打开项目 / 新建项目。
+// 注意（已知瑕疵）：createProject 用原生 prompt 问项目名 —— 它会**同步阻塞**渲染，
+// 和之前 confirm 的“鼠标看不见”是同一类问题。列在待办里，先保证功能可用。
+async function createProject() {
+  const parent = await window.moonAPI.pickDir()
+  if (!parent) return
+  const name = window.prompt('新项目名称（只能用字母、数字、下划线，不能以数字开头）：')
+  if (!name) return
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+    setMsg('项目名不合法')
+    return
+  }
+  setMsg('正在新建 ' + name + '…')
+  try {
+    await window.moonAPI.runMoon(['new', name], parent)
+  } catch (_) {}
+  // 建好后直接打开它（`moon new` 成功即目录已存在，不再额外探测 —— 避免依赖
+  // 一个可能不存在的 IPC 而静默失败）。
+  const target = parent.replace(/[\\/]+$/, '') + '/' + name
+  cwdInput.value = target
+  await boot(target)
+}
+
+function initWelcome() {
+  const o = document.getElementById('wsOpen')
+  const n = document.getElementById('wsNew')
+  if (o) o.onclick = () => chooseFolder()
+  if (n) n.onclick = () => createProject()
+}
+
 async function showWelcome() {
   const tree = $('tree')
   if (!tree) return
@@ -617,6 +662,7 @@ async function showWelcome() {
   box.appendChild(h)
   box.appendChild(b)
   tree.appendChild(box)
+  setProjectOpen(false)
   setMsg('未打开项目')
 }
 
@@ -686,6 +732,7 @@ async function startRunner(spec) {
 }
 
 async function boot(dir) {
+  setProjectOpen(true)
   // 注册 Monaco 的补全 / 跳转定义（基于符号索引）
   try {
     registerSymbolProviders()
@@ -1014,7 +1061,15 @@ function initToolsView() {
     card.appendChild(t)
     card.appendChild(d)
     card.onclick = () => {
+      // 跨标签的入口（如文件中转站）直接切过去
       if (it.view) { switchView(it.view); return }
+      // 这些工具都在「项目」标签的底部面板里，而**未打开项目时那是隐藏的**。
+      // 所以先提示，而不是切过去给用户一片空白（那是上一版的错误）。
+      if (document.body.classList.contains('no-project')) {
+        logLine('「' + it.n + '」需要先打开一个项目。已切到「项目」标签，点「打开项目」即可。', 'err')
+        switchView('project')
+        return
+      }
       switchView('project')
       showPanel(it.panel)
     }
@@ -2032,6 +2087,7 @@ function initCore() {
     })
   })
   step('工具标签（工具入口页）', () => initToolsView())
+  step('欢迎页（打开/新建）', () => initWelcome())
   step('输出面板空状态', () => initOutputEmptyState())
   step('initMoonStream（任务流式输出订阅）', () => initMoonStream())
   step('wireUI（按钮/面板绑定）', () => wireUI())
