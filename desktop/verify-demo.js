@@ -84,6 +84,11 @@ log('\n=== 这些**必须手点**（脚本验不了，别当成已验过）===')
 for (const [no, what] of MANUAL) log(`  ${no}  ${what}`)
 log('\n  手点时只要有一次「怎么没反应」，就先修它，再谈新功能。')
 
-try { fs.writeFileSync(OUT, lines.join('\n') + '\n', 'utf8') } catch (_) {}
-console.log('\n结果已写入 ' + path.relative(process.cwd(), OUT))
+try {
+  fs.writeFileSync(OUT, lines.join('\n') + '\n', 'utf8')
+  console.log('\n结果已写入 ' + path.relative(process.cwd(), OUT))
+} catch (e) {
+  console.error('\n结果写入失败:', e.message)
+  console.error('（本次彩排结果未保存到文件）')
+}
 process.exit(fail === 0 ? 0 : 1)
