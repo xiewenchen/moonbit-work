@@ -704,6 +704,11 @@ const EXTRA_CSS = `
       .ag-cfg-hint { font-size: 1.1rem; line-height: 1.6; color: var(--s-text-faint); }
       .ag-cfg-hint.ok { color: var(--s-success); }
       .ag-cfg-hint.err { color: var(--s-danger); }
+
+      /* 运行入口选择器：主标题是人话，小字是实际命令（给懂的人核对） */
+      #runPicker button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; max-width: 460px; }
+      #runPicker button .rl { font-size: 1.25rem; }
+      #runPicker button .rh { font-size: 1.05rem; color: var(--s-text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 430px; }
       .fm-ver { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 4px; border: 1px solid var(--s-border); margin-top: 6px; font-size: 1.15rem; }
       .fm-ver .t { color: var(--s-text); }
       .fm-ver .sz { color: var(--s-text-dim); margin-left: auto; }

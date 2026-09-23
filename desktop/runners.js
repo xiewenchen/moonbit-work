@@ -28,12 +28,40 @@ function kindOf(root) {
   return 'unknown'
 }
 
-// 扫出「能跑的入口」列表。每项：{ label, kind, bin, args, cwd }
+// 从包路径取一个**能看懂的名字**：
+//   ./hello/cmd/main  → hello        （cmd 上一级）
+//   ./demo            → demo
+//   ./cmd/main        → （项目根）
+//   .                 → （项目根）
+function niceName(p) {
+  const parts = String(p).replace(/^\.\//, '').split('/').filter((x) => x && x !== '.')
+  if (!parts.length) return '项目根'
+  const i = parts.indexOf('cmd')
+  if (i > 0) return parts[i - 1]
+  if (i === 0) return '项目根'
+  return parts[parts.length - 1]
+}
+
+// 这个包是否依赖外部服务（PG / Redis）？
+// 依赖的话，点了运行会**静默干等**（连不上就一直不监听），所以要先告诉用户。
+function needsBackends(pkgDir) {
+  try {
+    for (const f of fs.readdirSync(pkgDir)) {
+      if (!f.endsWith('.mbt')) continue
+      const s = fs.readFileSync(path.join(pkgDir, f), 'utf8')
+      if (/pg\/client|redis\/client|pg_port|redis_port|ensure_schema|with_db/.test(s)) return true
+    }
+  } catch (_) {}
+  return false
+}
+
+// 扫出「能跑的入口」列表。每项：{ label, hint, kind, bin, args, cwd }
+// label = 人话（给用户看），hint = 实际命令（给懂的人核对）
 function findRunners(root) {
   root = path.resolve(root)
   const kind = kindOf(root)
   const out = []
-  const add = (label, bin, args, cwd) => out.push({ label, kind, bin, args, cwd: cwd || root })
+  const add = (label, bin, args, cwd, hint) => out.push({ label, hint: hint || ([bin].concat(args || [])).join(' '), kind, bin, args, cwd: cwd || root })
 
   if (kind === 'moonbit') {
     // MoonBit：可执行入口通常是含 main 的包（约定在 cmd/* 或包名目录）
@@ -41,7 +69,12 @@ function findRunners(root) {
     // 必须显式带 --target native：模块级 preferred_target 可能是 wasm（本项目就是），
     // 而可执行入口几乎都是 native-only 包 —— 不带 target 时 moon 会用 wasm 构建，
     // 报 “does not support target backend 'wasm'”，表现就是「任何入口都跑不起来」。
-    const RUN = (p, label) => add(label, 'moon', ['run', p, '--target', 'native'])
+    // 依赖 PG/Redis 的入口在 hint 里标一下 —— 否则用户点下去只会看到一片沉默
+    const RUN = (p, cmd) => {
+      const dir = path.resolve(root, p)
+      const warn = needsBackends(dir) ? '   ⚠ 依赖 PostgreSQL + Redis，需先启动' : ''
+      add('运行 ' + niceName(p), 'moon', ['run', p, '--target', 'native'], root, cmd + warn)
+    }
     // ① 根目录的 cmd/*
     const cmdDir = path.join(root, 'cmd')
     for (const sub of listDirs(cmdDir)) {
@@ -68,17 +101,17 @@ function findRunners(root) {
     // start / dev / serve 这类优先排在前面
     const pref = ['start', 'dev', 'serve', 'develop']
     const names = Object.keys(scripts).sort((a, b) => (pref.indexOf(a) >= 0 ? -1 : 0) - (pref.indexOf(b) >= 0 ? -1 : 0))
-    for (const n of names) add('npm run ' + n, 'npm', ['run', n])
+    for (const n of names) add('运行 ' + n, 'npm', ['run', n], root, 'npm run ' + n)
   } else if (kind === 'python') {
     for (const f of ['main.py', 'app.py', 'manage.py', 'run.py', '__main__.py']) {
-      if (isFile(path.join(root, f))) add('python ' + f, 'python', [f])
+      if (isFile(path.join(root, f))) add('运行 ' + f, 'python', [f], root, 'python ' + f)
     }
   } else if (kind === 'rust') {
-    add('cargo run', 'cargo', ['run'])
-    add('cargo run --release', 'cargo', ['run', '--release'])
+    add('运行（debug）', 'cargo', ['run'], root, 'cargo run')
+    add('运行（release）', 'cargo', ['run', '--release'], root, 'cargo run --release')
   } else if (kind === 'go') {
-    add('go run .', 'go', ['run', '.'])
-    add('go build && 运行', 'go', ['build', '.'])
+    add('运行', 'go', ['run', '.'], root, 'go run .')
+    add('构建并运行', 'go', ['build', '.'], root, 'go build .')
   }
   return { kind, runners: out }
 }

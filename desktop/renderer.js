@@ -703,7 +703,17 @@ function showRunnerPicker(list) {
   m.appendChild(h)
   for (const x of list) {
     const b = document.createElement('button')
-    b.textContent = x.label
+    // 主标题用人话（"运行 hello"），小字给实际命令 —— 给懂的人核对
+    const t = document.createElement('span')
+    t.className = 'rl'
+    t.textContent = x.label
+    b.appendChild(t)
+    if (x.hint) {
+      const hh = document.createElement('span')
+      hh.className = 'rh'
+      hh.textContent = x.hint
+      b.appendChild(hh)
+    }
     b.onclick = () => { m.remove(); startRunner(x) }
     m.appendChild(b)
   }
