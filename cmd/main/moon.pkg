@@ -1,0 +1,5 @@
+// import {
+//   "mbp/platform" @lib,
+// }
+
+pkgtype(kind: "executable")
