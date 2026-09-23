@@ -25,6 +25,8 @@ function kindOf(root) {
   for (const f of ['main.py', 'app.py', 'manage.py', 'pyproject.toml', 'requirements.txt']) {
     if (has(path.join(root, f))) return 'python'
   }
+  // 静态站点：没有上面的标记、但有 index.html —— 也能“跑起来看到样子”
+  if (has(path.join(root, 'index.html')) || has(path.join(root, 'index.htm'))) return 'static'
   return 'unknown'
 }
 
@@ -142,6 +144,10 @@ function findRunners(root) {
   } else if (kind === 'go') {
     add('运行', 'go', ['run', '.'], root, 'go run .')
     add('构建并运行', 'go', ['build', '.'], root, 'go build .')
+  } else if (kind === 'static') {
+    // 纯静态站点（只有 index.html）：起一个本地静态服务器，浏览器里就能看到页面
+    add('在浏览器里预览', 'python', ['-m', 'http.server', '8080'], root, 'python -m http.server 8080')
+    add('在浏览器里预览（8188）', 'python', ['-m', 'http.server', '8188'], root, 'python -m http.server 8188')
   }
   return { kind, runners: out }
 }

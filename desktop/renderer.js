@@ -682,7 +682,16 @@ async function runProject() {
     return
   }
   if (!r.runners.length) {
-    logLine(`没找到可执行入口（项目类型：${r.kind}）—— 若是 MoonBit，请确认包里有 moon.pkg 与 main.mbt`, 'err')
+    const dir = cwdInput.value || ''
+    // 这类提示最常见的原因是「目录不对」（地址栏为空时，会回落到 IDE 自己的目录去扫）。
+    // 所以要把**找的是哪个目录**、**支持哪些类型**都写出来，让用户能自己判断。
+    logLine(
+      `在「${dir || '(地址栏为空 → 用的是 IDE 所在目录)'}」里没找到可执行的入口。\n` +
+      `识别到的项目类型：${r.kind}\n` +
+      `支持的类型：MoonBit（moon.mod）、Node（package.json）、Rust（Cargo.toml）、` +
+      `Go（go.mod）、Python（main.py / app.py / manage.py 等）\n` +
+      (dir ? '' : '→ 地址栏「模块根目录」是空的：请先「打开文件夹」（或把项目文件夹拖进窗口）再点运行。\n'),
+      'err')
     setMsg('没找到可执行入口')
     return
   }
