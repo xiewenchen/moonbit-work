@@ -17,6 +17,21 @@ const { registerRelayIpc } = require('./relay-main')
 const { registerRunnerIpc } = require('./runners')
 const { registerLspIpc } = require('./lsp-manager')
 
+// ── 环境准备：必须在任何 spawn 之前 ─────────────────────────────────────
+// 从桌面快捷方式启动时，进程 PATH 是 Windows 默认值，**不含** ~/.moon/bin
+// （实测快捷方式 = `electron.exe .`，不带任何环境变量）。
+// 那会让 spawn('moon') 直接 ENOENT —— 用户看到的现象就是「任何项目都运行不起来」。
+// 开发时从 Git Bash 启动恰好带着 .moon/bin，所以这个坑在开发机上一直被掩盖。
+const os = require('node:os')
+const MOON_BIN_DIR = path.join(os.homedir(), '.moon', 'bin')
+if (fs.existsSync(MOON_BIN_DIR)) {
+  const parts = (process.env.PATH || '').split(path.delimiter)
+  const norm = (s) => s.replace(/[\\/]+$/, '').toLowerCase()
+  if (!parts.some((p) => norm(p) === norm(MOON_BIN_DIR))) {
+    process.env.PATH = MOON_BIN_DIR + path.delimiter + (process.env.PATH || '')
+  }
+}
+
 // 默认工作目录 = 本模块根；但**允许命令行指定**，
 // 这样可以用这个 IDE 打开任意项目（例如桌面上那个 Strapi 后端）：
 //   electron . <项目目录>

@@ -460,7 +460,7 @@ function commands() {
     { label: 'MoonBit: build (native)', run: () => runMoon(['build', '--target', 'native']) },
     { label: 'MoonBit: test (native)', run: () => runMoon(['test', '--target', 'native']) },
     { label: 'MoonBit: fmt', run: () => runMoon(['fmt']) },
-    { label: 'MoonBit: 运行 (run ./cmd/main)', run: () => runMoon(['run', './cmd/main']) },
+    { label: 'MoonBit: 运行当前项目', run: () => runProject() },
     { label: 'MoonBit: info', run: () => runMoon(['info']) },
     // 依赖管理
     { label: 'MoonBit: 查看依赖树 (moon tree)', run: () => runMoon(['tree']) },
@@ -667,9 +667,22 @@ function showRunnerPicker(list) {
 
 async function startRunner(spec) {
   outEl.textContent = ''
-  logLine(`运行：${spec.label}\n`)
+  logLine(`> ${spec.label}\n`, 'ok')
   const r = await window.moonAPI.runnerRun(spec)
-  if (r && r.ok === false) logLine('启动失败：' + r.error, 'err')
+  if (r && r.ok === false) {
+    logLine('启动失败：' + r.error, 'err')
+    setMsg('启动失败')
+    return
+  }
+  setMsg(`已启动（PID ${r && r.pid ? r.pid : '-'}）`)
+  // 服务类程序常启动后不打印日志。若 3.5 秒仍无输出，给出可操作的说明，
+  // 而不是让用户对着一片空白猜「是不是没跑起来」。
+  setTimeout(() => {
+    const txt = (outEl.textContent || '').trim()
+    if (txt === '' || txt === '> ' + spec.label) {
+      logLine('\n（该进程暂无输出。服务类程序常启动后不打印日志；可访问它监听的端口确认是否已在运行。）\n')
+    }
+  }, 3500)
 }
 
 async function boot(dir) {
@@ -1956,6 +1969,12 @@ function initCore() {
   step('运行输出流（runner）', () => {
     window.moonAPI.onRunnerData((p) => {
       outEl.appendChild(document.createTextNode(p && p.data ? p.data : ''))
+    })
+    // 运行开始：必须给反馈 —— 否则点了「运行」界面毫无变化，
+    // 用户会以为没跑起来（尤其是启动后不打印日志的服务类程序）。
+    window.moonAPI.onRunnerStart((p) => {
+      logLine(`[已启动] ${p && p.label ? p.label : ''} —— 进程运行中，输出会实时出现在这里\n`, 'ok')
+      setMsg('运行中…')
     })
     window.moonAPI.onRunnerEnd((p) => {
       const code = p && p.code != null ? p.code : '-'

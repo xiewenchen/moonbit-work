@@ -37,25 +37,29 @@ function findRunners(root) {
   if (kind === 'moonbit') {
     // MoonBit：可执行入口通常是含 main 的包（约定在 cmd/* 或包名目录）
     const isPkg = (d) => has(path.join(d, 'moon.pkg')) || has(path.join(d, 'moon.pkg.json'))
+    // 必须显式带 --target native：模块级 preferred_target 可能是 wasm（本项目就是），
+    // 而可执行入口几乎都是 native-only 包 —— 不带 target 时 moon 会用 wasm 构建，
+    // 报 “does not support target backend 'wasm'”，表现就是「任何入口都跑不起来」。
+    const RUN = (p, label) => add(label, 'moon', ['run', p, '--target', 'native'])
     // ① 根目录的 cmd/*
     const cmdDir = path.join(root, 'cmd')
     for (const sub of listDirs(cmdDir)) {
-      if (isPkg(path.join(cmdDir, sub))) add('moon run ./cmd/' + sub, 'moon', ['run', './cmd/' + sub])
+      if (isPkg(path.join(cmdDir, sub))) RUN('./cmd/' + sub, 'moon run --target native ./cmd/' + sub)
     }
     // ② 子项目里的 cmd/*（多包布局，如 notes/cmd/main、conduit/cmd/main —— 只扫根目录会漏掉这些）
     for (const d of listDirs(root)) {
       if (d.startsWith('.') || d === '_build' || d === 'node_modules') continue
       const cd = path.join(root, d, 'cmd')
       for (const sub of listDirs(cd)) {
-        if (isPkg(path.join(cd, sub))) add('moon run ./' + d + '/cmd/' + sub, 'moon', ['run', './' + d + '/cmd/' + sub])
+        if (isPkg(path.join(cd, sub))) RUN('./' + d + '/cmd/' + sub, 'moon run --target native ./' + d + '/cmd/' + sub)
       }
     }
     // ③ 顶层/子目录里直接放 main.mbt 的
     for (const d of listDirs(root)) {
       if (d.startsWith('.') || d === '_build' || d === 'node_modules') continue
-      if (has(path.join(root, d, 'main.mbt'))) add('moon run ./' + d, 'moon', ['run', './' + d])
+      if (has(path.join(root, d, 'main.mbt'))) RUN('./' + d, 'moon run --target native ./' + d)
     }
-    if (has(path.join(root, 'main.mbt'))) add('moon run .', 'moon', ['run', '.'])
+    if (has(path.join(root, 'main.mbt'))) RUN('.', 'moon run --target native .')
   } else if (kind === 'node') {
     let pkg = {}
     try { pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) } catch (_) {}
