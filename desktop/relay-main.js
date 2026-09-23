@@ -238,30 +238,74 @@ function createWatcher(onChange) {
   const pending = new Map()    // path -> timer（防抖）
   const recent = []            // 最近变动的文件（供界面显示）
 
+  // 同一文件只保留最近一条；新的插在最前
+  function pushRecent(rec) {
+    const i = recent.findIndex((r) => r.path === rec.path)
+    if (i >= 0) recent.splice(i, 1)
+    recent.unshift(rec)
+    while (recent.length > 200) recent.pop()
+  }
+
+  function statRec(file) {
+    let st
+    try { st = fs.statSync(file) } catch (_) { return null }
+    if (!st.isFile()) return null
+    return {
+      path: file,
+      name: path.basename(file),
+      ext: path.extname(file).toLowerCase(),
+      size: st.size,
+      mtime: st.mtime.toISOString(),
+      at: new Date().toISOString(),
+    }
+  }
+
   function note(file) {
     const abs = path.resolve(file)
     const key = abs
     clearTimeout(pending.get(key))
     pending.set(key, setTimeout(() => {
       pending.delete(key)
-      let st
-      try { st = fs.statSync(abs) } catch (_) { return }
-      if (!st.isFile()) return
-      const rec = {
-        path: abs,
-        name: path.basename(abs),
-        ext: path.extname(abs).toLowerCase(),
-        size: st.size,
-        mtime: st.mtime.toISOString(),
-        at: new Date().toISOString(),
-      }
-      // 同一文件只保留最近一条
-      const i = recent.findIndex((r) => r.path === abs)
-      if (i >= 0) recent.splice(i, 1)
-      recent.unshift(rec)
-      while (recent.length > 200) recent.pop()
+      const rec = statRec(abs)
+      if (!rec) return
+      pushRecent(rec)
       try { onChange(rec) } catch (_) {}
     }, WATCH_DEBOUNCE))
+  }
+
+  // 初始扫描：把目录里**已经存在**的 Office 文档也纳入列表。
+  // 只靠 fs.watch 的话，启动前就在的文件永远不会出现 —— 用户报过：
+  // 桌面上的 .doc/.docx 明明在，中转站里却一个都看不到。
+  // 递归最多 3 层、总数上限 500，避免大目录（下载）拖慢启动。
+  function scanInto(dir, depth, out, maxDepth, maxFiles) {
+    if (depth > maxDepth || out.length >= maxFiles) return
+    let entries
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch (_) { return }
+    for (const e of entries) {
+      if (out.length >= maxFiles) return
+      if (/^~\$/.test(e.name)) continue                 // Office 临时文件
+      const full = path.join(dir, e.name)
+      if (e.isDirectory()) { scanInto(full, depth + 1, out, maxDepth, maxFiles); continue }
+      if (!e.isFile()) continue
+      if (!OFFICE_RE.test(full)) continue               // 只看文档类
+      const rec = statRec(full)
+      if (rec) out.push(rec)
+    }
+  }
+
+  // 同步 IO 放到下一轮事件循环，避免 add() 卡住启动流程
+  function scanLater(dir) {
+    setImmediate(() => {
+      const found = []
+      scanInto(path.resolve(dir), 1, found, 3, 500)
+      // 旧 → 新逐个 pushRecent（它插在最前），最终列表就是「新的在前」
+      found.sort((a, b) => String(a.mtime).localeCompare(String(b.mtime)))
+      for (const rec of found) pushRecent(rec)
+      if (found.length) {
+        console.log(`[relay] 初始扫描 ${dir}：发现 ${found.length} 个文档`)
+        try { onChange(found[0]) } catch (_) {}          // 通知界面刷新
+      }
+    })
   }
 
   function add(dir) {
@@ -277,6 +321,7 @@ function createWatcher(onChange) {
         note(full)
       })
       watchers.set(abs, w)
+      scanLater(abs)                             // 把已存在的文档也读进来
       return { ok: true }
     } catch (e) {
       return { ok: false, error: e.message }

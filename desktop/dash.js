@@ -407,7 +407,9 @@
       del.onclick = () => { layout = layout.filter((t) => t !== type); save(KEY.layout, layout); redraw() }
       const drag = document.createElement('button')
       drag.className = 'wbtn drag'
-      drag.textContent = '⠿'
+      // 拖拽手柄：内联 SVG（六点）。原先用字符 '⠿' —— 它落在「emoji/符号」范围里，
+      // 违反本项目「图标一律用 SVG、不用 emoji/字符」的约定（verify-relay 会报出来）。
+      drag.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg>'
       drag.title = '按住拖动排序'
       acts.appendChild(del); acts.appendChild(drag)
       head.appendChild(label); head.appendChild(acts)

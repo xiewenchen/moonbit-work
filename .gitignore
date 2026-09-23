@@ -9,3 +9,4 @@ desktop/package-lock.json
 .env
 desktop/e2e-shots/
 desktop/agent-verify-result.txt
+desktop/relay-verify-result.txt

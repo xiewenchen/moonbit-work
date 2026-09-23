@@ -38,7 +38,7 @@ app.whenReady().then(async () => {
     })
   })()`))
   chk('第三个标签名为「文件中转站」', t.text === '文件中转站', t.text)
-  chk('图标与其他三个不同', new Set(t.icons).size === 4, J(t.icons))
+  chk('每个标签的图标都不一样', new Set(t.icons).size === t.icons.length, J(t.icons))
 
   console.log('\n=== ② WPS 式布局：左分类 + 工具条 ===')
   await js(`(() => { const a = document.querySelector('a[data-view="agent"]'); if (a) a.click() })()`)
@@ -229,6 +229,41 @@ app.whenReady().then(async () => {
   chk('默认监控了下载与桌面', watch.watched.some((d) => /Downloads$/i.test(d)) && watch.watched.some((d) => /Desktop$/i.test(d)), J(watch.watched))
   chk('固定目录拒绝移除且仍在监控', watch.rmOk === false && watch.still === true, J(watch))
   chk('仍可手动加/删其他文件夹', watch.addOk === true && watch.rmCustom === true)
+
+  console.log('\n=== ⑨ 启动时扫描：桌面/下载里「已存在」的文档 ===')
+  // 之前 watcher 只在 fs.watch 的变化回调里记录文件、没有初始扫描 ——
+  // 结果启动前就在桌面上的 .doc/.docx 一个都列不出来（用户报过）。
+  const scan = JSON.parse(await js(`(async () => {
+    const st = await window.moonAPI.relayStatus()
+    return JSON.stringify({
+      total: (st.recent || []).length,
+      paths: (st.recent || []).map((r) => r.path),
+      names: (st.recent || []).map((r) => r.name),
+      watched: st.watched,
+    })
+  })()`))
+  const deskPrefix = path.resolve(path.join(os.homedir(), 'Desktop')).toLowerCase()
+  const downPrefix = path.resolve(path.join(os.homedir(), 'Downloads')).toLowerCase()
+  const inDesk = scan.paths.filter((p) => path.resolve(p).toLowerCase().startsWith(deskPrefix))
+  const inDown = scan.paths.filter((p) => path.resolve(p).toLowerCase().startsWith(downPrefix))
+  console.log('   桌面读到 ' + inDesk.length + ' 个，下载读到 ' + inDown.length + ' 个')
+  // 独立数一遍桌面里实际有多少文档，与读到的比对（口径与 relay 的扫描一致）
+  const OFFICE_EXT = /\.(docx?|xlsx?|pptx?|pdf|wps|et|dps|odt|ods|odp)$/i
+  const countOffice = (dir, depth) => {
+    let n = 0
+    try {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (/^~\$/.test(e.name)) continue
+        const full = path.join(dir, e.name)
+        if (e.isDirectory()) { if (depth < 3) n += countOffice(full, depth + 1); continue }
+        if (e.isFile() && OFFICE_EXT.test(full)) n++
+      }
+    } catch (_) {}
+    return n
+  }
+  const expectDesk = countOffice(path.join(os.homedir(), 'Desktop'), 1)
+  chk('桌面上的「已存在」文档被读到', expectDesk === 0 || inDesk.length > 0, `桌面实有 ${expectDesk}，读到 ${inDesk.length}`)
+  chk('读到的列表非空（不再只显示「本次动过」的文件）', scan.total > 0, `总计 ${scan.total}`)
 
   await js(`(() => { const a = document.querySelector('a[data-view="agent"]'); if (a) a.click() })()`)
   await sleep(1000)
