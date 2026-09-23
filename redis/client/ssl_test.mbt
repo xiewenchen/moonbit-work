@@ -8,6 +8,7 @@
 ///            --tls-key-file /tmp/server.key --tls-auth-clients no'
 
 ///|
+#skip("需要本地 Redis + TLS（本地起服务后跑 --include-skipped）")
 async test "redis over TLS" {
   let c = @client.Client::connect(
     "127.0.0.1",

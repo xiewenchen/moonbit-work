@@ -4,6 +4,7 @@
 /// docker 官方镜像默认 `ssl=on`（自签证书），所以 SSLRequest 会得到 `S`。
 
 ///|
+#skip("需要本地 PostgreSQL TLS（本地起服务后跑 --include-skipped）")
 async test "connect over TLS via SSLRequest" {
   let c = @client.Client::connect(
     "127.0.0.1",
@@ -24,6 +25,7 @@ async test "connect over TLS via SSLRequest" {
 }
 
 ///|
+#skip("需要本地 PostgreSQL 55432（本地起服务后跑 --include-skipped）")
 async test "connect without TLS still works" {
   let c = @client.Client::connect("127.0.0.1", 55432, "mbp", "", "mbptest")
   defer c.close()

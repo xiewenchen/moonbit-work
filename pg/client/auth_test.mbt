@@ -9,6 +9,7 @@
 ///     -p 55433:5432 postgres:16-alpine
 
 ///|
+#skip("需要本地 PostgreSQL（SCRAM 用户）（本地起服务后跑 --include-skipped）")
 async test "scram-sha-256 authentication" {
   let c = @client.Client::connect(
     "127.0.0.1", 55434, "mbp", "secret", "mbptest",
@@ -20,6 +21,7 @@ async test "scram-sha-256 authentication" {
 }
 
 ///|
+#skip("需要本地 PostgreSQL（MD5 用户）（本地起服务后跑 --include-skipped）")
 async test "md5 authentication" {
   let c = @client.Client::connect(
     "127.0.0.1", 55433, "mbp", "secret", "mbptest",
@@ -30,6 +32,7 @@ async test "md5 authentication" {
 }
 
 ///|
+#skip("需要本地 PostgreSQL 55434（本地起服务后跑 --include-skipped）")
 async test "wrong password is rejected" {
   let failed : Bool = try
     @client.Client::connect("127.0.0.1", 55434, "mbp", "wrong", "mbptest")

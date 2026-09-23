@@ -1,5 +1,6 @@
 ///|
 /// 直接调用 handler 的集成测试：不经 HTTP，能直接看到异常。
+#skip("需要本地 PostgreSQL + conduitdb（本地起服务后跑 --include-skipped）")
 async test "conduit: 注册 → 登录 → 当前用户 链路" {
   let base = @app.Config::default()
   let cfg : @app.Config = {
