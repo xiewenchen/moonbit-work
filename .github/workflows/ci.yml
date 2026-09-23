@@ -58,6 +58,11 @@ jobs:
       # 只挂当前确实能过的：先跑一遍确认“绿”，再放进来；宁缺勿滥（红的 CI 比不挂更糟）。
       # 交互层（真点击）的那批 verify-*.js 依赖 Windows 路径与显示环境，**不能**进这个 CI ——
       # 它们的防线是演示前本地跑 `cd desktop && npm run verify:desktop`。
+      # 禁止「新增空 catch」（冻结存量）—— 更值钱的不是修那三处，而是防第四次：
+      # 空 catch 会把「读取失败」静默变成「没有数据」，本轮已因此踩坑三次。
+      - name: No new empty catch
+        run: node tools/check-empty-catch.js --ci
+
       - name: Desktop IDE logic tests
         run: |
           cd desktop

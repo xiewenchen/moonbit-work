@@ -11,9 +11,23 @@ registerApiDebugIpc({
 let pass = 0, fail = 0
 const check = (name, cond, detail = '') => {
   if (cond) { pass++; console.log(`  [PASS] ${name}`) }
-  else { fail++; console.log(`  [FAIL] ${name}  ${detail}`) }
+  else {
+    fail++
+    // 连不上后端只算一次提示，不要在每条后面刷屏
+    if (/ECONNREFUSED/i.test(String(detail))) refused++
+    console.log(`  [FAIL] ${name}  ${detail}`)
+  }
 }
 const BASE = 'http://127.0.0.1:8110'
+
+// ── 前置条件（写在这里，跑的时候就看得见；比藏在 README 里强）────────────
+// ①「从 openapi.yml 解析端点」那几项是**纯逻辑**，任何时候都能过。
+// ② 后面真正发请求的那 10 项需要有一个后端在 8110 上跑着 —— 具体做法：
+//    在 IDE 的「后端面板」里启动 conduit（它默认就起在 8110；backend.js 的 DEFAULT_PORT），
+//    而 conduit 又需要 PostgreSQL + Redis 先就绪。
+//    没起后端时你会看到一串 ECONNREFUSED —— 那是**环境没准备**，不是脚本坏了。
+const BACKEND_HINT = '（需要先在 IDE 后端面板启动 conduit/8110；conduit 需 PG + Redis）'
+let refused = 0
 
 ;(async () => {
   console.log('=== ① 从 openapi.yml 解析端点 ===')
@@ -69,5 +83,12 @@ const BASE = 'http://127.0.0.1:8110'
   check('连不上时给出可读错误', !!res.error, JSON.stringify(res).slice(0, 100))
 
   console.log(`\n结果：${pass} 通过, ${fail} 失败 / 共 ${pass + fail} 项`)
+  if (refused > 0) {
+    // 注意：只把「明确抓到 ECONNREFUSED」的那几条算进来（其余失败的 detail 里没有这句话），
+    // 所以别报具体数字 —— 那会低估（说"1 项"，实际 10 项都同源）。
+    console.log('\n⚠ 检测到「连不上后端」（ECONNREFUSED）：上面这批失败属于**环境没准备**，不是脚本坏了。')
+    console.log('  ' + BACKEND_HINT)
+    console.log('  → 纯逻辑部分（解析 openapi.yml、构造请求）在没后端时也是通过的。')
+  }
   process.exit(fail ? 1 : 0)
 })()
