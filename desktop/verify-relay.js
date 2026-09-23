@@ -206,6 +206,22 @@ app.whenReady().then(async () => {
   chk('每个版本有「还原到此版本」', ver.hasRestore === true)
   chk('每个版本可单独删除', ver.hasDelete === true)
   chk('面板标题带「收起」按钮（可折叠）', ver.hasClose === true)
+
+  // 历史版本面板必须**横向占满整行** —— 宫格视图下它曾被当成一个「格子」，
+  // 宽度只有一列（minmax(150px)），版本内容显示不全。
+  const layout = JSON.parse(await js(`(() => {
+    const p = document.querySelector('.fm-ver-panel')
+    const list = document.getElementById('fmList')
+    if (!p || !list) return JSON.stringify({ err: 'no-panel' })
+    return JSON.stringify({
+      view: list.className,
+      panelW: Math.round(p.getBoundingClientRect().width),
+      listW: list.clientWidth,
+    })
+  })()`))
+  console.log('  ', J(layout))
+  chk('宫格视图下历史版本横向占满（不被挤成一格）', !layout.err && layout.panelW >= layout.listW * 0.8, J(layout))
+
   await safeShot('fm-versions.png')
 
   // 折叠：点「收起」后面板应消失（用户要求历史版本是可折叠的）

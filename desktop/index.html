@@ -780,6 +780,9 @@
 
       .fm-list { flex: 1; overflow: auto; padding: 12px 16px; }
       .fm-list.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; align-content: start; }
+      /* 历史版本面板**始终横向占满整行**：宫格布局下它曾被当成一个「格子」，
+         宽度只有一列（minmax(150px)），版本内容根本显示不全。 */
+      .fm-list.grid > .fm-ver-panel { grid-column: 1 / -1; }
       .fm-list.list { display: block; padding: 0; }
 
       /* 文件类型着色：单色 SVG 文档图标 + 类型色（不依赖彩色 emoji）*/
