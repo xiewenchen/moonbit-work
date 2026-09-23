@@ -33,6 +33,26 @@ if (fs.existsSync(MOON_BIN_DIR)) {
   }
 }
 
+// 同理把 **Node 的目录** 也补进 PATH，否则「运行 Node 项目」会失败：
+//   · npm 在磁盘上是 npm.cmd，需要 PATH 能找到它
+//   · 而且 npm.cmd 内部会 `call node ...` —— Node 不在 PATH 里照样起不来
+//   （用户报过：运行 Node 项目报 `无法执行 npm：spawn npm ENOENT`）
+// 装 Node 时会写进系统 PATH，但从快捷方式启动的进程拿到的 PATH 未必包含。
+const NODE_DIRS = [
+  path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs'),
+  path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'nodejs'),
+  process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'Programs', 'nodejs') : '',
+  process.env.APPDATA ? path.join(process.env.APPDATA, 'npm') : '',
+].filter(Boolean)
+for (const d of NODE_DIRS) {
+  if (!fs.existsSync(d)) continue
+  const parts = (process.env.PATH || '').split(path.delimiter)
+  const norm = (s) => s.replace(/[\\/]+$/, '').toLowerCase()
+  if (!parts.some((p) => norm(p) === norm(d))) {
+    process.env.PATH = process.env.PATH ? process.env.PATH + path.delimiter + d : d
+  }
+}
+
 // 默认工作目录 = 本模块根；但**允许命令行指定**，
 // 这样可以用这个 IDE 打开任意项目（例如桌面上那个 Strapi 后端）：
 //   electron . <项目目录>
