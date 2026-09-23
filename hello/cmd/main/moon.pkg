@@ -1,0 +1,11 @@
+import {
+  "xiewenchen/moonbit-platform/http",
+  "xiewenchen/moonbit-platform/http/server",
+  "moonbitlang/async",
+  "moonbitlang/async/stdio",
+  "moonbitlang/core/encoding/utf8",
+}
+
+pkgtype(kind: "executable")
+
+supported_targets = "native"
