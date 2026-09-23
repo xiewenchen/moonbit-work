@@ -21,8 +21,26 @@ const CFG_FILE = path.join(CFG_DIR, 'opencode.json')
 // 找到 opencode 可执行文件。
 // npm 全局安装后 Windows 上是 opencode.cmd，且**不一定在当前进程的 PATH 里**
 // （桌面快捷方式启动时 PATH 是系统默认值）—— 所以除了 which 还要主动翻常见位置。
+// 内置的 opencode 放在哪里：
+//   · 打包后 —— process.resourcesPath/opencode（electron-builder 的 extraResources）
+//   · 开发期 —— desktop/vendor/opencode
+function bundledDirs() {
+  const out = []
+  try { if (process.resourcesPath) out.push(path.join(process.resourcesPath, 'opencode')) } catch (_) {}
+  out.push(path.join(__dirname, 'vendor', 'opencode'))
+  return out
+}
+
 function findOpencode() {
-  const names = process.platform === 'win32' ? ['opencode.cmd', 'opencode.exe', 'opencode'] : ['opencode']
+  const names = process.platform === 'win32' ? ['opencode.exe', 'opencode.cmd', 'opencode'] : ['opencode']
+  // ① 先找**内置**的 —— 参赛作品要开箱即用，不能指望评委自己装 opencode
+  for (const d of bundledDirs()) {
+    for (const n of names) {
+      const p = path.join(d, n)
+      try { if (fs.existsSync(p) && fs.statSync(p).isFile()) return p } catch (_) {}
+    }
+  }
+  // ② 再找用户系统里装的（有就用，作为兜底）
   const dirs = []
   const push = (d) => { if (d && !dirs.includes(d)) dirs.push(d) }
   push(process.env.APPDATA && path.join(process.env.APPDATA, 'npm'))

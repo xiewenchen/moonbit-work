@@ -16,18 +16,54 @@
     "test:search": "node test-search.js",
     "test:all": "node test-lsp.js && node test-search.js && node test-symbols.js && node test-lsp-client.js",
     "test:lsp-client": "node test-lsp-client.js",
-    "test:symbols": "node test-symbols.js"
+    "test:symbols": "node test-symbols.js",
+    "fetch:opencode": "node ../tools/fetch-opencode.js",
+    "dist:dir": "electron-builder --dir",
+    "dist": "electron-builder --win --x64"
   },
   "devDependencies": {
-    "electron": "^44.4.2",
-    "monaco-editor": "^0.56.0",
-    "@xterm/xterm": "^5.5.0",
     "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
+    "electron": "^44.4.2",
+    "electron-builder": "^26.15.3",
+    "monaco-editor": "^0.56.0",
     "node-pty": "^1.0.0"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "node-pty": "^1.1.0"
+  },
+  "build": {
+    "appId": "com.moonbit.platform.ide",
+    "productName": "MoonBit IDE",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!vendor/opencode/**",
+      "!dist/**",
+      "!e2e-shots/**",
+      "!**/*.log"
+    ],
+    "extraResources": [
+      {
+        "from": "vendor/opencode",
+        "to": "opencode",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }
