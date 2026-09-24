@@ -10,6 +10,13 @@ const path = require('path')
 const { spawn, spawnSync } = require('child_process')
 const { resolveSpawn } = require('./spawn-util')
 const { createUrlScanner } = require('./url-detect')
+const {
+  RUN_STATE,
+  createRunStateMachine,
+  createProcessHandle,
+  createStreamEvent,
+  createRunResult,
+} = require('./run-state')
 
 const has = (p) => { try { return fs.existsSync(p) } catch (_) { return false } }
 const isFile = (p) => { try { return fs.statSync(p).isFile() } catch (_) { return false } }
@@ -226,10 +233,10 @@ function spawnRunner({ bin, args, cwd }, onData, onEnd) {
     onEnd({ ok: false, error: '启动失败：' + e.message })
     return null
   }
-  child.stdout.on('data', (d) => onData(d.toString('utf8')))
-  child.stderr.on('data', (d) => onData(d.toString('utf8')))
+  child.stdout.on('data', (d) => onData(d.toString('utf8'), 'stdout'))
+  child.stderr.on('data', (d) => onData(d.toString('utf8'), 'stderr'))
   child.on('error', (e) => onEnd({ ok: false, error: '无法执行 ' + bin + '：' + e.message }))
-  child.on('close', (code) => onEnd({ ok: true, code }))
+  child.on('close', (code, signal) => onEnd({ ok: true, code, signal }))
   return child
 }
 
@@ -242,26 +249,107 @@ function spawnRunner({ bin, args, cwd }, onData, onEnd) {
 //
 // 行为与原内联实现保持一致：同一时刻只跑一个进程；URL 命中一次后不再重复触发。
 function createServiceRunner({ openUrl } = {}) {
-  let current = null
-  let scanner = null
+  let current = null          // 底层 child 进程
+  let handle = null           // ProcessHandle（P1-16）
+  let scanner = null          // URL 扫描器（见 url-detect.js）
+  let runSeq = 0              // 第几次运行 —— 用来丢弃上一轮的迟到事件
+  let finished = false        // error 与 close 可能都触发，保证只上报一次
+  let lastUrl = null
+  let stdoutText = ''
+  let stderrText = ''
+  let startedAt = null
+  let lastResult = null
+  let activeHandlers = null    // 本轮回调集合 —— 供状态变化主动上报（P1-19）
+  const machine = createRunStateMachine()   // P1-14 / P1-15
+
+  const MAX_CAPTURE = 64 * 1024   // stdout / stderr 各留 64 KiB 给 RunResult，避免无界增长
+  const ACTIVE_STATES = [RUN_STATE.BUILDING, RUN_STATE.STARTING, RUN_STATE.RUNNING]
+
+  const capture = (stream, text) => {
+    if (stream === 'stderr') stderrText = (stderrText + text).slice(-MAX_CAPTURE)
+    else stdoutText = (stdoutText + text).slice(-MAX_CAPTURE)
+  }
+  const emitState = () => { const H = activeHandlers; if (H && H.onState) H.onState(machine.state) }
 
   function stop() {
-    if (!current) return { ok: false, error: '当前没有正在运行的进程' }
-    try { current.kill() } catch (_) {}
+    if (!current || !handle) return { ok: false, error: '当前没有正在运行的进程' }
+    const r = handle.stop()
+    if (machine.state === RUN_STATE.RUNNING || machine.state === RUN_STATE.STARTING) {
+      machine.to(RUN_STATE.STOPPING)
+      emitState()
+    }
+    return r
+  }
+
+  /** 子进程结束（error / close）—— 只处理属于「本轮」的那一次 */
+  function finish(r, H, myRun) {
+    if (myRun !== runSeq) return   // 上一轮进程的迟到事件，丢弃（别污染新一轮的状态）
+    if (finished) return
+    finished = true
+
+    const exitCode = r && typeof r.code === 'number' ? r.code : null
+    if (handle) handle.recordExit(exitCode, r && r.signal ? r.signal : null)
+
+    const s = machine.state
+    if (s === RUN_STATE.STOPPING) {
+      machine.to(RUN_STATE.STOPPED)                 // 用户主动停的
+    } else if (s === RUN_STATE.STARTING || s === RUN_STATE.RUNNING) {
+      const clean = exitCode === 0 && !(r && r.ok === false)
+      machine.to(clean ? RUN_STATE.STOPPED : RUN_STATE.FAILED)
+    } else if (s === RUN_STATE.BUILDING) {
+      machine.to(RUN_STATE.FAILED)                  // BUILDING 只能去 STARTING / FAILED
+    }
+
+    const srvError = r && r.ok === false && r.error ? String(r.error) : null
+    lastResult = createRunResult({
+      status: machine.state,
+      exitCode,
+      url: lastUrl,
+      stdout: stdoutText,
+      stderr: stderrText,
+      startedAt,
+      endedAt: Date.now(),
+      error: srvError,
+    })
     current = null
-    return { ok: true }
+    if (H && H.onEnd) {
+      // 保留原有 code/error 字段（renderer 在用），另附 RunResult 全量字段
+      H.onEnd(Object.assign({}, r, lastResult, { code: exitCode, state: machine.state }))
+    }
+    emitState()
   }
 
   function start({ bin, args, cwd, label } = {}, handlers = {}) {
     const H = handlers || {}
+    activeHandlers = H
     if (current) { try { current.kill() } catch (_) {} current = null }
-    scanner = createUrlScanner()   // 跨 chunk 累积 + 命中一次，见 url-detect.js
-    if (H.onStart) H.onStart({ label: label || bin })
+    handle = null
+    finished = false
+    lastUrl = null
+    stdoutText = ''
+    stderrText = ''
+    scanner = createUrlScanner()          // 跨 chunk 累积 + 命中一次
+    machine.reset()                       // 允许从 STOPPED / FAILED 重新进入 Run 流程
+    machine.to(RUN_STATE.BUILDING)
+    startedAt = Date.now()
+    emitState()
+    if (H.onStart) H.onStart({ label: label || bin, state: machine.state })
 
-    const onChunk = (chunk) => {
-      if (H.onData) H.onData(chunk)
-      const hit = scanner.push(chunk)
+    const onChunk = (chunk, stream) => {
+      const text = String(chunk == null ? '' : chunk)
+      const ev = createStreamEvent(stream, text)          // P1-17：stdout / stderr 统一事件
+      if (H.onData) H.onData(text)                        // 兼容旧签名
+      if (H.onStreamEvent && ev.ok) H.onStreamEvent(ev.event)
+      capture(stream, text)
+
+      const hit = scanner.push(text)
       if (!hit) return
+      lastUrl = hit.url
+      // 清单要求的顺序：spawn → collect output → detect URL → **update state** → open browser
+      if (machine.state === RUN_STATE.STARTING) {
+        machine.to(RUN_STATE.RUNNING)
+        emitState()
+      }
       if (H.onUrl) H.onUrl(hit.url)
       // 浏览器打不开**不该**把服务标成失败 —— 服务是好的，只是没能自动开页面。
       // 所以在这里捕获并**单独上报**（browser launch status ≠ server status，P1-21）。
@@ -272,17 +360,32 @@ function createServiceRunner({ openUrl } = {}) {
       if (H.onBrowserOpen) H.onBrowserOpen({ url: hit.url, ok: !browserError, error: browserError })
     }
 
-    current = spawnRunner({ bin, args, cwd }, onChunk, (r) => {
-      if (H.onEnd) H.onEnd(r)
-      current = null
+    handle = createProcessHandle({
+      pid: null,
+      command: [bin].concat(args || []).join(' '),
+      cwd: cwd || process.cwd(),
+      kill: () => { if (current) current.kill() },
     })
-    return { ok: !!current, pid: current ? current.pid : null }
+    const myRun = ++runSeq
+    current = spawnRunner({ bin, args, cwd }, onChunk, (r) => finish(r, H, myRun))
+    if (!current) {
+      machine.to(RUN_STATE.FAILED)
+      emitState()
+      return { ok: false, error: '启动失败', pid: null }
+    }
+    handle.pid = current.pid
+    machine.to(RUN_STATE.STARTING)
+    emitState()
+    return { ok: true, pid: current.pid }
   }
 
   return {
     start,
     stop,
-    get running() { return !!current },
+    get running() { return ACTIVE_STATES.includes(machine.state) },
+    get state() { return machine.state },
+    get result() { return lastResult },
+    get handle() { return handle },
   }
 }
 

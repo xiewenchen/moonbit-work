@@ -58,17 +58,21 @@
 | MBW-P1-16 | 建 ProcessHandle | **PASS** | P1-14 | pid/command/cwd/startTime/status + `stop()`(SIGTERM)/`kill()`；kill 幂等；区分「被停」与「崩掉」 | — |
 | MBW-P1-17 | 统一 stdout/stderr 事件 | **PASS** | P1-16 | `createStreamEvent(stream, chunk, at)` → `{stream, chunk, timestamp}`；非法流名被拒 | — |
 | MBW-P1-18 | 建 RunResult | **PASS** | P1-16 | `createRunResult(...)` → ok/status/exitCode/url/stdout/stderr/duration/error（类型归一） | ok 语义已写明 |
-| MBW-P1-19 | 修复 Run → URL → Browser | TODO | P1-07, P1-18 | 把 `run-state.js` 接进 `createServiceRunner`（顺序：spawn→collect→detect→update state→open browser） | **现在可做**（纯 Node 可验）；E2E 骨架已就位（MBW-X1） |
-| MBW-P1-20 | 浏览器打开单独测试 | TODO | P1-19 | 直接给 8123 | E2E 已覆盖核心断言（MBW-X1） |
-| MBW-P1-21 | 浏览器失败测试 | TODO | P1-19 | browser 失败不得把服务标成 FAILED | E2E 已覆盖（`onBrowserOpen` 单独上报） |
-| MBW-P1-22 | Stop 测试 | TODO | P1-19 | 无僵尸进程 | E2E 已覆盖（含端口不可连） |
-| MBW-P1-23 | Run 后重复 Stop | TODO | P1-22 | 第二次安全无副作用 | E2E 已覆盖 |
-| MBW-P1-24 | 启动失败 | TODO | P1-19 | STARTING → FAILED | E2E 已覆盖（onEnd 报错） |
-| MBW-P1-25 | 无监听服务超时 | BLOCKED | P1-19 | STARTING → timeout → FAILED | 需要状态机接线（P1-19）后才能测 |
-| MBW-P1-26 | 进程提前退出 | TODO | P1-19 | 启动即 exit 1 → FAILED | E2E 已覆盖 |
-| MBW-P1-27 | 连续 10 次 Run | BLOCKED | P1-19 | 10/10 | 需要状态机接线 |
-| MBW-P1-28 | 连续 10 次 Run/Stop | BLOCKED | P1-22 | 10/10，0 僵尸 | 同上 |
-| MBW-P1-29 | Run/Stop × 10 红线 | BLOCKED | P1-28 | 0 卡死 / 0 browser 错误 / 0 zombie / 0 永久 STARTING | 同上 |
+| MBW-P1-19 | 修复 Run → URL → Browser | **PASS** | P1-07, P1-18 | 状态机已接进 `createServiceRunner`；顺序有断言（**抓 URL 时状态已是 RUNNING**）；`runSeq` 防上一轮迟到事件串台 | 顺带修 2 个真缺陷 |
+| MBW-P1-20 | 浏览器打开单独测试 | **PASS** | P1-19 | 可注入 `openUrl`，断言“恰好调用一次 + 状态为 RUNNING” | — |
+| MBW-P1-21 | 浏览器失败测试 | **PASS** | P1-19 | 浏览器抛错 → `onBrowserOpen{ok:false}`，**服务仍在运行** | 界面提示留给 P1-21 UI |
+| MBW-P1-22 | Stop 测试 | **PASS** | P1-19 | stop → STOPPING → STOPPED，且**端口不再可连** | — |
+| MBW-P1-23 | Run 后重复 Stop | **PASS** | P1-22 | 第二次 stop 返回 `ok:false` 且不抛 | — |
+| MBW-P1-24 | 启动失败 | **PASS** | P1-19 | 可执行文件不存在 → `onEnd` 报 `ok:false` + 原因 | — |
+| MBW-P1-25 | 无监听服务超时 | TODO | P1-19 | STARTING → timeout → FAILED | 需引入超时窗口（独立任务）|
+| MBW-P1-26 | 进程提前退出 | **PASS** | P1-19 | 启动即 exit 1 → FAILED，并上报退出码 | — |
+| MBW-P1-27 | 连续 10 次 Run | TODO | P1-19 | 10/10 | 接线已完成，现在可做 |
+| MBW-P1-28 | 连续 10 次 Run/Stop | TODO | P1-22 | 10/10，0 僵尸 | 同上 |
+| MBW-P1-29 | Run/Stop × 10 红线 | TODO | P1-28 | 0 卡死 / 0 browser 错误 / 0 zombie / 0 永久 STARTING | 同上 |
+
+> **P1-19 接线实测**：`cd desktop && node test-run-e2e.js` → **31 通过 / 0 失败**（从 17 扩到 31）。
+> 测试拓到 2 个真缺陷并已修：① `stop()` 进 STOPPING 未上报状态；② `close` 丢掉 `signal`。
+> 记录：`docs/changes/phase2-p1-run-state-wiring.md`。
 
 > **P1-14～P1-18 实测**：`cd desktop && node test-run-state.js` → **48 通过 / 0 失败**。
 > 记录：`docs/changes/phase2-p1-run-state.md`。原语已建、**未接线**（runners.js 零改动）。

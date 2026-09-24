@@ -186,6 +186,63 @@ async function main() {
     runner.stop()
   }
 
+  console.log('\n=== ⑨ 状态流转与顺序：detect → update state → open browser（P1-19）===')
+  {
+    const seen = []
+    let stateAtUrl = null
+    let stateAtBrowser = null
+    const runner = createServiceRunner({
+      openUrl: () => { stateAtBrowser = runner.state },
+    })
+    runner.start({ bin: NODE, args: [FIXTURE], cwd: __dirname }, {
+      onState: (s) => seen.push(s),
+      onUrl: () => { stateAtUrl = runner.state },   // 抓 URL 的那一刻，状态应该**已经**是 RUNNING
+    })
+    chk('start() 后进入 STARTING', runner.state, 'STARTING')
+
+    await waitUntil(() => stateAtUrl, { timeout: 15000 })
+    chk('抓到 URL 时状态已是 RUNNING（顺序：detect → update state → open browser）', stateAtUrl, 'RUNNING')
+    chk('打开浏览器时状态也是 RUNNING', stateAtBrowser, 'RUNNING')
+
+    runner.stop()
+    chk('stop() 后进入 STOPPING', runner.state, 'STOPPING')
+    await waitUntil(() => (runner.state === 'STOPPED' ? true : null), { timeout: 8000 })
+    chk('进程结束后进入 STOPPED', runner.state, 'STOPPED')
+    chk('onState 收到过 RUNNING / STOPPING / STOPPED', ['RUNNING', 'STOPPING', 'STOPPED'].every((s) => seen.includes(s)), true)
+  }
+
+  console.log('\n=== ⑩ onEnd 汇报 RunResult（P1-18 接线）===')
+  {
+    let ended = null
+    const runner = createServiceRunner({})
+    runner.start({ bin: NODE, args: [FIXTURE], cwd: __dirname }, { onEnd: (r) => { ended = r } })
+    await waitUntil(() => (runner.state === 'RUNNING' ? true : null), { timeout: 15000 })
+    runner.stop()
+    const r = await waitUntil(() => ended, { timeout: 8000 })
+    const keys = ['ok', 'status', 'exitCode', 'url', 'stdout', 'stderr', 'duration', 'error']
+    chk('onEnd 带全 RunResult 字段', !!r && keys.every((k) => k in r), keys.filter((k) => !r || !(k in r)).join(','))
+    chk('status = STOPPED', r && r.status, 'STOPPED')
+    chk('url 被记进结果', /^http:\/\/127\.0\.0\.1:\d+$/.test(String(r && r.url)), String(r && r.url))
+    chk('duration 非负', !!r && r.duration >= 0, String(r && r.duration))
+    chk('stdout 里有服务输出', !!r && String(r.stdout).includes('Server at'), String(r && r.stdout).slice(0, 40))
+    chk('ok = true（没失败）', !!(r && r.ok), JSON.stringify(r && { ok: r.ok, error: r.error }))
+    chk('renderer 依赖的 code 字段仍在（被信号终止时可为 null，属正常）', !!r && 'code' in r, String(r && r.code))
+  }
+
+  console.log('\n=== ⑪ 统一的流事件（P1-17 接线）===')
+  {
+    const evs = []
+    const runner = createServiceRunner({})
+    runner.start({ bin: NODE, args: [FIXTURE], cwd: __dirname }, { onStreamEvent: (e) => evs.push(e) })
+    await waitUntil(() => evs.length || null, { timeout: 15000 })
+    runner.stop()
+    const e0 = evs[0]
+    chk('事件形状 {stream, chunk, timestamp}', !!e0
+      && ['stdout', 'stderr'].includes(e0.stream)
+      && typeof e0.chunk === 'string'
+      && typeof e0.timestamp === 'number', JSON.stringify(e0))
+  }
+
   console.log('\n结果：' + pass + ' 通过 / ' + fail + ' 失败 / 共 ' + (pass + fail) + ' 项')
   if (fail) console.log('失败项：\n  - ' + failures.join('\n  - '))
   process.exit(fail === 0 ? 0 : 1)
