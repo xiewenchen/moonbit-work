@@ -105,6 +105,20 @@ let rootDir = null
 // 所以「无项目态」的判断可以安全地从 rootDir 切过来（P2-06 迁移的第一个调用点）。
 // P2-15 会再逐个把 rootDir / projectInfoCache / lspRoot 这些旧变量删掉。
 let projectCtx = null
+
+// 传给主进程的「根」：优先用单一工程上下文（P2），但**必须与地址栏一致**才认 ——
+// 否则可能拿一个过期上下文去调 IPC（例如用户手改了地址栏、还没重新打开项目）。
+// 不一致（或还没打开项目）时退回地址栏的值，行为与迁移前完全一致。
+function projectRootInput() {
+  const root = (cwdInput.value || '').trim()
+  if (projectCtx && projectCtx.rootDir === root) return projectCtx
+  return root
+}
+
+// 需要「字符串路径」的场合（如 LSP 的 lspRoot 比较）
+function projectRootPath() {
+  return window.moonbitProjectContext.rootOfInput(projectRootInput())
+}
 const tabs = [] // { path, model }
 let active = -1
 
@@ -288,7 +302,7 @@ async function saveActive() {
   // 否则编辑器里显示的和磁盘上的就分叉了（下次保存会把旧内容写回去）。
   if (fmtOnSave) {
     try {
-      const f = await window.moonAPI.formatFile(cwdInput.value, t.path)
+      const f = await window.moonAPI.formatFile(projectRootInput(), t.path)
       if (f.ok) {
         const after = await window.moonAPI.readFile(t.path)
         if (after.ok && typeof after.content === 'string' && after.content !== editor.getValue()) {
@@ -368,8 +382,6 @@ async function renderTree(dir, container, depth) {
 
 async function loadTree(dir) {
   rootDir = dir
-  // 与 rootDir 同一时刻建/更新上下文（识别结果若已有就一并带上）
-  projectCtx = window.moonbitProjectContext.create(Object.assign({ root: dir }, projectInfoCache || {}))
   treeEl.innerHTML = ''
   await renderTree(dir, treeEl, 0)
 }
@@ -450,7 +462,7 @@ async function runMoon(args) {
   setMsg('运行 moon ' + args[0] + '…')
   moonStreamActive = true
   try {
-    const res = await window.moonAPI.runMoonStream(args, cwdInput.value)
+    const res = await window.moonAPI.runMoonStream(args, projectRootInput())
     // 正常结束由 onMoonStreamEnd 收尾；这里只处理"根本没跑起来"
     if (!res.ok && res.error) {
       moonStreamActive = false
@@ -684,7 +696,7 @@ async function showWelcome() {
 // 单个直接跑，多个弹出来让用户选；运行时不写死 moon。
 async function runProject() {
   // P2-08：优先把单一工程上下文交给 Runner（由它自己取 rootDir）；旧的字符串路径仍兼容
-  const r = await window.moonAPI.runnerList(projectCtx || cwdInput.value || '')
+  const r = await window.moonAPI.runnerList(projectRootInput())
   if (!r || !r.ok) {
     logLine('入口识别失败：' + (r && r.error ? r.error : '未知错误'), 'err')
     return
@@ -772,6 +784,11 @@ async function boot(dir) {
   } catch (_) {}
   const target = dir || cwdInput.value
   cwdInput.value = target
+  // 单一工程上下文：rootDir 用**用户意图的目录**（不是 findModule 找到的模块根）——
+  // 否则它会与地址栏不一致，projectRootInput() 的一致性检查就会一直退回字符串，迁移等于白做。
+  projectCtx = target
+    ? window.moonbitProjectContext.create(Object.assign({ root: target }, projectInfoCache || {}))
+    : null
   const res = await window.moonAPI.findModule(target)
   if (res.ok && res.module) {
     $('stModule').textContent = `模块：${res.module.name || '—'}@${res.module.version}`
@@ -830,7 +847,7 @@ function wireUI() {
 
       // 按**项目类型**分派命令。之前一律 `runMoon([c])`，
       // 于是在 Node 项目上点「跑测试」会报 "not in a Moon project"（用户报过）。
-      const cwd = cwdInput.value || ''
+      const cwd = projectRootInput()
       let kind = ''
       try { const info = await window.moonAPI.projectInfo(cwd); kind = (info && info.kind) || '' } catch (_) {}
       if (kind === 'node') { runNpmTask(c, cwd); return }
@@ -1090,7 +1107,7 @@ async function ensureTerminal() {
   try {
     fitAddon.fit()
   } catch (_) {}
-  const res = await window.moonAPI.termCreate(cwdInput.value)
+  const res = await window.moonAPI.termCreate(projectRootInput())
   if (!res || res.error) {
     term.writeln('[无法创建终端] ' + (res ? res.error : '未知错误'))
     return
@@ -1186,7 +1203,7 @@ function showPanel(which) {
 // --------------------------------------------------------------------------- LSP：诊断 / 大纲
 async function runDiagnostics() {
   setMsg('moon check 运行中…')
-  const res = await window.moonAPI.runCheck(cwdInput.value)
+  const res = await window.moonAPI.runCheck(projectRootInput())
   const diags = (res && res.diagnostics) || []
   if (typeof monaco !== 'undefined') {
     for (const m of monaco.editor.getModels()) {
@@ -1372,7 +1389,7 @@ async function doSearch(query) {
   el.innerHTML = ''
   if (!query) return
   const res = await window.moonAPI.searchFiles(
-    cwdInput.value,
+    projectRootInput(),
     query,
     true /* caseInsensitive */,
   )
@@ -1489,7 +1506,7 @@ let symbolsList = null
 
 async function ensureSymbols(force) {
   if (symbolsList && !force) return symbolsList
-  const res = await window.moonAPI.loadSymbols(cwdInput.value, !!force)
+  const res = await window.moonAPI.loadSymbols(projectRootInput(), !!force)
   symbolsList = (res && res.symbols) || []
   setMsg('符号索引：' + symbolsList.length + ' 项')
   return symbolsList
@@ -1532,7 +1549,7 @@ function registerSymbolProviders() {
   // 懒启动：第一次真正需要语言能力时才拉起，避免一打开项目就常驻一个进程。
   let lspRoot = null
   async function ensureLsp() {
-    const root = cwdInput.value
+    const root = projectRootPath()
     if (!root) return null
     if (lspRoot === root) return root
     const r = await window.moonAPI.lspStart(root)
@@ -1815,7 +1832,7 @@ function beLog(line, cls) {
 
 async function refreshBackendStatus() {
   try {
-    const st = await window.moonAPI.backendStatus(cwdInput.value, bePort)
+    const st = await window.moonAPI.backendStatus(projectRootInput(), bePort)
     if (st.running) {
       setBeState(st.healthy ? 'running' : 'starting',
                  `127.0.0.1:${st.port} · PID ${st.pid}`)
@@ -1841,7 +1858,7 @@ async function initBackendControl() {
   $('beStart').onclick = async () => {
     setBeState('starting', '正在检查依赖并启动…')
     beLog('--- 启动后端 ---')
-    const r = await window.moonAPI.backendStart(cwdInput.value, bePort, false)
+    const r = await window.moonAPI.backendStart(projectRootInput(), bePort, false)
     if (r.ok) {
       beLog(`后端已启动：http://127.0.0.1:${r.port}/health → ${r.health}`, 'ok')
       setBeState('running', `127.0.0.1:${r.port} · PID ${r.pid}`)
@@ -2044,7 +2061,8 @@ function renderPanelNotice(panelId, featureKey) {
 
 async function refreshProjectInfo() {
   try {
-    const info = await window.moonAPI.projectInfo(cwdInput.value)
+    // 识别用的是「地址栏里那条路径」（字符串）—— 不要回传上下文，避免「用识别结果造上下文、再用上下文去识别」的循环
+    const info = await window.moonAPI.projectInfo(projectRootPath())
     renderProjectKind(info)
     // 用识别结果补齐上下文的 kind/label/features。
     // **rootDir 仍以「实际打开的目录」为准** —— 不能信 info.root：
