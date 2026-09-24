@@ -81,3 +81,4 @@ jobs:
           node test-runner-detect.js     # 项目类型识别 / 运行入口（输入→输出）
           node test-project-detect.js    # 项目类型识别（另一套口径）
           node test-relay.js             # 文件中转站核心逻辑
+          node test-url-detect.js        # URL 检测（含「正则与 runners.js:262 逐字符一致」的防漂移断言）

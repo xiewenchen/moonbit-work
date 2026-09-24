@@ -75,7 +75,7 @@ cd desktop && node test-url-detect.js
 |---|---|
 | 把 `runners.js` 的 `onChunk` 改为调用 `url-detect.js`（接线） | **P1-19** |
 | 让 Runner 按项目类型注入 `preferPorts`（真正的「项目运行规则」） | **P1-19** |
-| 把 `test-url-detect.js` 挂进 CI 的桌面纯逻辑测试段 | 待排（CI 改动属另一任务） |
+| 把 `test-url-detect.js` 挂进 CI 的桌面纯逻辑测试段 | ✅ **已完成**（见 §7） |
 | `verify-url-regex.js` 改为 require `url-detect.js`（消除第二份副本） | P1-19 一并处理 |
 
 ## 六、已知边界（如实记录）
@@ -83,3 +83,36 @@ cd desktop && node test-url-detect.js
 1. **端口未做范围校验**：`http://localhost:99999` 也会被匹配（与生产现状一致，P1-19 再决定是否收紧）。
 2. **IPv6 端口不解析**：`portOf('[::1]:8080')` 返回 `null` → 该类 URL 在 `preferPorts` 规则下不参与匹配。
 3. **`opened` 后不再检测新 URL**：即同一进程后续出现**另一个** URL 也不会触发（保持现状语义，P1-19 再评估）。
+
+---
+
+## 七、补充：挂进 CI（同日）
+
+`.github/workflows/ci.yml` 的 **Desktop IDE logic tests** 步骤增加一行：
+
+```yaml
+          node test-url-detect.js        # URL 检测（含「正则与 runners.js:262 逐字符一致」的防漂移断言）
+```
+
+### 依据 CI 既有规矩执行
+
+CI 里写明「**只挂当前确实能过的：先跑一遍确认绿，再放进来；宁缺勿滥**」。故先在本地按 CI 的顺序跑一遍：
+
+| # | 命令 | 结果 |
+|---|---|---|
+| 1 | `node test-runner-detect.js` | 18 通过 / 0 失败 |
+| 2 | `node test-project-detect.js` | 12 通过 / 0 失败 |
+| 3 | `node test-relay.js` | 25 通过 / 0 失败 |
+| 4 | **`node test-url-detect.js`（新增）** | **26 通过 / 0 失败** |
+
+另两步校验：
+
+| 校验 | 命令 | 结果 |
+|---|---|---|
+| YAML 语法 | `python -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"` | **YAML OK**；9 个 step 解析正确 |
+| 空 catch 门禁 | `node tools/check-empty-catch.js --ci` | **95 = 基线 95，没有新增** ✓ |
+
+**效果**：P1-07 建立的防漂移契约（`url-detect.js` 的正则必须与 `runners.js:262` 一致）
+从「本地偶尔跑一次」升级为 **每次 push / PR 都由 CI 拦截**。
+
+**边界**：CI 跑在 Linux 上，只覆盖纯逻辑 —— 交互层（`verify-*.js`）与 Run E2E 仍不在此 CI 内（见红灯 R11/R12）。
