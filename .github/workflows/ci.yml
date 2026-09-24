@@ -88,6 +88,7 @@ jobs:
           node test-problem-model.js     # 问题模型（五类来源统一/去重/生命周期/Store）
           node test-renderer-globals.js # 渲染进程同作用域加载（防 const 重名这类"浏览器才暴露"的问题）
           node test-agent-context.js    # Agent 上下文（预算裁剪/优先级/项目只给骨架）
+          node test-agent-sandbox.js    # Agent 安全门（路径/命令沙箱、超时、输出限额、预算）
 
       # Run 链路 E2E：spawn → 抓 URL → 打开浏览器（测试里注入桩）→ 页面可访问 → 停止。
       # 靶子是纯 Node 服务（desktop/testdata/fixture-http-server.js）—— **不需要 Electron、

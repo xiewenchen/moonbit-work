@@ -93,7 +93,7 @@
 | P3 | Command Registry | **PASS（P3-12 未做）**：P3-01～P3-11、P3-13～P3-15 全部 PASS；P3-12（Terminal 调命令）无现成基础，如实留待 |
 | P4 | Problem Model | **PASS**：P4-01～P4-12 全部完成（模型 + Store + 六类适配器 + 面板接线 + 点击跳转）|
 | P5 | Agent Context | **进行中**：P5-01～P5-09 PASS（组装器 + 预算 + 优先级）；真实取数与接到 Agent 待做 |
-| P5.5 | Agent 安全门（路径/命令沙箱、超时、输出限制、IPC 审查） | TODO |
+| P5.5 | Agent 安全门 | **PASS**（门已建好，尚未装到 Agent 执行路径上）：Path/Command Sandbox、Timeout、Output Limit、IPC 审查全部完成 |
 | P6 | Agent Read-only Tools | TODO |
 | P7 | Agent Execute Tools | TODO |
 | P8 | Agent Modify（Patch） | TODO |
