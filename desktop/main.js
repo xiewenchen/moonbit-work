@@ -23,6 +23,7 @@ const { createCommandRegistry, registerProjectCommands, registerCommandIpc } = r
 const { registerAgentToolIpc, simpleRequest } = require('./agent-tools-main')
 const { registerAgentPatchIpc } = require('./agent-patch-main')
 const { registerAgentVerifyIpc } = require('./agent-verify-main')
+const { registerAiProviderIpc } = require('./ai-provider-main')
 
 // ── 环境准备：必须在任何 spawn 之前 ─────────────────────────────────────
 // 从桌面快捷方式启动时，进程 PATH 是 Windows 默认值，**不含** ~/.moon/bin
@@ -202,6 +203,14 @@ registerAgentVerifyIpc({
   executeCommand: (name, args, opts) => registry.execute(name, args, opts),
   getWorkspace: () => agentTools.getWorkspace(),
   request: simpleRequest,
+})
+
+// P12 接线：AI Provider（本地存储 + 连通性检查）。
+// 存储位置在用户目录（~/.moonbit-work/providers.json）—— **Key 永不进项目目录**。
+registerAiProviderIpc({
+  ipcMain,
+  request: simpleRequest,
+  onLog: (e) => console.log('[provider]', JSON.stringify(e)),
 })
 
 // LSP 客户端（接官方 moon-lsp）—— 见 lsp-manager.js

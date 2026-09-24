@@ -124,6 +124,12 @@ contextBridge.exposeInMainWorld('moonAPI', {
     ipcRenderer.on('agentVerify:done', h)
     return () => ipcRenderer.removeListener('agentVerify:done', h)
   },
+  // ---- AI Provider（P12）：增删改查 + 连通性；读回来的清单**已脱敏** ----
+  aiProviderList: () => ipcRenderer.invoke('aiProvider:list'),
+  aiProviderSave: (p) => ipcRenderer.invoke('aiProvider:save', p),
+  aiProviderRemove: (name) => ipcRenderer.invoke('aiProvider:remove', { name }),
+  aiProviderTest: (p) => ipcRenderer.invoke('aiProvider:test', p),
+  aiProviderStorage: () => ipcRenderer.invoke('aiProvider:storage'),
 
   // 注：ProjectContext 不在这里过桥 —— 本 preload 是 sandbox:true，
   // require 本地文件会让整个 preload 挂掉（实测踩过）。

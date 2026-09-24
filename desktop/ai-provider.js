@@ -148,8 +148,10 @@ async function testConnection(provider, deps = {}) {
     latency,
     model: ok ? (p.model || null) : null,
     status: (r && r.status) || null,
-    // ⚠️ 错误信息也过一遍脱敏 —— 有的服务会把 Key 回显在错误里
-    error: ok ? null : String(maskKey(String((r && (r.error || r.body)) || '连接失败'))),
+    // ⚠️ 错误信息也要过"字符串内替换"（`redactText`），不能只过 `maskKey` ——
+    // 后者是对**整串**做前缀+后4位处理，会把可读的错误信息也毁掉；
+    // 而且有的服务把 Key 回显在错误体里，必须按"串内 Key 格式"替换。
+    error: ok ? null : redactText(String((r && (r.error || r.body)) || '连接失败')),
   }
 }
 

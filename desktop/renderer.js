@@ -828,6 +828,101 @@ async function boot(dir) {
   }
 }
 
+// ── P12 接线：Provider 面板（列表 / 添加 / 测试连接）──────────────────────────
+/**
+ * 用动态 DOM 创建（不改 index.html —— 那是转译产物）。
+ * 列表里的 Key 来自主进程，**已经是脱敏值**；输入框用 type=password。
+ */
+async function showProviderPanel() {
+  const old = document.getElementById('providerPanel')
+  if (old) old.remove()
+  const mask = document.createElement('div')
+  mask.id = 'providerPanel'
+  mask.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999'
+  const card = document.createElement('div')
+  card.style.cssText = 'max-width:820px;width:92%;max-height:84vh;display:flex;flex-direction:column;gap:10px;background:#1e1e1e;color:#ddd;border:1px solid #333;border-radius:8px;padding:14px'
+  const title = document.createElement('div')
+  title.textContent = 'AI Provider'
+  title.style.cssText = 'font-weight:600;font-size:14px'
+  const hint = document.createElement('div')
+  hint.style.cssText = 'font-size:11px;color:#888'
+  const listBox = document.createElement('div')
+  listBox.id = 'providerList'
+  listBox.style.cssText = 'display:flex;flex-direction:column;gap:6px;overflow:auto;max-height:44vh'
+  const form = document.createElement('div')
+  form.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:6px'
+  const inputStyle = 'padding:5px 8px;background:#121212;color:#ddd;border:1px solid #333;border-radius:5px;font-size:12px'
+  const mk = (tag, props) => { const el = document.createElement(tag); Object.assign(el, props || {}); return el }
+  const nameIn = mk('input', { placeholder: '名称（唯一）', style: inputStyle })
+  const typeSel = document.createElement('select')
+  typeSel.style.cssText = inputStyle
+  for (const t of ['openai', 'deepseek', 'ollama', 'custom']) { const o = mk('option', { value: t, textContent: t }); typeSel.appendChild(o) }
+  const urlIn = mk('input', { placeholder: 'baseUrl（留空用预设）', style: inputStyle })
+  const modelIn = mk('input', { placeholder: 'model（留空用预设）', style: inputStyle })
+  const keyIn = mk('input', { placeholder: 'apiKey（不会显示出来）', type: 'password', style: inputStyle })
+  const saveBtn = mk('button', { textContent: '保存' })
+  saveBtn.style.cssText = 'padding:6px 14px;background:#2b6cb0;color:#fff;border:1px solid #2b6cb0;border-radius:6px;cursor:pointer'
+  const closeBtn = mk('button', { textContent: '关闭' })
+  closeBtn.style.cssText = 'padding:6px 14px;background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:6px;cursor:pointer'
+  const bar = document.createElement('div')
+  bar.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:6px'
+
+  async function refresh() {
+    listBox.innerHTML = ''
+    const r = await window.moonAPI.aiProviderList()
+    const st = await window.moonAPI.aiProviderStorage()
+    hint.textContent = '配置文件：' + ((st && st.file) || '?') + '（在用户目录，不进项目）'
+    const items = (r && r.providers) || []
+    if (!items.length) {
+      const d = mk('div', { textContent: '（还没有配置）' })
+      d.style.cssText = 'color:#888;font-size:12px'
+      listBox.appendChild(d)
+      return
+    }
+    for (const p of items) {
+      const row = document.createElement('div')
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;background:#161616;border:1px solid #2a2a2a;border-radius:6px;padding:6px 8px;font-size:12px'
+      const info = mk('div', { textContent: p.name + '  ·  ' + p.type + '  ·  ' + (p.model || '-') + '  ·  ' + (p.hasKey ? p.apiKey : '（无 Key）') })
+      info.style.cssText = 'flex:1'
+      const res = mk('span', { textContent: '' })
+      res.style.cssText = 'font-size:11px;color:#888;min-width:110px;text-align:right'
+      const testBtn = mk('button', { textContent: '测试连接' })
+      testBtn.style.cssText = 'padding:3px 10px;background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:5px;cursor:pointer'
+      testBtn.onclick = async () => {
+        res.textContent = '测试中…'
+        const t = await window.moonAPI.aiProviderTest(p)
+        res.textContent = t && t.ok ? ('✓ ' + t.latency + 'ms') : ('✗ ' + String((t && t.error) || '失败'))
+        res.style.color = t && t.ok ? '#68d391' : '#fc8181'
+      }
+      const delBtn = mk('button', { textContent: '删除' })
+      delBtn.style.cssText = testBtn.style.cssText
+      delBtn.onclick = async () => { await window.moonAPI.aiProviderRemove(p.name); refresh() }
+      row.appendChild(info); row.appendChild(res); row.appendChild(testBtn); row.appendChild(delBtn)
+      listBox.appendChild(row)
+    }
+  }
+
+  saveBtn.onclick = async () => {
+    const r = await window.moonAPI.aiProviderSave({
+      name: nameIn.value, type: typeSel.value, baseUrl: urlIn.value, model: modelIn.value, apiKey: keyIn.value,
+    })
+    if (!r || !r.ok) { hint.textContent = '保存失败：' + ((r && r.error) || '未知'); hint.style.color = '#fc8181'; return }
+    nameIn.value = ''; urlIn.value = ''; modelIn.value = ''; keyIn.value = ''
+    await refresh()
+  }
+  closeBtn.onclick = () => mask.remove()
+
+  form.appendChild(nameIn); form.appendChild(typeSel)
+  form.appendChild(urlIn); form.appendChild(modelIn)
+  form.appendChild(keyIn); form.appendChild(saveBtn)
+  bar.appendChild(closeBtn)
+  card.appendChild(title); card.appendChild(hint); card.appendChild(listBox); card.appendChild(form); card.appendChild(bar)
+  mask.appendChild(card)
+  document.body.appendChild(mask)
+  await refresh()
+  return true
+}
+
 // ── P8 补完：Patch 预览对话框（真正的「用户确认」）──────────────────────────────
 /**
  * 展示 patch 预览，等用户点「应用」或「取消」。
@@ -943,6 +1038,16 @@ window.moonbitIDE = {
     verify: {
       run: (file) => window.moonAPI.agentVerifyRun(file),
       last: () => window.moonAPI.agentVerifyLast(),
+    },
+    // P12：AI Provider（列表/保存/删除/连通性）。
+    // 注意 readOnly 清单来自主进程、**已脱敏**；Key 只往上传、不往下发。
+    provider: {
+      list: () => window.moonAPI.aiProviderList(),
+      save: (p) => window.moonAPI.aiProviderSave(p),
+      remove: (name) => window.moonAPI.aiProviderRemove(name),
+      test: (p) => window.moonAPI.aiProviderTest(p),
+      storage: () => window.moonAPI.aiProviderStorage(),
+      openPanel: () => showProviderPanel(),
     },
   },
   // 问题模型（P4）：对外提供只读查询 + 一个"写入发现"的入口。
