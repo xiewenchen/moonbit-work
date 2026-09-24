@@ -103,6 +103,7 @@
 | P12 | AI Provider Center | **PASS**：核心层（44/0）+ 存储/面板/真实探测（23/0）+ **激活并写入 opencode 配置（38/0，含「原有 provider 一个不丢」与「配置原样还原」）**；端到端「真跑一次模型」未验（需 Key/额度） |
 | P19 | 测试体系 | **进行中（2.1 第一批完成 5 项）**：修 25 处假通过断言 + 30 脚本异常假绿 + 4 个长期红灯；新增 `verify-harness` + 元测试 36 项；**新增扫描器 `check-local-chk`（基线 + 只减不增，CI 已挂）**；**chk 已迁 2/16**（剩 14 由基线守住）；**异常 exit!=0 已静态+动态双向证明**；**差：16 个未全迁** |
 | P5A | Agent Context 真接线 | **PASS（第一批）**：AgentRequest/AgentResponse 契约（含四态）+ **ProjectContext/Problems 真实接入**（`verify-agent-request` 19/0，用真实项目与真实问题验证）+ Context Snapshot（含取数四态 absent/empty/ok/error）；**activeFile/selection/lastRun/lastTest 待接** |
+| P9A | Ask / Understand | **PASS（第二批）**：`TaskUnderstanding`（6 栏全部**可核对来源**，不做思维链）+ 规则化 `proposedActions`（每条带 rule）+ `applyLlmPlan` 只许覆盖计划、事实不许改；理解卡（开始执行/取消）+ Auto-start 开关（卡上可见可写，且不解除 P8）；`test-task-understanding` 53/0、`verify-agent-request` **41/0**（含真切界面与"越界路径被拒"） |
 | P13 | Workbench | TODO |
 | P14 | MoonBit Backend Integration | TODO |
 | P15 | 数据库工作台 | TODO |

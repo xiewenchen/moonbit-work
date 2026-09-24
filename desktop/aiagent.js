@@ -84,12 +84,92 @@
     }
   }
 
-  async function send() {
-    if (busy) return
-    const prompt = String(inputEl.value || '').trim()
-    if (!prompt) return
-    addUser(prompt)
-    inputEl.value = ''
+  // ── P9A：理解 → 确认 → 执行 ────────────────────────────────
+  /** Auto-start 开关（默认关 = Confirm-first，清单默认就是先确认）*/
+  function autoStartOn() {
+    try { return localStorage.getItem('ag-autostart') === '1' } catch (_) { return false }
+  }
+
+  /**
+   * P9A-02：产出**可验证的**任务理解（不是展示思维链）。
+   * 数据来自真实来源：ProjectContext 走 window.moonbitIDE.getContext()，问题走统一 Problem Model。
+   */
+  async function understand(prompt) {
+    const mbi = window.moonbitIDE || {}
+    const projectContext = (typeof mbi.getContext === 'function') ? mbi.getContext() : null
+    const problems = (mbi.problems && typeof mbi.problems.list === 'function') ? (mbi.problems.list() || []).slice(0, 50) : []
+    return api.agentUnderstand({
+      message: prompt,
+      policy: { autoStart: autoStartOn(), confirmBeforeApply: true },
+      inputs: { projectContext: projectContext || null, problems },
+    })
+  }
+
+  /** P9A-03：把理解结果摊开给用户看，并给两个按钮 */
+  function addUnderstanding(prompt, u) {
+    const box = el('div', 'ag-understanding')
+    box.style.cssText = 'border:1px solid #3a3a3a;border-radius:8px;padding:10px 12px;margin:8px 0;background:#1b1b1b;color:#ddd;font-size:12px;line-height:1.7'
+    const head = el('div', null, '我先确认一下理解（不是思维链，是能被核对的）')
+    head.style.cssText = 'font-weight:600;margin-bottom:6px;color:#9ae6b4'
+    box.appendChild(head)
+    const row = (label, value) => {
+      const r = el('div', null, label + '：' + value)
+      box.appendChild(r)
+    }
+    row('目标', u.goal || '（空）')
+    row('项目', u.project ? ((u.project.projectType || '?') + ' @ ' + u.project.rootDir) : '（未打开项目）')
+    row('相关文件', (u.relevantFiles || []).length
+      ? u.relevantFiles.map((f) => f.path + '(' + f.why + ')').join('、') : '（没有）')
+    row('相关问题', (u.relevantProblems || []).length
+      ? u.relevantProblems.map((p) => '[' + p.severity + '] ' + (p.file || '?') + ':' + (p.line == null ? '?' : p.line) + ' ' + p.message).join(' ； ')
+      : '（没有）')
+    row('计划', (u.proposedActions || []).length
+      ? u.proposedActions.map((a, i) => (i + 1) + '. ' + a.action + (a.target ? '(' + a.target + ')' : '')).join(' → ')
+      : '（无）')
+    row('边界', (u.constraints && u.constraints.needsConfirmBeforeApply) ? '改文件前必须你确认' : '（已配置为自动）')
+
+    const bar = el('div')
+    bar.style.cssText = 'display:flex;gap:8px;margin-top:8px'
+    const go = el('button', null, '开始执行')
+    go.style.cssText = 'padding:4px 12px;background:#2b6cb0;color:#fff;border:1px solid #2b6cb0;border-radius:5px;cursor:pointer'
+    const cancel = el('button', null, '取消')
+    cancel.style.cssText = 'padding:4px 12px;background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:5px;cursor:pointer'
+    go.onclick = () => { box.remove(); runPrompt(prompt) }
+    // P9A-05：取消**不执行任何动作**（更不会去 Patch）；只把这句话读回输入框，方便改了再问
+    cancel.onclick = () => {
+      box.remove()
+      if (inputEl) { inputEl.value = prompt; inputEl.focus() }
+      addErr('已取消 —— 没有执行任何动作。可以改完描述再问一次。')
+    }
+    bar.appendChild(go); bar.appendChild(cancel)
+    box.appendChild(bar)
+    // P9A-04：开关就放在卡上 —— 否则这个开关只有 DevTools 能改，行为不可发现（review 指出）。
+    // 文案必须说清：它只跳过"这一步确认"，**不解除**「改文件前必须确认」。
+    const autoRow = document.createElement('label')
+    autoRow.style.cssText = 'display:flex;align-items:center;gap:6px;margin-top:8px;color:#aaa;font-size:11px;cursor:pointer'
+    const cb = document.createElement('input')
+    cb.type = 'checkbox'
+    cb.id = 'agAutoStart'
+    cb.checked = autoStartOn()
+    cb.onchange = () => {
+      // 存不上（隐私模式 / 禁用了 localStorage）不影响使用 —— 下次仍按默认「先确认」。
+      // 但不静默吞：打一条 warning，否则"开关点了没记住"没法排查。
+      try {
+        localStorage.setItem('ag-autostart', cb.checked ? '1' : '0')
+      } catch (e) {
+        if (typeof console !== 'undefined' && console.warn) console.warn('保存 Auto-start 失败：', e && e.message)
+      }
+    }
+    const cbText = document.createElement('span')
+    cbText.textContent = '以后这类请求直接执行（跳过这一步；不影响「改文件前必须确认」）'
+    autoRow.appendChild(cb); autoRow.appendChild(cbText)
+    box.appendChild(autoRow)
+    clearEmpty(); logEl.appendChild(box); stick()
+    return box
+  }
+
+  /** 真正把提示发给 opencode（原 send() 里那一段，被"确认后"与"Auto-start"两边复用）*/
+  async function runPrompt(prompt) {
     setBusy(true)
     addAi() // 先建一个空气泡，流式内容往里填
     try {
@@ -105,6 +185,34 @@
       addErr('调用失败：' + e.message)
       setBusy(false)
     }
+  }
+
+  async function send() {
+    if (busy) return
+    const prompt = String(inputEl.value || '').trim()
+    if (!prompt) return
+    addUser(prompt)
+    inputEl.value = ''
+
+    // P9A：Confirm-first（默认）先出理解卡；Auto-start 才直接跑
+    if (!autoStartOn() && typeof api.agentUnderstand === 'function') {
+      setBusy(true)
+      let u = null
+      try {
+        u = await understand(prompt)
+      } catch (e) {
+        u = { ok: false, error: String((e && e.message) || e) }
+      }
+      setBusy(false)
+      if (!u || u.ok === false) {
+        addErr('没能形成理解：' + ((u && (u.error || (u.errors || []).join('；'))) || '未知'))
+        return
+      }
+      addUnderstanding(prompt, u.understanding)
+      return
+    }
+
+    await runPrompt(prompt)
   }
 
   function stop() { if (busy && api.agentStop) api.agentStop() }

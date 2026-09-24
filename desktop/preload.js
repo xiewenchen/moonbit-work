@@ -135,6 +135,9 @@ contextBridge.exposeInMainWorld('moonAPI', {
   // ---- P5A：AgentRequest（渲染侧收集真实状态 → 主进程校验/组装/快照）----
   agentBuildRequest: (payload) => ipcRenderer.invoke('agent:buildRequest', payload),
   agentLastSnapshot: () => ipcRenderer.invoke('agent:lastSnapshot'),
+  // ---- P9A：可验证的任务理解（Ask/Understand）----
+  agentUnderstand: (payload) => ipcRenderer.invoke('agent:understand', payload),
+  agentLastUnderstanding: () => ipcRenderer.invoke('agent:lastUnderstanding'),
 
   // 注：ProjectContext 不在这里过桥 —— 本 preload 是 sandbox:true，
   // require 本地文件会让整个 preload 挂掉（实测踩过）。

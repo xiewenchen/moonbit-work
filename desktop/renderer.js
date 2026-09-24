@@ -1018,27 +1018,47 @@ async function proposeAndApplyPatch(patch) {
  * 本批接上的是 P5A 明确要求的两项 —— ProjectContext 与 Problems；
  * activeFile / selection / lastRun / lastTest 留给 P5A 后续（调用方可显式传入）。
  */
-async function buildAgentRequest(message, opts = {}) {
-  const problems = (window.moonbitIDE && typeof window.moonbitIDE.problems.list === 'function')
+/**
+ * 收集渲染侧**真实状态** —— Agent 请求与任务理解**共用同一份**。
+ * 两条路径不能各取一次，否则快照与理解会不一致。
+ */
+function collectRendererInputs(opts = {}) {
+  const problems = (window.moonbitIDE && window.moonbitIDE.problems && typeof window.moonbitIDE.problems.list === 'function')
     ? (window.moonbitIDE.problems.list() || []).slice(0, 50)
     : []
+  // 只在**真有值**时才带上这一项。
+  // 这样主进程才能区分「没接线」(absent) 与「接线了但本轮无数据」(empty) ——
+  // 否则一律被算成 empty，快照就看不出哪一块还没接（review 指出）。
+  return Object.assign(
+    {
+      projectContext: (opts.context !== undefined ? opts.context : projectCtx) || null,
+      problems,
+    },
+    opts.activeFile != null ? { activeFile: opts.activeFile } : {},
+    opts.selection != null ? { selection: opts.selection } : {},
+    opts.lastRun != null ? { lastRun: opts.lastRun } : {},
+    opts.lastTest != null ? { lastTest: opts.lastTest } : {},
+    (Array.isArray(opts.recentFiles) && opts.recentFiles.length) ? { recentFiles: opts.recentFiles } : {},
+  )
+}
+
+async function buildAgentRequest(message, opts = {}) {
   return window.moonAPI.agentBuildRequest({
     message,
     sessionId: opts.sessionId || null,
-    // 只在**真有值**时才带上这一项。
-    // 这样主进程才能区分「没接线」(absent) 与「接线了但本轮无数据」(empty) ——
-    // 否则一律被算成 empty，快照就看不出哪一块还没接（review 指出）。
-    inputs: Object.assign(
-      {
-        projectContext: (opts.context !== undefined ? opts.context : projectCtx) || null,
-        problems,
-      },
-      opts.activeFile != null ? { activeFile: opts.activeFile } : {},
-      opts.selection != null ? { selection: opts.selection } : {},
-      opts.lastRun != null ? { lastRun: opts.lastRun } : {},
-      opts.lastTest != null ? { lastTest: opts.lastTest } : {},
-      (Array.isArray(opts.recentFiles) && opts.recentFiles.length) ? { recentFiles: opts.recentFiles } : {},
-    ),
+    inputs: collectRendererInputs(opts),
+  })
+}
+
+/**
+ * P9A-02：产出**可验证的**任务理解（不是思维链）。
+ * `policy.autoStart` 决定「先确认」还是「直接跑」（P9A-04），默认先确认。
+ */
+async function understandTask(message, opts = {}) {
+  return window.moonAPI.agentUnderstand({
+    message,
+    policy: Object.assign({ autoStart: false, confirmBeforeApply: true }, opts.policy || {}),
+    inputs: collectRendererInputs(opts),
   })
 }
 
@@ -1058,6 +1078,9 @@ window.moonbitIDE = {
   agentRequest: {
     build: (message, opts) => buildAgentRequest(message, opts),
     lastSnapshot: () => window.moonAPI.agentLastSnapshot(),
+    // P9A：可验证的任务理解
+    understand: (message, opts) => understandTask(message, opts),
+    lastUnderstanding: () => window.moonAPI.agentLastUnderstanding(),
   },
   // 只读工具（P6）：Agent 的"眼睛"。它们全部经路径沙箱，且表里**没有**写/执行工具。
   // 注意：**不提供 setWorkspace** —— workspace 由 openProject（用户操作）设定，Agent 不该能改沙箱根。

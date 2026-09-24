@@ -219,6 +219,7 @@ registerAiProviderIpc({
 registerAgentRequestIpc({
   ipcMain,
   onLog: (e) => console.log('[agent]', JSON.stringify(e)),
+  getWorkspace: () => agentTools.getWorkspace(),
 })
 
 // LSP 客户端（接官方 moon-lsp）—— 见 lsp-manager.js
