@@ -91,7 +91,7 @@
 |---|---|---|
 | P2 | ProjectContext（单一工程上下文） | **进行中**：P2-01～P2-05 PASS；P2-06～P2-18 待做 |
 | P3 | Command Registry | **PASS（P3-12 未做）**：P3-01～P3-11、P3-13～P3-15 全部 PASS；P3-12（Terminal 调命令）无现成基础，如实留待 |
-| P4 | Problem Model | TODO |
+| P4 | Problem Model | **进行中**：P4-01～P4-09、P4-11、P4-12 PASS；P4-10（点击跳转）与接到问题面板待做 |
 | P5 | Agent Context | TODO |
 | P5.5 | Agent 安全门（路径/命令沙箱、超时、输出限制、IPC 审查） | TODO |
 | P6 | Agent Read-only Tools | TODO |
