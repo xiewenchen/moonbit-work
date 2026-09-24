@@ -100,14 +100,14 @@
 | P9 | Agent Verification Loop | **PASS（含接线）**：闭环 + 失败即停 + 轮次上限 + 防死循环 + 报告 + **结果进输出/问题面板**（17/0 真实场景验证）；**Ask/Understand 与自动修（需 LLM）未做** |
 | P10 | Session | TODO |
 | P11 | 项目级 Agent Memory | TODO |
-| P12 | AI Provider Center | **PASS（核心层）**：Schema/四种预设/连通性检查/Key 脱敏/全局项目分离（44/0）；**接到 UI 与 agent.js 待做** |
+| P12 | AI Provider Center | **PASS（核心层 + 接线）**：Schema/四种预设/连通性检查/Key 脱敏/全局项目分离（44/0）；**存储（~/.moonbit-work）+ 面板 + 真实探测已接（23/0）**；**激活/切换与驱动 agent.js 待做** |
+| P19 | 测试体系 | **进行中**：修掉 **25 处「永远通过」的断言**（`chk` 传数组）+ 30 个脚本的异常假绿 + 29 处同类误用；**框架自测与断言形式统一待做** |
 | P13 | Workbench | TODO |
 | P14 | MoonBit Backend Integration | TODO |
 | P15 | 数据库工作台 | TODO |
 | P16 | Quality Center | TODO |
 | P17 | 安全技术债收口（U1–U10） | TODO |
 | P18 | 技术债（-79 / --deny-warn / 空 catch） | TODO |
-| P19 | 测试体系 | TODO |
 | P20 | 产品化 | TODO |
 | P21 | 最终产品 Demo | TODO |
 | P22 | 最终回归 | TODO |
