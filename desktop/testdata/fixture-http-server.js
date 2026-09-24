@@ -26,6 +26,13 @@ srv.listen(0, '127.0.0.1', () => {
   }
 })
 
-const bye = () => { srv.close(() => process.exit(0)) }
+const bye = () => {
+  // 别被 keep-alive 连接拖住：srv.close() 会**等待现有连接结束**，
+  // 而 IDE / fetch 客户端默认保持 keep-alive —— 那会让进程迟迟不退出（实测：端口一直可连）。
+  // 先把连接全掉，再关监听，最后兜底退出。
+  if (typeof srv.closeAllConnections === 'function') srv.closeAllConnections()
+  srv.close(() => process.exit(0))
+  setTimeout(() => process.exit(0), 300)
+}
 process.on('SIGTERM', bye)
 process.on('SIGINT', bye)

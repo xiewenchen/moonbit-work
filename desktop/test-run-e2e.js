@@ -341,6 +341,45 @@ async function main() {
     chk('停止后回到 STOPPED', runner.state === 'STOPPED', runner.state)
   }
 
+  console.log('\n=== ⑰ 停止兜底：不理会 SIGTERM 的服务也会被清掉（P1-22）===')
+  {
+    // 这个靶子**故意忽略 SIGTERM** —— 没有兜底强杀的话它会活下来，成为僵尸
+    const runner = createServiceRunner({ stopGraceMs: 600 })
+    runner.start(
+      { bin: NODE, args: ['-e', 'process.on("SIGTERM", () => {}); console.log("stubborn service up"); setInterval(() => {}, 1000)'], cwd: __dirname },
+      {},
+    )
+    const pid = runner.handle && runner.handle.pid
+    await sleep(500)
+    chk('顽固进程确实起来了', ['STARTING', 'RUNNING'].includes(runner.state), runner.state)
+
+    runner.stop()
+    const dead = pid ? await waitUntil(() => (isAlive(pid) ? null : true), { timeout: 8000 }) : null
+    chk('忽略 SIGTERM 的进程也被清掉（无僵尸）', dead === true, 'pid ' + pid + ' 仍存活')
+  }
+
+  console.log('\n=== ⑱ shell 启动的服务也要能停干净（无孤儿）（P1-22）===')
+  {
+    // bin 故意用**不带扩展名**的 'node' —— Windows 上这会走 shell:true（cmd.exe 包一层），
+    // 只杀 cmd 就会把真正的服务进程留成孤儿（实测：状态回到 STOPPED，端口却一直可连）。
+    let url = null
+    const runner = createServiceRunner({})
+    runner.start({ bin: 'node', args: [FIXTURE], cwd: __dirname }, { onUrl: (u) => { url = u } })
+    const got = await waitUntil(() => url, { timeout: 15000 })
+    chk('shell 启动的服务起来了并拿到 URL', !!got, String(got))
+
+    runner.stop()
+    const closed = await waitUntil(async () => {
+      try {
+        await fetch(url, { signal: AbortSignal.timeout(400) })
+        return null
+      } catch (_) {
+        return true
+      }
+    }, { timeout: 8000 })
+    chk('停止后端口不再可连（真正的服务进程被杀掉，不是只杀了 cmd）', closed === true, String(url))
+  }
+
   console.log('\n结果：' + pass + ' 通过 / ' + fail + ' 失败 / 共 ' + (pass + fail) + ' 项')
   if (fail) console.log('失败项：\n  - ' + failures.join('\n  - '))
   process.exit(fail === 0 ? 0 : 1)

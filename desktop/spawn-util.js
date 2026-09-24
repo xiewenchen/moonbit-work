@@ -18,6 +18,7 @@
 //      这样 Node 不参与参数转义（引号不会被加倍），也不会触发 DEP0190
 //      （那条告警针对的是「args 非空 + shell:true」）。
 const path = require('node:path')
+const { spawnSync } = require('node:child_process')
 
 function quoteForCmd(s) {
   const str = String(s)
@@ -39,4 +40,29 @@ function resolveSpawn(bin, args) {
   return { bin: cmdline, args: [], shell: true }
 }
 
-module.exports = { resolveSpawn, quoteForCmd }
+module.exports = { resolveSpawn, quoteForCmd, killTree }
+
+/**
+ * 终止一个进程**及其整棵子进程树**。
+ *
+ * 为什么不能只用 child.kill()（实测踩到的真缺陷）：
+ *   Windows 上不带扩展名的命令（'node' / 'npm'）会走 `shell: true`（见 resolveSpawn），
+ *   实际启动的是 **cmd.exe 包一层** —— `child.kill()` 只能杀掉 cmd.exe，
+ *   真正的服务进程变成**孤儿继续监听端口**。表现：「点了停止、状态也回来了，端口还连着」。
+ *
+ * 注：Windows 上 Node 的 child.kill() 本就是 TerminateProcess（子进程的
+ * process.on('SIGTERM') 根本不会触发），所以这里直接上 taskkill /T /F 不丢什么优雅性。
+ */
+function killTree(child, signal = 'SIGTERM') {
+  if (!child || typeof child.kill !== 'function') return false
+  if (process.platform === 'win32' && child.pid) {
+    const r = spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' })
+    if (r && r.status === 0) return true
+    // taskkill 不认（例如进程已退出）时退回到通用路径
+  }
+  try {
+    return child.kill(signal)
+  } catch (_) {
+    return false
+  }
+}

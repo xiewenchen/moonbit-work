@@ -8,7 +8,7 @@
 const fs = require('fs')
 const path = require('path')
 const { spawn, spawnSync } = require('child_process')
-const { resolveSpawn } = require('./spawn-util')
+const { resolveSpawn, killTree } = require('./spawn-util')
 const { createUrlScanner } = require('./url-detect')
 const {
   RUN_STATE,
@@ -255,7 +255,13 @@ function spawnRunner({ bin, args, cwd }, onData, onEnd) {
  */
 const DEFAULT_START_TIMEOUT = 60000
 
-function createServiceRunner({ openUrl, startTimeout = DEFAULT_START_TIMEOUT } = {}) {
+/**
+ * 停止宽限期（ms）：stop() 发出后若进程仍未退出，就强杀（SIGKILL）。
+ * 没有这个兑底，不理会 SIGTERM（或被 keep-alive 连接拖住）的服务会**留下僵尸**。
+ */
+const DEFAULT_STOP_GRACE_MS = 3000
+
+function createServiceRunner({ openUrl, startTimeout = DEFAULT_START_TIMEOUT, stopGraceMs = DEFAULT_STOP_GRACE_MS } = {}) {
   let current = null          // 底层 child 进程
   let handle = null           // ProcessHandle（P1-16）
   let scanner = null          // URL 扫描器（见 url-detect.js）
@@ -308,6 +314,14 @@ function createServiceRunner({ openUrl, startTimeout = DEFAULT_START_TIMEOUT } =
     if (machine.state === RUN_STATE.RUNNING || machine.state === RUN_STATE.STARTING) {
       machine.to(RUN_STATE.STOPPING)
       emitState()
+    }
+    // 兑底强杀：宽限期内没退出就直接 SIGKILL（否则不理会 SIGTERM 的服务会留下僵尸）
+    if (stopGraceMs > 0 && current) {
+      const target = current
+      const t = setTimeout(() => {
+        if (current === target) killTree(target, 'SIGKILL')
+      }, stopGraceMs)
+      if (typeof t.unref === 'function') t.unref()
     }
     return r
   }
@@ -400,7 +414,7 @@ function createServiceRunner({ openUrl, startTimeout = DEFAULT_START_TIMEOUT } =
       pid: null,
       command: [bin].concat(args || []).join(' '),
       cwd: cwd || process.cwd(),
-      kill: () => { if (current) current.kill() },
+      kill: () => { if (current) killTree(current, 'SIGTERM') },
     })
     const myRun = ++runSeq
     current = spawnRunner({ bin, args, cwd }, onChunk, (r) => finish(r, H, myRun))
@@ -454,4 +468,4 @@ function registerRunnerIpc({ ipcMain, getWindow }) {
   ipcMain.handle('runner:stop', () => runner.stop())
 }
 
-module.exports = { registerRunnerIpc, createServiceRunner, DEFAULT_START_TIMEOUT, findRunners, kindOf }
+module.exports = { registerRunnerIpc, createServiceRunner, DEFAULT_START_TIMEOUT, DEFAULT_STOP_GRACE_MS, findRunners, kindOf }
