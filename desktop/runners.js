@@ -441,6 +441,22 @@ function createServiceRunner({ openUrl, startTimeout = DEFAULT_START_TIMEOUT, st
   }
 }
 
+/**
+ * 运行事件 → IPC 事件的统一映射。
+ * 提取出来是因为命令表（P3 的 project.run）与 runner:run IPC 必须用**同一套** handlers ——
+ * 否则走命令启动的进程不会把输出/URL 推给界面（输出流会直接断掉）。
+ */
+function makeRunnerHandlers(send) {
+  return {
+    onStart: (p) => send('runner:start', p),
+    onData: (d) => send('runner:data', { data: d }),
+    onUrl: (url) => send('runner:url', { url }),
+    // 浏览器打开结果单独成一路事件（renderer 暂未消费，留给 P1-21 的界面提示）
+    onBrowserOpen: (r) => send('runner:browser', r),
+    onEnd: (r) => send('runner:end', r),
+  }
+}
+
 function registerRunnerIpc({ ipcMain, getWindow }) {
   const send = (ch, payload) => {
     const w = getWindow && getWindow()
@@ -457,17 +473,14 @@ function registerRunnerIpc({ ipcMain, getWindow }) {
     try { return { ok: true, ...findRunners(rootOfInput(input) || process.cwd()) } } catch (e) { return { ok: false, error: e.message } }
   })
 
-  ipcMain.handle('runner:run', (_e, spec) =>
-    runner.start(spec, {
-      onStart: (p) => send('runner:start', p),
-      onData: (d) => send('runner:data', { data: d }),
-      onUrl: (url) => send('runner:url', { url }),
-      // 浏览器打开结果单独成一路事件（renderer 暂未消费，留给 P1-21 的界面提示）
-      onBrowserOpen: (r) => send('runner:browser', r),
-      onEnd: (r) => send('runner:end', r),
-    }))
+  const handlers = makeRunnerHandlers(send)
+  ipcMain.handle('runner:run', (_e, spec) => runner.start(spec, handlers))
 
   ipcMain.handle('runner:stop', () => runner.stop())
+
+  // 把实例交出去（P3）：命令表必须复用**同一个** runner ——
+  // 同一时刻只能有一个运行实例，若命令表另建一个，「停止」就会停错进程。
+  return runner
 }
 
-module.exports = { registerRunnerIpc, createServiceRunner, DEFAULT_START_TIMEOUT, DEFAULT_STOP_GRACE_MS, rootOfInput, findRunners, kindOf }
+module.exports = { registerRunnerIpc, createServiceRunner, makeRunnerHandlers, DEFAULT_START_TIMEOUT, DEFAULT_STOP_GRACE_MS, rootOfInput, findRunners, kindOf }

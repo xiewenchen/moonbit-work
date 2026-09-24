@@ -757,13 +757,16 @@ function showRunnerPicker(list) {
 async function startRunner(spec) {
   outEl.textContent = ''
   logLine(`> ${spec.label}\n`, 'ok')
-  const r = await window.moonAPI.runnerRun(spec)
-  if (r && r.ok === false) {
-    logLine('启动失败：' + r.error, 'err')
+  // P3-09：改走命令表 —— 同一个动作（UI 按钮 / 命令面板 / 快捷键 / 未来的 Agent）都走这一条。
+  // 输出 / URL / 结束事件仍旧走 runner:* 通道（命令表与 runner:run IPC 共用同一套 handlers）。
+  const res = await window.moonAPI.commandExecute('project.run', { spec })
+  if (!res || res.ok === false) {
+    logLine('启动失败：' + ((res && res.error) || '未知错误'), 'err')
     setMsg('启动失败')
     return
   }
-  setMsg(`已启动（PID ${r && r.pid ? r.pid : '-'}）`)
+  const pid = res.data && res.data.pid
+  setMsg(`已启动（PID ${pid || '-'}）`)
   // 服务类程序常启动后不打印日志。若 3.5 秒仍无输出，给出可操作的说明，
   // 而不是让用户对着一片空白猜「是不是没跑起来」。
   setTimeout(() => {
@@ -824,6 +827,12 @@ window.moonbitIDE = {
   getContext: () => projectCtx,         // 冻结对象，只读
   hasProject: () => window.moonbitProjectContext.hasProject(projectCtx),
   describe: () => window.moonbitProjectContext.describeContext(projectCtx),
+  // 命令表（P3）：把「同一个动作走同一条路」对外也变成可调用的事实。
+  // ⚠️ 现阶段只**建立调用接口** —— 按 Gate P3，Agent 不允许自动执行（P7 才开执行权限）。
+  commands: {
+    list: () => window.moonAPI.commandList(),
+    execute: (name, args, opts) => window.moonAPI.commandExecute(name, args, opts),
+  },
 }
 
 // 顶栏按钮的中文名（给提示语用）

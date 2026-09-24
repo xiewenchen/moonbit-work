@@ -93,6 +93,10 @@ contextBridge.exposeInMainWorld('moonAPI', {
   // ---- 项目类型识别 ----
   projectInfo: (cwd) => ipcRenderer.invoke('project:info', { cwd }),
 
+  // ---- 命令表（P3）：同一个动作（UI / 菜单 / 快捷键 / 未来的 Agent）都走它 ----
+  commandList: () => ipcRenderer.invoke('command:list'),
+  commandExecute: (name, args, opts) => ipcRenderer.invoke('command:execute', { name, args, opts }),
+
   // 注：ProjectContext 不在这里过桥 —— 本 preload 是 sandbox:true，
   // require 本地文件会让整个 preload 挂掉（实测踩过）。
   // 它改由 index.html 的 <script src="./project-context.js"> + window.moonbitProjectContext 提供。

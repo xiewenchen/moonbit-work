@@ -1,6 +1,6 @@
 
 === ⓪ 入口自检 ===
-   moonbitIDE keys = openProject,closeProject,getContext,hasProject,describe
+   moonbitIDE keys = openProject,closeProject,getContext,hasProject,describe,commands
    启动时 cwd = 
    启动时 ctx = null
 
@@ -9,21 +9,21 @@
   [PASS] describe() = （无项目）
 
 === ② 打开项目 A（Node）===
-   openProject(mbproj-A-0Ym1kq) → {"ok":true,"cwd":"C:\\Users\\33567\\AppData\\Local\\Temp\\mbproj-A-0Ym1kq","ctxRoot":"C:\\Users\\33567\\AppData\\Local\\Temp\\mbproj-A-0Ym1kq"}
+   openProject(mbproj-A-8xVnMk) → {"ok":true,"cwd":"C:\\Users\\33567\\AppData\\Local\\Temp\\mbproj-A-8xVnMk","ctxRoot":"C:\\Users\\33567\\AppData\\Local\\Temp\\mbproj-A-8xVnMk"}
   [PASS] A: projectType = node
   [PASS] A: rootDir 正确
   [PASS] A: hasProject = true
   [PASS] A: Runner 跟着换根（kind=node）
 
 === ③ 切到项目 B（MoonBit）===
-   openProject(mbproj-B-hAjXAL) → {"ok":true,"cwd":"C:\\Users\\33567\\AppData\\Local\\Temp\\mbproj-B-hAjXAL","ctxRoot":"C:\\Users\\33567\\AppData\\Local\\Temp\\mbproj-B-hAjXAL"}
+   openProject(mbproj-B-I0g4js) → {"ok":true,"cwd":"C:\\Users\\33567\\AppData\\Local\\Temp\\mbproj-B-I0g4js","ctxRoot":"C:\\Users\\33567\\AppData\\Local\\Temp\\mbproj-B-I0g4js"}
   [PASS] B: projectType = moonbit
   [PASS] B: rootDir 已切换
   [PASS] B: Runner 列出 moonbit 入口
   [PASS] B: 命令带 --target native
 
 === ④ 切回 A（P2-17 的 A→B→A）===
-   openProject(mbproj-A-0Ym1kq) → {"ok":true,"cwd":"C:\\Users\\33567\\AppData\\Local\\Temp\\mbproj-A-0Ym1kq","ctxRoot":"C:\\Users\\33567\\AppData\\Local\\Temp\\mbproj-A-0Ym1kq"}
+   openProject(mbproj-A-8xVnMk) → {"ok":true,"cwd":"C:\\Users\\33567\\AppData\\Local\\Temp\\mbproj-A-8xVnMk","ctxRoot":"C:\\Users\\33567\\AppData\\Local\\Temp\\mbproj-A-8xVnMk"}
   [PASS] 回 A: projectType = node（无残留）
   [PASS] 回 A: rootDir = A
   [PASS] 回 A: Runner 也回退正确
@@ -33,5 +33,10 @@
   [PASS] 关闭后 getContext() = null
   [PASS] 关闭后进入「无项目态」（body.no-project）
   [PASS] 文件树里出现「未打开项目」引导
+  [PASS] commandList 返回 6 个项目命令
+  [PASS] 危险命令带 danger 标记
+  [PASS] execute(project.open) 正常且返回 rootDir
+  [PASS] 未知命令 → ok:false（不抛）
+  [PASS] 缺参数 → ok:false
 
-结果：17 通过 / 0 失败 / 共 17 项
+结果：22 通过 / 0 失败 / 共 22 项

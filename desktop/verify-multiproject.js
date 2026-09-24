@@ -104,6 +104,23 @@ app.whenReady().then(async () => {
   const guide = await js(`!!document.querySelector('#tree .welcome')`)
   chk('文件树里出现「未打开项目」引导', guide === true, String(guide))
 
+  console.log('\n=== ⑥ 命令表（P3-09～P3-11 的接线证据）===')
+  {
+    const cl = JSON.parse(await js('(async () => JSON.stringify(await window.moonbitIDE.commands.list()))()'))
+    const names = (cl.commands || []).map((c) => c.name).sort()
+    chk('commandList 返回 6 个项目命令', names, ['project.build', 'project.close', 'project.open', 'project.run', 'project.stop', 'project.test'])
+    chk('危险命令带 danger 标记', (cl.commands || []).filter((c) => c.danger).length, 2)
+
+    const ex = JSON.parse(await js(`(async () => JSON.stringify(await window.moonbitIDE.commands.execute('project.open', { dir: ${JSON.stringify(A)} })))()`))
+    chk('execute(project.open) 正常且返回 rootDir', [ex.ok, ex.data && ex.data.rootDir], [true, A])
+
+    const bad = JSON.parse(await js(`(async () => JSON.stringify(await window.moonbitIDE.commands.execute('no.such.command')))()`))
+    chk('未知命令 → ok:false（不抛）', [bad.ok, /未知命令/.test(String(bad.error))], [false, true])
+
+    const noDir = JSON.parse(await js('(async () => JSON.stringify(await window.moonbitIDE.commands.execute("project.open", {})))()'))
+    chk('缺参数 → ok:false', [noDir.ok, /缺少目录/.test(String(noDir.error))], [false, true])
+  }
+
   log('\n结果：' + pass + ' 通过 / ' + fail + ' 失败 / 共 ' + (pass + fail) + ' 项')
   try {
     fs.rmSync(A, { recursive: true, force: true })

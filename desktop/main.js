@@ -14,10 +14,12 @@ const { registerBackendIpc } = require('./backend')
 const { registerApiDebugIpc } = require('./api-debug')
 const { registerProjectIpc } = require('./project-detect')
 const { registerRelayIpc } = require('./relay-main')
-const { registerRunnerIpc } = require('./runners')
+const { registerRunnerIpc, makeRunnerHandlers } = require('./runners')
 const { registerAgentIpc } = require('./agent')
 const { registerLspIpc } = require('./lsp-manager')
 const { rootOfInput } = require('./project-context')
+const { resolveSpawn } = require('./spawn-util')
+const { createCommandRegistry, registerProjectCommands, registerCommandIpc } = require('./commands')
 
 // ── 环境准备：必须在任何 spawn 之前 ─────────────────────────────────────
 // 从桌面快捷方式启动时，进程 PATH 是 Windows 默认值，**不含** ~/.moon/bin
@@ -83,6 +85,32 @@ const DEFAULT_CWD = START.dir
 // `cwd && cwd.length > 0 ? cwd : DEFAULT_CWD`（P2-01 盘点出来的技术债）。
 const rootOr = (input) => rootOfInput(input) || DEFAULT_CWD
 
+/**
+ * 跑一条命令并收集输出（给命令表用）。
+ * 用 resolveSpawn —— Windows 上 `moon` / `npm` 这类不带扩展名的命令需要走 shell（见 spawn-util）。
+ */
+function runCommandCapture({ bin, args, cwd }) {
+  return new Promise((resolve) => {
+    let child
+    try {
+      const sp = resolveSpawn(bin, args || [])
+      child = spawn(sp.bin, sp.args, { cwd: cwd || DEFAULT_CWD, shell: sp.shell, stdio: ['ignore', 'pipe', 'pipe'] })
+    } catch (e) {
+      resolve({ code: -1, stdout: '', stderr: '无法启动 ' + bin + '：' + String((e && e.message) || e) })
+      return
+    }
+    const MAX = 256 * 1024   // 输出上限，避免一条命令把内存吃穿
+    let out = ''
+    let err = ''
+    let done = false
+    const finish = (code) => { if (done) return; done = true; resolve({ code, stdout: out, stderr: err }) }
+    child.stdout.on('data', (d) => { out = (out + d.toString('utf8')).slice(-MAX) })
+    child.stderr.on('data', (d) => { err = (err + d.toString('utf8')).slice(-MAX) })
+    child.on('error', (e) => { err = (err + ' ' + String((e && e.message) || e)).slice(-MAX); finish(-1) })
+    child.on('close', (code) => finish(typeof code === 'number' ? code : -1))
+  })
+}
+
 // 提升为模块级：后端服务的日志/状态需要通过它推给渲染层
 let mainWindow = null
 
@@ -125,8 +153,24 @@ registerProjectIpc({ ipcMain, DEFAULT_CWD })
 registerRelayIpc({ ipcMain, getWindow: () => mainWindow })
 
 // 可执行入口发现与运行（moonbit / node / python / rust / go）—— 见 runners.js
-registerRunnerIpc({ ipcMain, getWindow: () => mainWindow })
+// 注意：下面要把**这个** runner 实例交给命令表 —— 同一时刻只能有一个运行实例，
+// 若命令表另建一个，「停止」就会停错进程。
+const projectRunner = registerRunnerIpc({ ipcMain, getWindow: () => mainWindow })
 registerAgentIpc({ getWindow: () => mainWindow })
+
+// 命令表（P3）：UI / 菜单 / 快捷键 / 未来的 Agent 都走同一个 Command —— 见 commands.js
+const registry = createCommandRegistry({ logger: (e) => console.log('[cmd]', JSON.stringify(e)) })
+registerProjectCommands(registry, {
+  runner: projectRunner,
+  // 与 runner:run IPC 共用同一套 handlers，否则命令启动的进程不会把输出/URL 推给界面
+  runnerHandlers: makeRunnerHandlers((ch, payload) => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(ch, payload)
+  }),
+  runCmd: runCommandCapture,
+  pathExists: (p) => fs.existsSync(p),
+  rootOf: rootOfInput,
+})
+registerCommandIpc({ ipcMain, registry })
 
 // LSP 客户端（接官方 moon-lsp）—— 见 lsp-manager.js
 registerLspIpc({ ipcMain, getWindow: () => mainWindow })

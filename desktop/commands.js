@@ -157,6 +157,8 @@ function testCommandFor(kind) {
 function registerProjectCommands(registry, deps = {}) {
   const { runner, runCmd, rootOf } = deps
   const pathExists = typeof deps.pathExists === 'function' ? deps.pathExists : () => true
+  // 命令启动的进程也必须能把输出/URL 推给界面 —— 与 runner:run IPC 共用同一套 handlers
+  const runnerHandlers = deps.runnerHandlers || {}
   if (!registry || typeof registry.register !== 'function') throw new Error('registerProjectCommands 需要 registry')
   if (!runner) throw new Error('registerProjectCommands 需要 runner')
   if (typeof runCmd !== 'function') throw new Error('registerProjectCommands 需要 runCmd')
@@ -224,7 +226,7 @@ function registerProjectCommands(registry, deps = {}) {
       if (!spec || !spec.bin) return commandResult({ ok: false, error: '缺少可运行入口（args.spec.bin）' })
       const r = runner.start(
         { bin: spec.bin, args: spec.args, cwd: spec.cwd, label: spec.label },
-        args.handlers || {},
+        args.handlers || runnerHandlers,
       )
       return commandResult({
         ok: r.ok !== false,
@@ -276,6 +278,18 @@ function registerProjectCommands(registry, deps = {}) {
   return registry
 }
 
+// ── P3-09 ～ P3-12 的接线入口：让渲染侧也能走命令表 ──────────────────────────
+/**
+ * 暴露两个 IPC：`command:list`（给 UI 与未来的 Agent 看能力清单）与 `command:execute`。
+ * ipcMain 由参数注入 —— 本文件仍不 require electron，保持可纯 Node 测。
+ */
+function registerCommandIpc({ ipcMain, registry }) {
+  if (!ipcMain || !registry) throw new Error('registerCommandIpc 需要 ipcMain 与 registry')
+  ipcMain.handle('command:list', () => ({ ok: true, commands: registry.list() }))
+  ipcMain.handle('command:execute', (_e, payload = {}) =>
+    registry.execute(payload.name, payload.args || {}, payload.opts || {}))
+}
+
 module.exports = {
   COMMAND_PERMISSIONS,
   DEFAULT_TIMEOUT_MS,
@@ -283,6 +297,7 @@ module.exports = {
   withTimeout,
   createCommandRegistry,
   registerProjectCommands,
+  registerCommandIpc,
   buildCommandFor,
   testCommandFor,
 }
