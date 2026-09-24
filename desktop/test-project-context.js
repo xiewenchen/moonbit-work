@@ -148,6 +148,19 @@ console.log('\n=== 与真实 project-detect 的接入点（集成）===')
   }
 }
 
+console.log('\n=== rootOfInput：统一取根（P2-08 起各模块共用）===')
+{
+  const { rootOfInput } = require('./project-context')
+  const ctx = createProjectContext({ root: '/proj/a', kind: 'node' }, { createdAt: 1 })
+  chk('字符串原样（旧调用）', rootOfInput('/proj/a'), '/proj/a')
+  chk('字符串去空白', rootOfInput('  /proj/a  '), '/proj/a')
+  chk('ProjectContext → 取 rootDir（新调用）', rootOfInput(ctx), '/proj/a')
+  chk('{ ctx } 包装形式', rootOfInput({ ctx }), '/proj/a')
+  chk('空/ null / undefined → 空串', [rootOfInput(''), rootOfInput(null), rootOfInput(undefined)], ['', '', ''])
+  chk('怪输入不抛且给空串', [rootOfInput(123), rootOfInput([]), rootOfInput({})], ['', '', ''])
+  chk('runners.js 仍 re-export（旧引用不破）', require('./runners').rootOfInput, rootOfInput)
+}
+
 console.log('\n结果：' + pass + ' 通过 / ' + fail + ' 失败 / 共 ' + (pass + fail) + ' 项')
 if (fail) console.log('失败项：\n  - ' + failures.join('\n  - '))
 process.exit(fail === 0 ? 0 : 1)

@@ -10,6 +10,7 @@
 
 const fs = require('fs')
 const http = require('http')
+const { rootOfInput } = require('./project-context')
 const https = require('https')
 const path = require('path')
 
@@ -143,10 +144,12 @@ function request({ url, method, headers, body, timeoutMs }) {
 }
 
 function registerApiDebugIpc({ ipcMain, DEFAULT_CWD }) {
-  const specPath = () => path.join(DEFAULT_CWD, 'conduit', 'openapi.yml')
+  // P2-12：端点清单要跟**当前项目**走。
+  // 之前写死 DEFAULT_CWD（完全忽略传入的路径），导致「打开别的项目时接口面板仍列本仓库的端点」。
+  const specPath = (input) => path.join(rootOfInput(input) || DEFAULT_CWD, 'conduit', 'openapi.yml')
 
-  ipcMain.handle('apidbg:endpoints', async () => {
-    const p = specPath()
+  ipcMain.handle('apidbg:endpoints', async (_e, input) => {
+    const p = specPath(input)
     if (!fs.existsSync(p)) return { ok: false, error: '找不到 conduit/openapi.yml', endpoints: [] }
     return {
       ok: true,

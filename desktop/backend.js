@@ -15,6 +15,7 @@ const { spawn } = require('child_process')
 const fs = require('fs')
 const http = require('http')
 const path = require('path')
+const { rootOfInput } = require('./project-context')
 
 const DEFAULT_PORT = 8110
 const PG_PORT = 55432
@@ -106,7 +107,7 @@ function registerBackendIpc({ ipcMain, getWindow, DEFAULT_CWD }) {
 
   // ---- 状态查询 ----
   ipcMain.handle('backend:status', async (_e, { cwd, port } = {}) => {
-    const root = cwd && cwd.length > 0 ? cwd : DEFAULT_CWD
+    const root = rootOfInput(cwd) || DEFAULT_CWD
     const p = port || DEFAULT_PORT
     const alive = proc !== null && proc.exitCode === null
     let healthy = false
@@ -136,11 +137,11 @@ function registerBackendIpc({ ipcMain, getWindow, DEFAULT_CWD }) {
   })
 
   // ---- 编译（可选步骤，让用户能自己在 IDE 里构建）----
-  ipcMain.handle('backend:build', async () => {
+  ipcMain.handle('backend:build', async (_e, input) => {
     return new Promise((resolve) => {
       log((l) => send('backend:log', { line: l }), '$ moon build --target native --release')
       const c = spawn('moon', ['build', '--target', 'native', '--release'], {
-        cwd: DEFAULT_CWD,
+        cwd: rootOfInput(input) || DEFAULT_CWD,
         shell: false,
       })
       c.stdout.on('data', (d) => log((l) => send('backend:log', { line: l }), d))
@@ -155,7 +156,7 @@ function registerBackendIpc({ ipcMain, getWindow, DEFAULT_CWD }) {
 
   // ---- 启动 ----
   ipcMain.handle('backend:start', async (_e, { cwd, port, build } = {}) => {
-    const root = cwd && cwd.length > 0 ? cwd : DEFAULT_CWD
+    const root = rootOfInput(cwd) || DEFAULT_CWD
     const p = port || DEFAULT_PORT
     const sink = (l) => send('backend:log', { line: l })
 

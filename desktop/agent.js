@@ -14,6 +14,7 @@ const { resolveSpawn } = require('./spawn-util')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const { rootOfInput } = require('./project-context')
 
 const CFG_DIR = path.join(os.homedir(), '.config', 'opencode')
 // opencode 官方推荐 .jsonc（可写注释），但也支持 .json —— 两个都要找。
@@ -151,7 +152,7 @@ function registerAgentIpc({ getWindow }) {
       const sp = resolveSpawn(bin, args)
       // stdin 置 ignore：spawn 默认给子进程一个 stdin 管道，
       // opencode 这类 CLI 会等它 → 非交互场景下一直不退出（实测 90 秒仍挂着）。
-      child = spawn(sp.bin, sp.args, { cwd: cwd || process.cwd(), shell: sp.shell, stdio: ['ignore', 'pipe', 'pipe'] })
+      child = spawn(sp.bin, sp.args, { cwd: rootOfInput(cwd) || process.cwd(), shell: sp.shell, stdio: ['ignore', 'pipe', 'pipe'] })
     } catch (e) {
       send('agent:end', { ok: false, error: '启动失败：' + e.message })
       return { ok: false, error: e.message }

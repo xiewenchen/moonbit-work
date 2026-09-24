@@ -17,6 +17,7 @@ const { registerRelayIpc } = require('./relay-main')
 const { registerRunnerIpc } = require('./runners')
 const { registerAgentIpc } = require('./agent')
 const { registerLspIpc } = require('./lsp-manager')
+const { rootOfInput } = require('./project-context')
 
 // ── 环境准备：必须在任何 spawn 之前 ─────────────────────────────────────
 // 从桌面快捷方式启动时，进程 PATH 是 Windows 默认值，**不含** ~/.moon/bin
@@ -76,6 +77,11 @@ const START = resolveStartDir()
 const START_DIR = START.dir
 const START_EXPLICIT = START.explicit
 const DEFAULT_CWD = START.dir
+
+// 统一的「取根」：接受 cwd 字符串（旧调用）或 ProjectContext（新，P2-10～P2-14），
+// 都没有才用启动兑底目录。这取代了此前在 8 个 handler 里各写一遍的
+// `cwd && cwd.length > 0 ? cwd : DEFAULT_CWD`（P2-01 盘点出来的技术债）。
+const rootOr = (input) => rootOfInput(input) || DEFAULT_CWD
 
 // 提升为模块级：后端服务的日志/状态需要通过它推给渲染层
 let mainWindow = null
@@ -184,7 +190,7 @@ const COMMAND_TIMEOUT_MS = 120000
 const MAX_OUTPUT_BYTES = 2 * 1024 * 1024
 const ADMIN_PORT = 8081
 ipcMain.handle('moon', async (_event, { args, cwd }) => {
-  const workdir = cwd && cwd.length > 0 ? cwd : DEFAULT_CWD
+  const workdir = rootOr(cwd)
   return await new Promise((resolve) => {
     // 防御：args 必须是非空字符串数组（IPC 参数来自 renderer）
     const argv = Array.isArray(args) ? args.filter((a) => typeof a === 'string') : []
@@ -419,7 +425,7 @@ function defaultShell() {
 
 ipcMain.handle('term:create', (event, { cwd }) => {
   const id = String(nextTermId++)
-  const workdir = cwd && cwd.length > 0 ? cwd : DEFAULT_CWD
+  const workdir = rootOr(cwd)
   try {
     let session
     if (pty) {
@@ -578,7 +584,7 @@ function runMoonCapture(args, workdir, timeoutMs = COMMAND_TIMEOUT_MS) {
 }
 
 ipcMain.handle('diag:check', async (_e, { cwd }) => {
-  const workdir = cwd && cwd.length > 0 ? cwd : DEFAULT_CWD
+  const workdir = rootOr(cwd)
   const res = await runMoonCapture(['check', '--target', 'native'], workdir, 180000)
   return {
     exitCode: res.code,
@@ -587,7 +593,7 @@ ipcMain.handle('diag:check', async (_e, { cwd }) => {
 })
 
 ipcMain.handle('outline:get', async (_e, { cwd, file }) => {
-  const workdir = cwd && cwd.length > 0 ? cwd : DEFAULT_CWD
+  const workdir = rootOr(cwd)
   if (!file || typeof file !== 'string') return { symbols: [] }
   const res = await runMoonCapture(['ide', 'outline', file], workdir, 120000)
   return { exitCode: res.code, symbols: parseOutline(res.stdout + '\n' + res.stderr) }
@@ -597,7 +603,7 @@ ipcMain.handle('outline:get', async (_e, { cwd, file }) => {
 const { searchInDir } = require('./search')
 
 ipcMain.handle('search:files', (_e, { cwd, query, caseInsensitive }) => {
-  const root = cwd && cwd.length > 0 ? cwd : DEFAULT_CWD
+  const root = rootOr(cwd)
   if (typeof query !== 'string' || query.length === 0) {
     return { results: [], scanned: 0, truncated: false }
   }
@@ -657,7 +663,7 @@ const {
 let symbolsCache = { root: null, at: 0, list: [] }
 
 ipcMain.handle('symbols:load', async (_e, { cwd, force }) => {
-  const root = cwd && cwd.length > 0 ? cwd : DEFAULT_CWD
+  const root = rootOr(cwd)
   const fresh =
     symbolsCache.root === root && Date.now() - symbolsCache.at < 30000 && !force
   if (!fresh) {
@@ -694,7 +700,7 @@ ipcMain.handle('symbols:load', async (_e, { cwd, force }) => {
 // 说明：`moon-lsp` 的 hover 与 `moon ide hover` 在本机都不可用，
 //      因此用符号索引 + 源码片段做降级实现。
 ipcMain.handle('symbols:hover', async (_e, { cwd, word }) => {
-  const root = cwd && cwd.length > 0 ? cwd : DEFAULT_CWD
+  const root = rootOr(cwd)
   if (!word || typeof word !== 'string') return null
   try {
     // 复用/填充符号缓存

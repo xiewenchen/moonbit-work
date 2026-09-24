@@ -73,6 +73,25 @@ function normalizeType(kind) {
   return ALL_TYPES.includes(s) ? s : PROJECT_TYPE.UNKNOWN
 }
 
+/**
+ * 从「任意输入」取出项目根（P2-08 起统一各模块的取根）。
+ *
+ * 迁移期要同时容忍新旧两种调用，所以接受三种输入：
+ *   · 字符串          —— 旧调用（各 IPC handler 传 cwd 字符串）
+ *   · ProjectContext  —— 新调用（单一来源，见本文件），取它的 rootDir
+ *   · { ctx }         —— 包装形式
+ * 认不出来就返回空串，**由调用方决定兜底**，而不是在这里默默用 cwd ——
+ * 「各自默默兜底」正是当年让「当前项目是什么」没收敛的原因（13 处重复）。
+ */
+function rootOfInput(arg) {
+  if (typeof arg === 'string') return arg.trim()
+  if (arg && typeof arg === 'object') {
+    if (typeof arg.rootDir === 'string') return arg.rootDir.trim()
+    if (arg.ctx && typeof arg.ctx === 'object' && typeof arg.ctx.rootDir === 'string') return arg.ctx.rootDir.trim()
+  }
+  return ''
+}
+
 /** 去尾部斜杠；但别把驱动器根截掉（`C:\` 不能变成 `C:`）*/
 function normalizeRoot(root) {
   if (root == null) return ''
@@ -156,6 +175,7 @@ const API = {
   ALL_TYPES,
   TYPE_SPEC,
   normalizeType,
+  rootOfInput,
   normalizeRoot,
   createProjectContext,
   emptyContext,

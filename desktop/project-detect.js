@@ -7,6 +7,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const { rootOfInput } = require('./project-context')
 
 const has = (root, f) => {
   try {
@@ -76,7 +77,7 @@ function detectProject(root) {
 
 function registerProjectIpc({ ipcMain, DEFAULT_CWD }) {
   ipcMain.handle('project:info', async (_e, { cwd } = {}) => {
-    const root = cwd && cwd.length > 0 ? cwd : DEFAULT_CWD
+    const root = rootOfInput(cwd) || DEFAULT_CWD
     try {
       if (!fs.existsSync(root)) return { ok: false, error: '目录不存在：' + root }
       return { ok: true, ...detectProject(root) }

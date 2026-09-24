@@ -10,6 +10,7 @@ const path = require('path')
 const { spawn, spawnSync } = require('child_process')
 const { resolveSpawn, killTree } = require('./spawn-util')
 const { createUrlScanner } = require('./url-detect')
+const { rootOfInput } = require('./project-context')   // P2-08 起取根统一到这里（本文件只做 re-export）
 const {
   RUN_STATE,
   createRunStateMachine,
@@ -438,24 +439,6 @@ function createServiceRunner({ openUrl, startTimeout = DEFAULT_START_TIMEOUT, st
     get result() { return lastResult },
     get handle() { return handle },
   }
-}
-
-/**
- * 运行入口的「根」归一化（P2-08）。
- *
- * 迁移期要同时容忍新旧两种调用，所以这里接受三种输入：
- *   · 字符串          —— 旧调用（verify-run-url.js / verify-run-dispatch.js 仍这样传）
- *   · ProjectContext  —— 新调用（单一来源，见 project-context.js），取它的 rootDir
- *   · { ctx }         —— 兼容将来可能出现的包装形式
- * 认不出来就返回空串，**由调用方决定兜底**，而不是在这里默默用 process.cwd()。
- */
-function rootOfInput(arg) {
-  if (typeof arg === 'string') return arg.trim()
-  if (arg && typeof arg === 'object') {
-    if (typeof arg.rootDir === 'string') return arg.rootDir.trim()
-    if (arg.ctx && typeof arg.ctx === 'object' && typeof arg.ctx.rootDir === 'string') return arg.ctx.rootDir.trim()
-  }
-  return ''
 }
 
 function registerRunnerIpc({ ipcMain, getWindow }) {
