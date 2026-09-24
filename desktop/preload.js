@@ -111,6 +111,19 @@ contextBridge.exposeInMainWorld('moonAPI', {
   agentPatchApply: (token) => ipcRenderer.invoke('agentPatch:apply', { token }),
   agentPatchCancel: (token) => ipcRenderer.invoke('agentPatch:cancel', { token }),
   agentPatchAudit: () => ipcRenderer.invoke('agentPatch:audit'),
+  // ---- 验证闭环（P9）：改完自动证明没改坏 ----
+  agentVerifyRun: (file) => ipcRenderer.invoke('agentVerify:run', { file }),
+  agentVerifyLast: () => ipcRenderer.invoke('agentVerify:last'),
+  onAgentVerifyProgress: (cb) => {
+    const h = (_e, p) => cb(p)
+    ipcRenderer.on('agentVerify:progress', h)
+    return () => ipcRenderer.removeListener('agentVerify:progress', h)
+  },
+  onAgentVerifyDone: (cb) => {
+    const h = (_e, p) => cb(p)
+    ipcRenderer.on('agentVerify:done', h)
+    return () => ipcRenderer.removeListener('agentVerify:done', h)
+  },
 
   // 注：ProjectContext 不在这里过桥 —— 本 preload 是 sandbox:true，
   // require 本地文件会让整个 preload 挂掉（实测踩过）。

@@ -146,4 +146,4 @@ function registerAgentToolIpc({ ipcMain, getWindow, getRunner, executeCommand })
   return { read: registry, exec: execRegistry, getWorkspace: () => workspace }
 }
 
-module.exports = { registerAgentToolIpc }
+module.exports = { registerAgentToolIpc, simpleRequest }

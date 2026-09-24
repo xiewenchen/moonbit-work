@@ -938,6 +938,12 @@ window.moonbitIDE = {
       proposeAndApply: proposeAndApplyPatch,
       audit: () => window.moonAPI.agentPatchAudit(),
     },
+    // P9：验证闭环 —— 改完自动跑 check → test → run → health 并出报告。
+    // 它**不改文件**（那走 patch 那条），只负责证明"没改坏"。
+    verify: {
+      run: (file) => window.moonAPI.agentVerifyRun(file),
+      last: () => window.moonAPI.agentVerifyLast(),
+    },
   },
   // 问题模型（P4）：对外提供只读查询 + 一个"写入发现"的入口。
   // report 的正当用途是 P4-08「Agent 发现 → Problem」（P7 会把它接到 Agent 工具里），
@@ -959,8 +965,35 @@ window.moonbitIDE = {
       refreshProblemPanel()
       return n
     },
+    // 接收外部产出的一批问题（P9 闭环的失败项就从这里灌进统一模型）
+    add: (list) => {
+      const s = getProblemStore()
+      if (!s || !window.MoonbitProblems) return 0
+      const arr = (Array.isArray(list) ? list : [list]).map((p) => window.MoonbitProblems.createProblem(p))
+      const n = s.add(arr)
+      refreshProblemPanel()
+      return n
+    },
   },
 }
+
+// P9 接线：闭环的进度与结果给用户看 ——
+// 进度走输出面板；失败项**灌进统一问题模型**（这样问题面板直接能看到，不用另开一处）。
+window.moonAPI.onAgentVerifyProgress((p) => {
+  if (!p) return
+  if (p.phase === 'start') logLine('\n> 验证闭环开始（check → test → run → health）\n', 'ok')
+  else if (p.name) logLine('  [' + (p.ok ? '✓' : '✗') + '] ' + p.name + (p.error ? '  ' + p.error : '') + '\n', p.ok ? 'ok' : 'err')
+})
+
+window.moonAPI.onAgentVerifyDone((p) => {
+  if (!p) return
+  logLine('\n' + String(p.text || '') + '\n', p.ok ? 'ok' : 'err')
+  const ps = (p.report && p.report.problems) || []
+  if (ps.length) {
+    window.moonbitIDE.problems.add(ps)
+    logLine('（已把 ' + ps.length + ' 条问题写入问题面板）\n', 'err')
+  }
+})
 
 // 顶栏按钮的中文名（给提示语用）
 const CMD_CN = { check: '检查代码', build: '编译', test: '跑测试', fmt: '格式化', run: '运行项目' }

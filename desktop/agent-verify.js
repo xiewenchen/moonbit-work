@@ -106,7 +106,10 @@ async function verifyOnce({ patch, deps = {} } = {}) {
     sm.to(VERIFY_STATE.VERIFY_FAILED)
     const ps = problemsFromStep(step, Object.assign({ error, output: extra && extra.output }, extra || {})).map(localProblem)
     problems.push(...ps)
-    steps.push(Object.assign({ name: step, ok: false, error: error || null, problems: ps.length, duration: now() - startedAt }, extra || {}))
+    // ⚠️ 顺序要紧：`extra` 里可能带自己的 `name`（例如命令表的 'project.test'），
+    // 必须让我们的 `name: step` **最后**写 —— 否则 steps 里看到的就不是 step 名了（实测踩到，
+    // 与 P2 那次 `Object.assign` 覆盖 root 同型）。
+    steps.push(Object.assign({}, extra || {}, { name: step, ok: false, error: error || null, problems: ps.length, duration: now() - startedAt }))
     progress(step, false, { error })
     return { ok: false, status: sm.state, steps, problems, error: error || null, rounds: 1, startedAt, endedAt: now() }
   }
@@ -182,7 +185,7 @@ function createVerifyLoop(opts = {}) {
       rounds.push(last)
       if (last.ok) { stoppedReason = null; break }
       // 轮次用尽时**不要再提议修复** —— 那个结果没人会用，白跑一次
-      if (round >= maxRounds) { stoppedReason = '达到最大轮次（' + maxRounds + '）'; break }
+      if (round >= maxRounds) { stoppedReason = '验证未通过（已用满 ' + maxRounds + ' 轮）'; break }
       if (typeof opts.fix !== 'function') { stoppedReason = '没有提供 fix（不再尝试）'; break }
       let next
       try {

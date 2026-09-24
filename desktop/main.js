@@ -20,8 +20,9 @@ const { registerLspIpc } = require('./lsp-manager')
 const { rootOfInput } = require('./project-context')
 const { resolveSpawn } = require('./spawn-util')
 const { createCommandRegistry, registerProjectCommands, registerCommandIpc } = require('./commands')
-const { registerAgentToolIpc } = require('./agent-tools-main')
+const { registerAgentToolIpc, simpleRequest } = require('./agent-tools-main')
 const { registerAgentPatchIpc } = require('./agent-patch-main')
+const { registerAgentVerifyIpc } = require('./agent-verify-main')
 
 // ── 环境准备：必须在任何 spawn 之前 ─────────────────────────────────────
 // 从桌面快捷方式启动时，进程 PATH 是 Windows 默认值，**不含** ~/.moon/bin
@@ -189,6 +190,18 @@ const agentTools = registerAgentToolIpc({
 registerAgentPatchIpc({
   ipcMain,
   getWorkspace: () => agentTools.getWorkspace(),
+})
+
+// P9 接线：验证闭环（改完自动证明没改坏）。
+// 修文件的活仍然走 P8 的用户确认 —— 闭环只负责 check → test → run → health。
+registerAgentVerifyIpc({
+  ipcMain,
+  getWindow: () => mainWindow,
+  getRunner: () => projectRunner,
+  runCommand: runCommandCapture,
+  executeCommand: (name, args, opts) => registry.execute(name, args, opts),
+  getWorkspace: () => agentTools.getWorkspace(),
+  request: simpleRequest,
 })
 
 // LSP 客户端（接官方 moon-lsp）—— 见 lsp-manager.js

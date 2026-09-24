@@ -26,7 +26,8 @@
     "verify:multiproject": "electron verify-multiproject.js",
     "verify:problems": "electron verify-problems.js",
     "verify:agent-tools": "electron verify-agent-tools.js",
-    "verify:agent-patch": "electron verify-agent-patch.js"
+    "verify:agent-patch": "electron verify-agent-patch.js",
+    "verify:agent-verify": "electron verify-agent-verify.js"
   },
   "devDependencies": {
     "@xterm/addon-fit": "^0.10.0",

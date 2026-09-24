@@ -120,7 +120,7 @@ async function main() {
     })
     const r = await loop.run({ patch: { file: 'a.mbt' }, deps: deps({ check: async () => ({ ok: false, error: '一直失败' }) }) })
     chk('**跑满 3 轮就停**', [r.ok, r.rounds], [false, 3])
-    chk('停止原因写明是轮次上限', /最大轮次/.test(String(r.stoppedReason)), true)
+    chk('停止原因写明是轮次用尽', /已用满/.test(String(r.stoppedReason)), true)
     chk('fix 只被叫 2 次（第 3 轮后不再尝试）', fixCalls, 2)
     chk('保留了每一轮的结果', r.all.length, 3)
     chk('maxRounds 可查询', loop.maxRounds, 3)

@@ -97,7 +97,7 @@
 | P6 | Agent Read-only Tools | **PASS（含接线）**：七个工具 + 统一结果 + 审计字段 + **接到真实数据**（19/0 验证）；喂给 Agent 属 P7 |
 | P7 | Agent Execute Tools | **PASS（含接线）**：六个执行工具（一律经命令表）+ 审计 + 预算 + 失败不重试；**执行表拒绝 write**（仍不能改文件）；喂给 Agent 待做 |
 | P8 | Agent Modify（Patch） | **PASS**：核心层（默认拒绝/精确匹配/备份先行/失败回滚）+ **UI 确认对话框**（28/0 真点击验证）；接到 Agent 属 P9 |
-| P9 | Agent Verification Loop | **PASS（自动化半边）**：闭环 + 失败即停 + 轮次上限 + 防死循环 + 最终报告（40/0）；**Ask/Understand（需真实 LLM）与接线未做** |
+| P9 | Agent Verification Loop | **PASS（含接线）**：闭环 + 失败即停 + 轮次上限 + 防死循环 + 报告 + **结果进输出/问题面板**（17/0 真实场景验证）；**Ask/Understand 与自动修（需 LLM）未做** |
 | P10 | Session | TODO |
 | P11 | 项目级 Agent Memory | TODO |
 | P12 | AI Provider Center | TODO |
