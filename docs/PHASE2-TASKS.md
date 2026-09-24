@@ -100,7 +100,7 @@
 | P9 | Agent Verification Loop | **PASS（含接线）**：闭环 + 失败即停 + 轮次上限 + 防死循环 + 报告 + **结果进输出/问题面板**（17/0 真实场景验证）；**Ask/Understand 与自动修（需 LLM）未做** |
 | P10 | Session | TODO |
 | P11 | 项目级 Agent Memory | TODO |
-| P12 | AI Provider Center | TODO |
+| P12 | AI Provider Center | **PASS（核心层）**：Schema/四种预设/连通性检查/Key 脱敏/全局项目分离（44/0）；**接到 UI 与 agent.js 待做** |
 | P13 | Workbench | TODO |
 | P14 | MoonBit Backend Integration | TODO |
 | P15 | 数据库工作台 | TODO |

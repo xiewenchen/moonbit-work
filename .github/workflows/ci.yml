@@ -93,6 +93,7 @@ jobs:
           node test-agent-exec-tools.js # Agent 执行工具（经命令表/审计/预算/失败不重试 + 禁 write）
           node test-agent-patch.js      # Agent 修改（默认拒绝/精确匹配/备份先行/失败回滚/危险目标）
           node test-agent-verify.js     # Agent 验证闭环（失败即停/轮次上限/防死循环/最终报告）
+          node test-ai-provider.js      # AI Provider（预设/校验/Key 脱敏/连通性/全局项目分离）
 
       # Run 链路 E2E：spawn → 抓 URL → 打开浏览器（测试里注入桩）→ 页面可访问 → 停止。
       # 靶子是纯 Node 服务（desktop/testdata/fixture-http-server.js）—— **不需要 Electron、
