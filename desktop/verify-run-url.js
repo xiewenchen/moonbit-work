@@ -31,7 +31,11 @@ app.whenReady().then(async () => {
   await new Promise((r) => setTimeout(r, 3000))
 
   let pass = 0, fail = 0
-  const chk = (n, ok, d) => { if (ok) { pass++; log('  [PASS] ' + n) } else { fail++; log('  [FAIL] ' + n + '  ' + (d || '')) } }
+  // P19：类型防护 —— 传非布尔（数组/对象）说明用错了函数，必须当场失败
+const chk = (n, ok, d) => {
+  if (typeof ok !== 'boolean') { fail++; log('  [FAIL] ' + n + '   chk 只接受布尔（数组/对象比较请用 eq）：' + JSON.stringify(ok)); return }
+  if (ok) { pass++; log('  [PASS] ' + n) } else { fail++; log('  [FAIL] ' + n + '  ' + (d || '')) }
+}
 
   log('\n=== ① IDE 能列出可运行入口 ===')
   const listed = JSON.parse(await js(`(async () => JSON.stringify(await window.moonAPI.runnerList(${JSON.stringify(ROOT)})))()`))

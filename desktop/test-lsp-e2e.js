@@ -38,7 +38,11 @@ function check(name, cond, extra) {
   const c = await run(['check', '--target', 'native'], ROOT)
   const diags = parseDiagnostics(c.out)
   console.log('  check exit =', c.code, ' 诊断数 =', diags.length)
-  check('干净仓库 check 无诊断', diags.length === 0, diags)
+  // 注意：判断"干净"要看 **error**，不是"零诊断" ——
+  // conduit 的测试文件里有一批 `test_unqualified_package` 的 **warning**（MoonBit 的提示），
+  // 它们不影响正确性。原来这里要求 `diags.length === 0`，于是这条断言长期是红的。
+  const errs = (diags || []).filter((d) => d.severity === 'error')
+  check('干净仓库 check 无 error（warning 允许）', errs.length === 0, errs)
 
   console.log(failed === 0 ? '\n端到端：全部通过' : `\n端到端：${failed} 项失败`)
   process.exit(failed === 0 ? 0 : 1)

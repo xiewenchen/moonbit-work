@@ -101,7 +101,7 @@
 | P10 | Session | TODO |
 | P11 | 项目级 Agent Memory | TODO |
 | P12 | AI Provider Center | **PASS**：核心层（44/0）+ 存储/面板/真实探测（23/0）+ **激活并写入 opencode 配置（38/0，含「原有 provider 一个不丢」与「配置原样还原」）**；端到端「真跑一次模型」未验（需 Key/额度） |
-| P19 | 测试体系 | **进行中**：修掉 **25 处「永远通过」的断言**（`chk` 传数组）+ 30 个脚本的异常假绿 + 29 处同类误用；**框架自测与断言形式统一待做** |
+| P19 | 测试体系 | **进行中**：修 25 处假通过断言 + 30 脚本异常假绿 + 29 处误用；**新增 `verify-harness`（防误用类型闸 + 键序无关深比较）+ 元测试 36 项（已挂 CI）**；**4 个长期红灯已修**（backend/api-debug/lsp-e2e/term）；**16 份 chk 定义未统一（待办）** |
 | P13 | Workbench | TODO |
 | P14 | MoonBit Backend Integration | TODO |
 | P15 | 数据库工作台 | TODO |

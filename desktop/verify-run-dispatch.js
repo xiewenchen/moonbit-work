@@ -17,7 +17,11 @@ const log = (s) => { lines.push(String(s)); console.log(s) }
 function dump(code) { try { fs.writeFileSync(OUT, lines.join('\n') + '\n', 'utf8') } catch (_) {} ; setTimeout(() => app.exit(code), 500) }
 
 let pass = 0, fail = 0
-const chk = (n, ok, d) => { if (ok) { pass++; log('  [PASS] ' + n) } else { fail++; log('  [FAIL] ' + n + '  ' + (d || '')) } }
+// P19：类型防护 —— 传非布尔（数组/对象）说明用错了函数，必须当场失败
+const chk = (n, ok, d) => {
+  if (typeof ok !== 'boolean') { fail++; log('  [FAIL] ' + n + '   chk 只接受布尔（数组/对象比较请用 eq）：' + JSON.stringify(ok)); return }
+  if (ok) { pass++; log('  [PASS] ' + n) } else { fail++; log('  [FAIL] ' + n + '  ' + (d || '')) }
+}
 
 app.whenReady().then(async () => {
   // 造一个临时 Node 项目：它的 test 脚本会打印一个**只有 npm 跑才会出现**的标记

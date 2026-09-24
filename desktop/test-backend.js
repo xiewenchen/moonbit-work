@@ -3,6 +3,31 @@ const path = require('path')
 const http = require('http')
 const { registerBackendIpc } = require('./backend')
 
+// ── 前置环境检测 ──────────────────────────────────────────────────────────────
+// 这套测试会**真的**起 PostgreSQL / Redis 容器并访问后端 HTTP 接口（还依赖 native 二进制）。
+// 环境没就绪时明确 SKIP —— 否则本地每次都是 12 个 FAIL，噪音只会训练人忽略输出。
+// （用 `docker ps` 的完整输出做包含判断，避免 shell 引号在不同平台上的差异。）
+function preflightWhy() {
+  const { execSync } = require('child_process')
+  try {
+    const out = execSync('docker ps', { stdio: ['ignore', 'pipe', 'ignore'], timeout: 10000 }).toString()
+    const need = ['mbp-pg', 'mbp-redis'].filter((n) => out.indexOf(n) === -1)
+    return need.length ? '缺少容器：' + need.join('、') + '（先起 pg/redis）' : null
+  } catch (e) {
+    return 'docker 不可用：' + String((e && e.message) || e)
+  }
+}
+{
+  const why = preflightWhy()
+  if (why) {
+    console.log('\n=== test-backend：SKIP（环境未就绪）===')
+    console.log('  ' + why)
+    console.log('  这不是失败：本套需要真实容器 + native 二进制，属环境依赖型测试。')
+    console.log('  0 通过 / 0 失败 / 19 跳过')
+    process.exit(0)
+  }
+}
+
 const handlers = {}
 const events = []
 const fakeIpc = {

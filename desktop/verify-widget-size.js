@@ -16,7 +16,11 @@ app.whenReady().then(async () => {
   const safeShot = async (n) => { try { fs.writeFileSync(path.join(SHOT, n), (await win.webContents.capturePage()).toPNG()); console.log('  截图 ' + n) } catch (e) { console.log('  截图失败: ' + n) } }
 
   let pass = 0, fail = 0
-  const chk = (n, ok, d) => { if (ok) { pass++; console.log(`  [PASS] ${n}`) } else { fail++; console.log(`  [FAIL] ${n}  ${d || ''}`) } }
+  // P19：类型防护 —— 传非布尔（数组/对象）说明用错了函数，必须当场失败
+  const chk = (n, ok, d) => {
+    if (typeof ok !== 'boolean') { fail++; console.log(`  [FAIL] ${n}   chk 只接受布尔（数组/对象比较请用 eq）：${JSON.stringify(ok)}`); return }
+    if (ok) { pass++; console.log(`  [PASS] ${n}`) } else { fail++; console.log(`  [FAIL] ${n}  ${d || ''}`) }
+  }
 
   await js(`(() => { const a = document.querySelector('a[data-view="home"]'); if (a) a.click() })()`)
   await sleep(1600)

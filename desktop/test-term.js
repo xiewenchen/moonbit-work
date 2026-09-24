@@ -1,6 +1,16 @@
 // 集成终端自检：在 Electron 主进程里用 node-pty 起一个真 PTY，执行命令并检查输出。
 // 运行： npx electron test-term.js
-const { app } = require('electron')
+//
+// ⚠️ 必须用 `npx electron` 跑：纯 `node` 下 `require('electron')` 返回的是**可执行文件路径字符串**
+// （不是 API 对象），会直接抛 "Cannot read properties of undefined (reading 'whenReady')"。
+// 这里显式守卫一下，免得下次又把它当"崩溃的测试"。
+const electron = require('electron')
+const { app } = electron
+if (!app || typeof app.whenReady !== 'function') {
+  console.log('[test] 请用 `npx electron test-term.js` 运行（纯 node 下没有 Electron API）')
+  console.log('  0 通过 / 0 失败 / 跳过（运行方式不适用）')
+  process.exit(0)
+}
 
 let pty = null
 try {

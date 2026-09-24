@@ -84,6 +84,7 @@ jobs:
           node test-url-detect.js        # URL 检测（含「正则在生产代码里只有一处实现」的防漂移断言）
           node test-run-state.js         # Run 生命周期原语（状态枚举/转换/ProcessHandle/RunResult）
           node test-project-context.js   # 单一工程上下文（类型归一/命令推导/无项目态/多项目判定）
+          node test-verify-harness.js    # 元测试：验证「验证器本身」能抓到错（防断言假通过复发）
           node test-commands.js          # Command Registry（注册/执行/超时/日志 + 6 个项目命令）
           node test-problem-model.js     # 问题模型（五类来源统一/去重/生命周期/Store）
           node test-renderer-globals.js # 渲染进程同作用域加载（防 const 重名这类"浏览器才暴露"的问题）
