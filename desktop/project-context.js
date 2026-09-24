@@ -177,6 +177,10 @@ const API = {
   normalizeType,
   rootOfInput,
   normalizeRoot,
+  // 短名：渲染进程里写起来顺手（`window.moonbitProjectContext.create(...)`）。
+  // 两个名字都指同一个函数 —— 曾因为只有全名、而 renderer 调的是 create，
+  // 导致「打开项目」整条路径静默失败（文件树空），所以现在显式提供别名。
+  create: createProjectContext,
   createProjectContext,
   emptyContext,
   hasProject,

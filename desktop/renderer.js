@@ -79,7 +79,7 @@ function initActivityBar() {
   // 用权威状态判定，**不要**读 body 的 no-project 类：
   // initActivityBar 在 showWelcome()（由它添加 no-project 类）之前执行，
   // 直接读类名会得到 false —— 「无项目时强制落主菜单」就会失效（实测踩过）。
-  // P2-06：判据从 rootDir 换成 ProjectContext（两者在 loadTree 里同一时刻设置，语义等价）
+  // P2-06 / P2-15：判据已是 ProjectContext（旧变量 rootDir 已删）
   const noProject = !window.moonbitProjectContext.hasProject(projectCtx)
   const pick = (noProject || !saved || !VIEW_ORDER.includes(saved)) ? 'home' : saved
   switchView(pick, false)
@@ -100,10 +100,9 @@ const cwdInput = $('cwd')
 
 let monaco = null
 let editor = null
-let rootDir = null
-// 单一工程上下文（ProjectContext）—— 与 rootDir **同一时刻**设置，
-// 所以「无项目态」的判断可以安全地从 rootDir 切过来（P2-06 迁移的第一个调用点）。
-// P2-15 会再逐个把 rootDir / projectInfoCache / lspRoot 这些旧变量删掉。
+// 单一工程上下文（ProjectContext）—— 全 IDE 唯一的「当前项目」（见 project-context.js）。
+// P2-15：旧变量 rootDir 已删除（它此后只剩「写」没有「读」）；
+// projectInfoCache / lspRoot 仍在用，按 RULE-04 逐个处理（一次删一个 + 回归）。
 let projectCtx = null
 
 // 传给主进程的「根」：优先用单一工程上下文（P2），但**必须与地址栏一致**才认 ——
@@ -381,7 +380,6 @@ async function renderTree(dir, container, depth) {
 }
 
 async function loadTree(dir) {
-  rootDir = dir
   treeEl.innerHTML = ''
   await renderTree(dir, treeEl, 0)
 }
@@ -784,10 +782,17 @@ async function boot(dir) {
   } catch (_) {}
   const target = dir || cwdInput.value
   cwdInput.value = target
-  // 单一工程上下文：rootDir 用**用户意图的目录**（不是 findModule 找到的模块根）——
-  // 否则它会与地址栏不一致，projectRootInput() 的一致性检查就会一直退回字符串，迁移等于白做。
+
+  // 先识别**这个**项目、再建上下文 —— 不能用 projectInfoCache 里的 kind：
+  // 那是上一个项目的识别结果（实测踩过：目录已经换了，projectType 还是旧的）。
+  const info = target ? await window.moonAPI.projectInfo(target) : null
+  if (info && info.ok) renderProjectKind(info)
+
   projectCtx = target
-    ? window.moonbitProjectContext.create(Object.assign({ root: target }, projectInfoCache || {}))
+    ? window.moonbitProjectContext.create(
+        Object.assign({}, (info && info.ok) ? info : {}, { root: target }),
+        { entry: projectCtx ? projectCtx.entry : null, activeFile: projectCtx ? projectCtx.activeFile : null },
+      )
     : null
   const res = await window.moonAPI.findModule(target)
   if (res.ok && res.module) {
@@ -797,6 +802,28 @@ async function boot(dir) {
     $('stModule').textContent = '模块：—'
     await loadTree(target)
   }
+}
+
+/** 关闭当前项目：清掉上下文与依赖它的缓存，回到「无项目态」（P2-18）*/
+async function closeProject() {
+  projectCtx = null
+  projectInfoCache = null
+  symbolsList = null
+  cwdInput.value = ''
+  await showWelcome()
+  setMsg('已关闭项目')
+  return { ok: true }
+}
+
+// 对外的 IDE 入口。
+// 存在的理由（P2-17）：自动化点不到系统文件夹对话框，需要一个**显式可调用**的「打开项目」；
+// 它同时是 P3（Command Registry）的雏形 —— 同一个动作既给 UI，也给脚本与未来的 Agent。
+window.moonbitIDE = {
+  openProject: (dir) => boot(dir),      // 等价于用户「打开文件夹」之后走的那条路
+  closeProject,
+  getContext: () => projectCtx,         // 冻结对象，只读
+  hasProject: () => window.moonbitProjectContext.hasProject(projectCtx),
+  describe: () => window.moonbitProjectContext.describeContext(projectCtx),
 }
 
 // 顶栏按钮的中文名（给提示语用）

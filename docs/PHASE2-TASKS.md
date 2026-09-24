@@ -138,8 +138,11 @@
 | MBW-P2-06 / 07 | 迁移 Renderer + 回归 | **PASS** | `verify-welcome` 全绿；`verify:demo` **7/0**（含体检 23 项）；`verify-run-url` 5/5 | 只迁「无项目态」一个判据（RULE-04）；**preload 不能过桥**（sandbox:true 不允许 require 本地文件），改走 script+window 全局 |
 | MBW-P2-08 / 09 | 迁移 Runner + 回归 | **PASS** | `test-runner-detect` **25/0**（含 7 项 `rootOfInput`）；`verify-run-url` 5/0（旧路径）；`verify:demo` **7/0**（新路径） | 新增 `rootOfInput()` 容忍字符串/ProjectContext/{ctx}；归一化只翻译输入，*不*默默回退 cwd |
 | MBW-P2-10 ～ P2-14 | 迁移 LSP / Terminal / API / Problems / Agent | **PASS** | `test-project-context` **43/0**；`verify-run-url` 5/0；`verify:demo` **7/0** | 13 处重复取根 → `rootOfInput` 统一；**修 2 个真问题**（api-debug 忽略传入路径、backend:build 无 cwd 参数）；renderer 12 处调用点改传上下文（带一致性检查） |
-| MBW-P2-15 | 逐个废弃旧变量 | TODO | — | 一次删一个 + 回归（RULE-04） |
-| MBW-P2-16/17/18 | 无项目态 / 多项目切换 / 关闭项目 | TODO | — | `hasProject()` / `isSameProject()` 已就位 |
+| MBW-P2-15 | 逐个废弃旧变量 | **PASS（1/3）** | `node --check renderer.js`；全量回归 | 删掉 `rootDir`（只剩写没有读）；`projectInfoCache` / `lspRoot` 待后续（lspRoot 需先提升作用域）|
+| MBW-P2-16/17/18 | 无项目态 / 多项目切换 / 关闭项目 | **PASS** | **`verify-multiproject` 17/0**；`verify-run-url` 5/0；`verify:demo` 7/0 | 新增对外入口 `window.moonbitIDE`（P3 雏形）；**挖出 2 个真 bug**（见记录）|
+
+> **P2-15～P2-18 实测**：`npm run verify:multiproject` → **17 通过 / 0 失败**（A=Node / B=MoonBit / A→B→A / 关闭）。
+> 记录：`docs/changes/phase2-p2-multiproject.md`。**P2（ProjectContext）主体完成**。
 
 > **P2-01～P2-05 实测**：`cd desktop && node test-project-context.js` → **36 通过 / 0 失败**。
 > 记录：`docs/changes/phase2-p2-context.md`。**未改动任何调用点**（renderer/runners/main/lsp-manager… 均零改动）。
