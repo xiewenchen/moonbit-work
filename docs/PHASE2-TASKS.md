@@ -43,13 +43,16 @@
 
 | ID | Task | Status | Blocked By | Notes |
 |---|---|---|---|---|
-| MBW-P1-07 | 抽离 URL Detector `detectUrl(input) → URL \| null` | TODO | P1-06 | 先测试、后改生产逻辑 |
-| MBW-P1-08 | 单 chunk 测试 | TODO | P1-07 | `Server at http://127.0.0.1:8123` |
-| MBW-P1-09 | 跨 chunk 测试 | TODO | P1-07 | 三段拼出同一个 URL |
-| MBW-P1-10 | ANSI 测试 | TODO | P1-07 | `\x1b[32m` 干扰 |
-| MBW-P1-11 | 多 URL 测试 | TODO | P1-07 | 不能简单取「第一个 URL」 |
-| MBW-P1-12 | 非法 URL 测试 | TODO | P1-07 | `localhost:` / `http://` / `http://foo` / `http://127.0.0.1` |
-| MBW-P1-13 | 重复 URL 测试 | TODO | P1-07 | 不得打开两个浏览器 |
+| MBW-P1-07 | 抽离 URL Detector `detectUrl(input) → URL \| null` | **PASS** | P1-06 | 新建 `desktop/url-detect.js`（纯逻辑）；**未接线**，runners.js 不动（RULE-04 渐进迁移） |
+| MBW-P1-08 | 单 chunk 测试 | **PASS** | P1-07 | 2 项 |
+| MBW-P1-09 | 跨 chunk 测试 | **PASS** | P1-07 | 3 段拼出同一个 URL + 拼接对照 |
+| MBW-P1-10 | ANSI 测试 | **PASS** | P1-07 | 含 `\x1b[39m` 紧贴 URL 的形态 |
+| MBW-P1-11 | 多 URL 测试 | **PASS** | P1-07 | 引入可注入的 `preferPorts` 规则，不再盲取第一个 |
+| MBW-P1-12 | 非法 URL 测试 | **PASS** | P1-07 | 8 项（含 `http://127.0.0.1:` → 去尾冒号） |
+| MBW-P1-13 | 重复 URL 测试 | **PASS** | P1-07 | 第二次不再触发；reset 可复用 |
+
+> **P1-07～P1-13 实测**：`cd desktop && node test-url-detect.js` → **26 通过 / 0 失败**（含「正则与 runners.js:262 逐字符一致」的防漂移断言）。
+> 记录：`docs/changes/phase2-p1-url-detector.md`。**未接线** —— 生产代码零改动，迁移留 P1-19。
 | MBW-P1-14 | 定义 Run 状态枚举 | BLOCKED | P1-06 | IDLE/BUILDING/STARTING/RUNNING/STOPPING/STOPPED/FAILED | 阻塞于 **R12**（本机 native 构建失败，无法 E2E 验证） |
 | MBW-P1-15 | 定义状态转换 | BLOCKED | P1-14 | 禁止 STOPPED→RUNNING、FAILED→RUNNING | 同上 |
 | MBW-P1-16 | 建 ProcessHandle | BLOCKED | P1-14 | pid/command/cwd/startTime/status + stop()/kill() | 同上 |
