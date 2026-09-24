@@ -82,6 +82,7 @@ jobs:
           node test-project-detect.js    # 项目类型识别（另一套口径）
           node test-relay.js             # 文件中转站核心逻辑
           node test-url-detect.js        # URL 检测（含「正则在生产代码里只有一处实现」的防漂移断言）
+          node test-run-state.js         # Run 生命周期原语（状态枚举/转换/ProcessHandle/RunResult）
 
       # Run 链路 E2E：spawn → 抓 URL → 打开浏览器（测试里注入桩）→ 页面可访问 → 停止。
       # 靶子是纯 Node 服务（desktop/testdata/fixture-http-server.js）—— **不需要 Electron、

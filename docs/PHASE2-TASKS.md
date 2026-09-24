@@ -53,22 +53,25 @@
 
 > **P1-07～P1-13 实测**：`cd desktop && node test-url-detect.js` → **26 通过 / 0 失败**（含「正则与 runners.js:262 逐字符一致」的防漂移断言）。
 > 记录：`docs/changes/phase2-p1-url-detector.md`。**未接线** —— 生产代码零改动，迁移留 P1-19。
-| MBW-P1-14 | 定义 Run 状态枚举 | BLOCKED | P1-06 | IDLE/BUILDING/STARTING/RUNNING/STOPPING/STOPPED/FAILED | 阻塞于 **R12**（本机 native 构建失败，无法 E2E 验证） |
-| MBW-P1-15 | 定义状态转换 | BLOCKED | P1-14 | 禁止 STOPPED→RUNNING、FAILED→RUNNING | 同上 |
-| MBW-P1-16 | 建 ProcessHandle | BLOCKED | P1-14 | pid/command/cwd/startTime/status + stop()/kill() | 同上 |
-| MBW-P1-17 | 统一 stdout/stderr 事件 | BLOCKED | P1-16 | stream/chunk/timestamp | 同上 |
-| MBW-P1-18 | 建 RunResult | BLOCKED | P1-16 | ok/status/exitCode/url/stdout/stderr/duration/error | 同上 |
-| MBW-P1-19 | 修复 Run → URL → Browser | BLOCKED | P1-07, P1-18 | 此时才动 Runner 主流程 | 同上（改完无法验证） |
-| MBW-P1-20 | 浏览器打开单独测试 | BLOCKED | P1-19 | 直接给 8123 | 同上 |
-| MBW-P1-21 | 浏览器失败测试 | BLOCKED | P1-19 | browser 失败不得把服务标成 FAILED | 同上 |
-| MBW-P1-22 | Stop 测试 | BLOCKED | P1-19 | 无僵尸进程 | 同上 |
-| MBW-P1-23 | Run 后重复 Stop | BLOCKED | P1-22 | 第二次安全无副作用 | 同上 |
-| MBW-P1-24 | 启动失败 | BLOCKED | P1-19 | STARTING → FAILED | 同上 |
-| MBW-P1-25 | 无监听服务超时 | BLOCKED | P1-19 | STARTING → timeout → FAILED | 同上 |
-| MBW-P1-26 | 进程提前退出 | BLOCKED | P1-19 | 启动即 exit 1 → FAILED | 同上 |
-| MBW-P1-27 | 连续 10 次 Run | BLOCKED | P1-19 | 10/10 | 同上 |
+| MBW-P1-14 | 定义 Run 状态枚举 | **PASS** | P1-06 | `desktop/run-state.js` 的 `RUN_STATE`（7 态、冻结、未知态被拒） | 纯逻辑，不受 R12 影响 |
+| MBW-P1-15 | 定义状态转换 | **PASS** | P1-14 | 转换表 + `createRunStateMachine`：9 条允许全通；STOPPED/FAILED→RUNNING 与跳级被拒；`reset()` = 重新进入 Run 流程 | 拒绝时状态不变 |
+| MBW-P1-16 | 建 ProcessHandle | **PASS** | P1-14 | pid/command/cwd/startTime/status + `stop()`(SIGTERM)/`kill()`；kill 幂等；区分「被停」与「崩掉」 | — |
+| MBW-P1-17 | 统一 stdout/stderr 事件 | **PASS** | P1-16 | `createStreamEvent(stream, chunk, at)` → `{stream, chunk, timestamp}`；非法流名被拒 | — |
+| MBW-P1-18 | 建 RunResult | **PASS** | P1-16 | `createRunResult(...)` → ok/status/exitCode/url/stdout/stderr/duration/error（类型归一） | ok 语义已写明 |
+| MBW-P1-19 | 修复 Run → URL → Browser | TODO | P1-07, P1-18 | 把 `run-state.js` 接进 `createServiceRunner`（顺序：spawn→collect→detect→update state→open browser） | **现在可做**（纯 Node 可验）；E2E 骨架已就位（MBW-X1） |
+| MBW-P1-20 | 浏览器打开单独测试 | TODO | P1-19 | 直接给 8123 | E2E 已覆盖核心断言（MBW-X1） |
+| MBW-P1-21 | 浏览器失败测试 | TODO | P1-19 | browser 失败不得把服务标成 FAILED | E2E 已覆盖（`onBrowserOpen` 单独上报） |
+| MBW-P1-22 | Stop 测试 | TODO | P1-19 | 无僵尸进程 | E2E 已覆盖（含端口不可连） |
+| MBW-P1-23 | Run 后重复 Stop | TODO | P1-22 | 第二次安全无副作用 | E2E 已覆盖 |
+| MBW-P1-24 | 启动失败 | TODO | P1-19 | STARTING → FAILED | E2E 已覆盖（onEnd 报错） |
+| MBW-P1-25 | 无监听服务超时 | BLOCKED | P1-19 | STARTING → timeout → FAILED | 需要状态机接线（P1-19）后才能测 |
+| MBW-P1-26 | 进程提前退出 | TODO | P1-19 | 启动即 exit 1 → FAILED | E2E 已覆盖 |
+| MBW-P1-27 | 连续 10 次 Run | BLOCKED | P1-19 | 10/10 | 需要状态机接线 |
 | MBW-P1-28 | 连续 10 次 Run/Stop | BLOCKED | P1-22 | 10/10，0 僵尸 | 同上 |
 | MBW-P1-29 | Run/Stop × 10 红线 | BLOCKED | P1-28 | 0 卡死 / 0 browser 错误 / 0 zombie / 0 永久 STARTING | 同上 |
+
+> **P1-14～P1-18 实测**：`cd desktop && node test-run-state.js` → **48 通过 / 0 失败**。
+> 记录：`docs/changes/phase2-p1-run-state.md`。原语已建、**未接线**（runners.js 零改动）。
 
 ---
 
