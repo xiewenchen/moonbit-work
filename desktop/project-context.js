@@ -16,8 +16,6 @@
  * 所以能纯 Node 单测（也就能在 Linux CI 上守）。**本轮只建接口，不迁移调用点**（RULE-04）。
  */
 
-const path = require('node:path')
-
 // ── P2-03 项目类型 ────────────────────────────────────────────────────────────
 const PROJECT_TYPE = Object.freeze({
   MOONBIT: 'moonbit',
@@ -79,7 +77,7 @@ function normalizeType(kind) {
 function normalizeRoot(root) {
   if (root == null) return ''
   let s = String(root).trim().replace(/[\\/]+$/, '')
-  if (/^[A-Za-z]:$/.test(s)) s += path.sep
+  if (/^[A-Za-z]:$/.test(s)) s += '\\'   // 驱动器根补反斜杠（Windows）
   return s
 }
 
@@ -153,7 +151,7 @@ function describeContext(ctx) {
   return `${ctx.label}（${ctx.projectType}）@ ${ctx.rootDir}`
 }
 
-module.exports = {
+const API = {
   PROJECT_TYPE,
   ALL_TYPES,
   TYPE_SPEC,
@@ -166,3 +164,10 @@ module.exports = {
   withActiveFile,
   describeContext,
 }
+
+// 双环境导出：
+//   · Node（单测 / CI / 主进程）走 CommonJS；
+//   · 渲染进程通过 index.html 的 <script> 引入后取全局 —— 因为 preload 是 sandbox:true，
+//     **不能 require 本地文件**（实测：那样会让整个 preload 挂掉、window.moonAPI 变 undefined）。
+if (typeof module !== 'undefined' && module.exports) module.exports = API
+if (typeof window !== 'undefined') window.moonbitProjectContext = API

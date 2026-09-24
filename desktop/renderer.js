@@ -76,10 +76,11 @@ function initActivityBar() {
   // 默认落在「主菜单」—— 主页是办公台，不是代码编辑器。
   // 另外：**未打开项目时忽略上次记忆的标签**。否则上次退出在「项目」标签的话，
   // 启动就直接落在只有「打开/新建」的欢迎页上，用户会以为整个 IDE 不可用。
-  // 用权威状态 rootDir 判定，**不要**读 body 的 no-project 类：
+  // 用权威状态判定，**不要**读 body 的 no-project 类：
   // initActivityBar 在 showWelcome()（由它添加 no-project 类）之前执行，
   // 直接读类名会得到 false —— 「无项目时强制落主菜单」就会失效（实测踩过）。
-  const noProject = !rootDir
+  // P2-06：判据从 rootDir 换成 ProjectContext（两者在 loadTree 里同一时刻设置，语义等价）
+  const noProject = !window.moonbitProjectContext.hasProject(projectCtx)
   const pick = (noProject || !saved || !VIEW_ORDER.includes(saved)) ? 'home' : saved
   switchView(pick, false)
 }
@@ -100,6 +101,10 @@ const cwdInput = $('cwd')
 let monaco = null
 let editor = null
 let rootDir = null
+// 单一工程上下文（ProjectContext）—— 与 rootDir **同一时刻**设置，
+// 所以「无项目态」的判断可以安全地从 rootDir 切过来（P2-06 迁移的第一个调用点）。
+// P2-15 会再逐个把 rootDir / projectInfoCache / lspRoot 这些旧变量删掉。
+let projectCtx = null
 const tabs = [] // { path, model }
 let active = -1
 
@@ -363,6 +368,8 @@ async function renderTree(dir, container, depth) {
 
 async function loadTree(dir) {
   rootDir = dir
+  // 与 rootDir 同一时刻建/更新上下文（识别结果若已有就一并带上）
+  projectCtx = window.moonbitProjectContext.create(Object.assign({ root: dir }, projectInfoCache || {}))
   treeEl.innerHTML = ''
   await renderTree(dir, treeEl, 0)
 }
@@ -2038,6 +2045,15 @@ async function refreshProjectInfo() {
   try {
     const info = await window.moonAPI.projectInfo(cwdInput.value)
     renderProjectKind(info)
+    // 用识别结果补齐上下文的 kind/label/features。
+    // **rootDir 仍以「实际打开的目录」为准** —— 不能信 info.root：
+    // 主进程在 cwd 为空时会回退 DEFAULT_CWD，那会把「无项目」变成「有项目」。
+    if (projectCtx) {
+      projectCtx = window.moonbitProjectContext.create(
+        Object.assign({}, info || {}, { root: projectCtx.rootDir }),
+        { entry: projectCtx.entry, activeFile: projectCtx.activeFile },
+      )
+    }
     if (info && info.ok) {
       renderPanelNotice('backend', 'backendControl')
       renderPanelNotice('api', 'apiDebug')
