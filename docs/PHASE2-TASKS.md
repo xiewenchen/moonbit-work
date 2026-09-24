@@ -12,7 +12,7 @@
 
 | ID | Phase | Task | Status | Blocked By | Verification | Commit | Notes |
 |---|---|---|---|---|---|---|---|
-| MBW-P0-01 | P0 | 冻结黑客松提交版本（建 tag） | **PASS** | — | `git tag -l -n5`；`git show hackathon-final-2026-09-24` | 796fd05 | 本地 tag；**未 push**（代理链路慢，见 Notes 末） |
+| MBW-P0-01 | P0 | 冻结黑客松提交版本（建 tag） | **PASS** | — | `git tag -l -n5`；`git show hackathon-final-2026-09-24` | 796fd05 | tag 已建并**已推送**到远端 |
 | MBW-P0-02 | P0 | 建立 Phase 2 分支 | **PASS** | P0-01 | `git branch -vv` → `phase2-engineering-workspace` | 796fd05 | 从 master 切出 |
 | MBW-P0-03 | P0 | 建立 `docs/PHASE2.md` | **PASS** | — | 文件存在且含版本/阶段/规则/门禁/红灯/技术债 | — | — |
 | MBW-P0-04 | P0 | 建立任务状态表 | **PASS** | — | 本文件 | — | 字段与状态枚举照清单 |
@@ -155,6 +155,9 @@
 
 ## 备注
 
-1. **tag 不推送到远端**：`git tag` 已在本地建好；推送需要网络（当前 FlClash 出口为香港机房 IP，链路慢且抖动，见记忆 `clash-chatgpt-blocked-diagnosis`）。待人工确认后再 `git push origin hackathon-final-2026-09-24`。
+1. **已推送（2026-09-24）**：`phase2-engineering-workspace`（26 个 commit）与 tag `hackathon-final-2026-09-24` 都已推到 `origin`，远端与本地 `ahead=0 behind=0`。
+   > 当时卡了一会儿，原因是 **FlClash 的系统代理是关的**（`ProxyEnable=0`、7890 未监听），而 git 硬配了 `http.proxy=127.0.0.1:7890`；
+   > 直连 `github.com` 会被 reset（`api.github.com` 直连却 200，说明是域名级别的干扰）。开代理后一次推送成功。
+   > 另备了一份离线完整历史：桌面 `moonbit-work-phase2.bundle`（10 MB，`git bundle verify` = complete history）。
 2. **本机 `moon test` 异常**：基线快照里 native/wasm-gc 测试以 CI 为准（红灯 R3）。
 3. 本表只由**实测**推进；任何未跑通验证的项不得置 PASS。
