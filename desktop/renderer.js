@@ -811,6 +811,13 @@ async function boot(dir) {
         { entry: projectCtx ? projectCtx.entry : null, activeFile: projectCtx ? projectCtx.activeFile : null },
       )
     : null
+
+  // P6：把 workspace 告诉主进程（只读工具的沙箱根）。只由**用户操作**触发，Agent 碰不到它。
+  try {
+    await window.moonAPI.agentToolsSetWorkspace(target || '')
+  } catch (e) {
+    // 设不上不影响打开项目（工具侧会退回启动目录）
+  }
   const res = await window.moonAPI.findModule(target)
   if (res.ok && res.module) {
     $('stModule').textContent = `模块：${res.module.name || '—'}@${res.module.version}`
@@ -827,6 +834,12 @@ async function closeProject() {
   projectInfoCache = null
   symbolsList = null
   cwdInput.value = ''
+  // P6：同时清掉工具侧的 workspace —— 否则 Agent 还能读到上一个项目
+  try {
+    await window.moonAPI.agentToolsSetWorkspace('')
+  } catch (e) {
+    // 清不掉不影响关闭项目
+  }
   await showWelcome()
   setMsg('已关闭项目')
   return { ok: true }
@@ -846,6 +859,13 @@ window.moonbitIDE = {
   commands: {
     list: () => window.moonAPI.commandList(),
     execute: (name, args, opts) => window.moonAPI.commandExecute(name, args, opts),
+  },
+  // 只读工具（P6）：Agent 的"眼睛"。它们全部经路径沙箱，且表里**没有**写/执行工具。
+  // 注意：**不提供 setWorkspace** —— workspace 由 openProject（用户操作）设定，Agent 不该能改沙箱根。
+  agentTools: {
+    list: () => window.moonAPI.agentToolsList(),
+    call: (name, args) => window.moonAPI.agentToolsCall(name, args),
+    workspace: () => window.moonAPI.agentToolsGetWorkspace(),
   },
   // 问题模型（P4）：对外提供只读查询 + 一个"写入发现"的入口。
   // report 的正当用途是 P4-08「Agent 发现 → Problem」（P7 会把它接到 Agent 工具里），

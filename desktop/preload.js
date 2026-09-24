@@ -97,6 +97,12 @@ contextBridge.exposeInMainWorld('moonAPI', {
   commandList: () => ipcRenderer.invoke('command:list'),
   commandExecute: (name, args, opts) => ipcRenderer.invoke('command:execute', { name, args, opts }),
 
+  // ---- Agent 只读工具（P6）：只能读；workspace 由用户在打开项目时设定（Agent 碰不到）----
+  agentToolsList: () => ipcRenderer.invoke('agentTools:list'),
+  agentToolsCall: (name, args) => ipcRenderer.invoke('agentTools:call', { name, args }),
+  agentToolsSetWorkspace: (root) => ipcRenderer.invoke('agentTools:setWorkspace', root),
+  agentToolsGetWorkspace: () => ipcRenderer.invoke('agentTools:getWorkspace'),
+
   // 注：ProjectContext 不在这里过桥 —— 本 preload 是 sandbox:true，
   // require 本地文件会让整个 preload 挂掉（实测踩过）。
   // 它改由 index.html 的 <script src="./project-context.js"> + window.moonbitProjectContext 提供。

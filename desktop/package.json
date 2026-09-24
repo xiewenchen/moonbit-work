@@ -24,7 +24,8 @@
     "verify:demo": "node verify-demo.js",
     "verify:demo:fast": "node verify-demo.js --fast",
     "verify:multiproject": "electron verify-multiproject.js",
-    "verify:problems": "electron verify-problems.js"
+    "verify:problems": "electron verify-problems.js",
+    "verify:agent-tools": "electron verify-agent-tools.js"
   },
   "devDependencies": {
     "@xterm/addon-fit": "^0.10.0",

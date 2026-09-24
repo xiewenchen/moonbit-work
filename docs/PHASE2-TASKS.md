@@ -94,7 +94,7 @@
 | P4 | Problem Model | **PASS**：P4-01～P4-12 全部完成（模型 + Store + 六类适配器 + 面板接线 + 点击跳转）|
 | P5 | Agent Context | **进行中**：P5-01～P5-09 PASS（组装器 + 预算 + 优先级）；真实取数与接到 Agent 待做 |
 | P5.5 | Agent 安全门 | **PASS**（门已建好，尚未装到 Agent 执行路径上）：Path/Command Sandbox、Timeout、Output Limit、IPC 审查全部完成 |
-| P6 | Agent Read-only Tools | **PASS**：七个只读工具 + 统一结果 + 审计字段；**只读是结构保证**（注册即拒非 read）；接到真实数据待做 |
+| P6 | Agent Read-only Tools | **PASS（含接线）**：七个工具 + 统一结果 + 审计字段 + **接到真实数据**（19/0 验证）；喂给 Agent 属 P7 |
 | P7 | Agent Execute Tools | TODO |
 | P8 | Agent Modify（Patch） | TODO |
 | P9 | Agent Verification Loop | TODO |

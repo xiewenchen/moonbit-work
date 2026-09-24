@@ -20,6 +20,7 @@ const { registerLspIpc } = require('./lsp-manager')
 const { rootOfInput } = require('./project-context')
 const { resolveSpawn } = require('./spawn-util')
 const { createCommandRegistry, registerProjectCommands, registerCommandIpc } = require('./commands')
+const { registerAgentToolIpc } = require('./agent-tools-main')
 
 // ── 环境准备：必须在任何 spawn 之前 ─────────────────────────────────────
 // 从桌面快捷方式启动时，进程 PATH 是 Windows 默认值，**不含** ~/.moon/bin
@@ -171,6 +172,14 @@ registerProjectCommands(registry, {
   rootOf: rootOfInput,
 })
 registerCommandIpc({ ipcMain, registry })
+
+// Agent 只读工具（P6）：workspace 由渲染侧在打开项目时设定 —— Agent 碰不到它，
+// 所以「路径沙箱」不会被「调用方传个任意 root」绕过。
+registerAgentToolIpc({
+  ipcMain,
+  getWindow: () => mainWindow,
+  getRunner: () => projectRunner,
+})
 
 // LSP 客户端（接官方 moon-lsp）—— 见 lsp-manager.js
 registerLspIpc({ ipcMain, getWindow: () => mainWindow })

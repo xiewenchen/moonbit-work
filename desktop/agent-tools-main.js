@@ -1,0 +1,101 @@
+'use strict'
+
+/**
+ * 只读工具的真实接线（Phase 2 / P6 接线段）
+ *
+ * `agent-tools.js` 是纯逻辑（工具定义 + 沙箱），这里只做两件事：
+ *   ① 注入真实实现（fs / 搜索 / 符号索引 / 问题模型 / 运行结果 / 项目识别）；
+ *   ② 暴露 IPC，让渲染侧与（将来的）Agent 能调。
+ *
+ * **关于 workspace 根**（安全关键）：它由渲染侧**显式设置**（用户在打开项目时告知），
+ * 主进程保存后工具只认它。Agent **无法**设置它 —— 它只能调 `agentTools:call`。
+ * 若让调用方每次传 root，沙箱就被绕过了（传任意路径即可）。
+ */
+
+const fs = require('fs')
+const fsops = require('./fsops')
+const { searchInDir } = require('./search')
+const { loadSymbols, searchSymbols } = require('./symbols')
+const { detectProject } = require('./project-detect')
+const { createReadOnlyToolRegistry } = require('./agent-tools')
+
+function registerAgentToolIpc({ ipcMain, getWindow, getRunner }) {
+  let workspace = ''
+
+  /**
+   * 工具用的 workspace 根：**只认「被显式设置过」的那个**，没设过就返回空串。
+   * 空串会让路径沙箱直接回「未打开项目」—— 这是刻意的：
+   * 之前写成 `workspace || DEFAULT_CWD`，结果「关闭项目后仍能读启动目录」（实测抓到）。
+   * 安全上宁可“没打开项目时工具全废”，也不要“默默退到某个目录”。
+   */
+  const rootOf = () => workspace
+
+  const registry = createReadOnlyToolRegistry({
+    rootOf,
+    // 符号链接复核：workspace 里指向外部的链接要被挡住
+    realpath: (p) => fs.realpathSync(p),
+
+    readFile: async (abs) => {
+      const r = fsops.readTextFile(abs)          // 形状：{ path, content, language }
+      return r && typeof r.content === 'string' ? r.content : ''
+    },
+
+    listDir: async (abs) => {
+      if (!fs.existsSync(abs)) return null       // 让工具报"目录不存在"
+      return fsops.listDir(abs)                  // [{ name, path, dir }]
+    },
+
+    search: async ({ query, root }) => {
+      const r = searchInDir(root, query, { maxResults: 200 })
+      return { results: r.results, scanned: r.scanned, truncated: r.truncated }
+    },
+
+    symbols: async ({ query }) => {
+      const all = loadSymbols(rootOf())          // 不存在 → []
+      if (!all.length) return { symbols: [], note: '没有 symbols.jsonl（可用 IDE 的符号索引生成）' }
+      const hit = query ? searchSymbols(all, query, 50) : all.slice(0, 200)
+      return { symbols: hit, total: all.length }
+    },
+
+    // 问题模型住在渲染侧（P4 的 Store 在浏览器里）；主进程通过它对外暴露的只读接口取。
+    // 这是一处刻意的"跨进程取值"：问题状态本来就是渲染侧算出来的。
+    problems: async () => {
+      const w = getWindow && getWindow()
+      if (!w || w.isDestroyed()) return []
+      try {
+        const raw = await w.webContents.executeJavaScript(
+          'JSON.stringify((window.moonbitIDE && window.moonbitIDE.problems) ? window.moonbitIDE.problems.list() : [])')
+        return JSON.parse(raw || '[]')
+      } catch (e) {
+        return { error: '读取问题模型失败：' + String((e && e.message) || e) }
+      }
+    },
+
+    runLog: async () => {
+      const r = getRunner && getRunner()
+      return r ? { state: r.state, result: r.result || null } : null
+    },
+
+    projectInfo: async () => detectProject(rootOf()),
+  })
+
+  ipcMain.handle('agentTools:setWorkspace', (_e, root) => {
+    const r = String(root == null ? '' : root).trim()
+    if (!r) {
+      workspace = ''
+      return { ok: true, workspace: '' }
+    }
+    if (!fs.existsSync(r)) return { ok: false, error: '目录不存在：' + r }
+    workspace = r
+    return { ok: true, workspace }
+  })
+
+  ipcMain.handle('agentTools:getWorkspace', () => ({ ok: true, workspace: rootOf() }))
+  ipcMain.handle('agentTools:list', () => ({ ok: true, tools: registry.list() }))
+  ipcMain.handle('agentTools:call', (_e, payload = {}) =>
+    registry.call(payload.name, payload.args || {}))
+
+  return registry
+}
+
+module.exports = { registerAgentToolIpc }
