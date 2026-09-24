@@ -11,7 +11,7 @@
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const { findRunners, kindOf } = require('./runners')
+const { findRunners, kindOf, rootOfInput } = require('./runners')
 
 let pass = 0, fail = 0
 const chk = (n, ok, d) => { if (ok) { pass++; console.log('  [PASS] ' + n) } else { fail++; console.log('  [FAIL] ' + n + '  ' + (d || '')) } }
@@ -89,6 +89,19 @@ console.log('\n=== 项目类型识别（输入 → 输出）===')
 {
   const d = mk('both', { 'package.json': JSON.stringify({ scripts: { dev: 'x' } }), 'index.html': '<h1>hi</h1>' })
   chk('Node 与 static 并存 → 优先 Node', kindOf(d) === 'node', kindOf(d))
+}
+
+// ⑦ 运行入口的「根」归一化（P2-08：Runner 接受 ProjectContext，不再自己找根）
+{
+  const { createProjectContext } = require('./project-context')
+  const ctx = createProjectContext({ root: TMP, kind: 'node' }, { createdAt: 1 })
+  chk('字符串输入原样返回（旧调用不受影响）', rootOfInput('/a/b') === '/a/b', rootOfInput('/a/b'))
+  chk('字符串去空白', rootOfInput('  /a/b  ') === '/a/b', rootOfInput('  /a/b  '))
+  chk('ProjectContext → 取它的 rootDir（新调用）', rootOfInput(ctx) === ctx.rootDir, rootOfInput(ctx))
+  chk('{ ctx } 包装形式也支持', rootOfInput({ ctx }) === ctx.rootDir, rootOfInput({ ctx }))
+  chk('空串 → 空串（由调用方兜底，不默默用 cwd）', rootOfInput('') === '', rootOfInput(''))
+  chk('null/undefined → 空串', rootOfInput(null) === '' && rootOfInput(undefined) === '', '')
+  chk('怪输入（数字/数组）不抛且给空串', rootOfInput(123) === '' && rootOfInput([]) === '', '')
 }
 
 fs.rmSync(TMP, { recursive: true, force: true })

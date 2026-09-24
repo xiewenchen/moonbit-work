@@ -440,6 +440,24 @@ function createServiceRunner({ openUrl, startTimeout = DEFAULT_START_TIMEOUT, st
   }
 }
 
+/**
+ * 运行入口的「根」归一化（P2-08）。
+ *
+ * 迁移期要同时容忍新旧两种调用，所以这里接受三种输入：
+ *   · 字符串          —— 旧调用（verify-run-url.js / verify-run-dispatch.js 仍这样传）
+ *   · ProjectContext  —— 新调用（单一来源，见 project-context.js），取它的 rootDir
+ *   · { ctx }         —— 兼容将来可能出现的包装形式
+ * 认不出来就返回空串，**由调用方决定兜底**，而不是在这里默默用 process.cwd()。
+ */
+function rootOfInput(arg) {
+  if (typeof arg === 'string') return arg.trim()
+  if (arg && typeof arg === 'object') {
+    if (typeof arg.rootDir === 'string') return arg.rootDir.trim()
+    if (arg.ctx && typeof arg.ctx === 'object' && typeof arg.ctx.rootDir === 'string') return arg.ctx.rootDir.trim()
+  }
+  return ''
+}
+
 function registerRunnerIpc({ ipcMain, getWindow }) {
   const send = (ch, payload) => {
     const w = getWindow && getWindow()
@@ -451,8 +469,9 @@ function registerRunnerIpc({ ipcMain, getWindow }) {
     openUrl: (url) => require('electron').shell.openExternal(url),
   })
 
-  ipcMain.handle('runner:list', (_e, root) => {
-    try { return { ok: true, ...findRunners(root || process.cwd()) } } catch (e) { return { ok: false, error: e.message } }
+  ipcMain.handle('runner:list', (_e, input) => {
+    // 接受字符串（旧调用）或 ProjectContext（新，P2-08：Runner 不再自己找根）；都没有才兜底到 cwd
+    try { return { ok: true, ...findRunners(rootOfInput(input) || process.cwd()) } } catch (e) { return { ok: false, error: e.message } }
   })
 
   ipcMain.handle('runner:run', (_e, spec) =>
@@ -468,4 +487,4 @@ function registerRunnerIpc({ ipcMain, getWindow }) {
   ipcMain.handle('runner:stop', () => runner.stop())
 }
 
-module.exports = { registerRunnerIpc, createServiceRunner, DEFAULT_START_TIMEOUT, DEFAULT_STOP_GRACE_MS, findRunners, kindOf }
+module.exports = { registerRunnerIpc, createServiceRunner, DEFAULT_START_TIMEOUT, DEFAULT_STOP_GRACE_MS, rootOfInput, findRunners, kindOf }

@@ -683,7 +683,8 @@ async function showWelcome() {
 // 自动识别可执行入口（MoonBit 的 cmd/*、Node 的 scripts、Python 的 main.py…），
 // 单个直接跑，多个弹出来让用户选；运行时不写死 moon。
 async function runProject() {
-  const r = await window.moonAPI.runnerList(cwdInput.value || '')
+  // P2-08：优先把单一工程上下文交给 Runner（由它自己取 rootDir）；旧的字符串路径仍兼容
+  const r = await window.moonAPI.runnerList(projectCtx || cwdInput.value || '')
   if (!r || !r.ok) {
     logLine('入口识别失败：' + (r && r.error ? r.error : '未知错误'), 'err')
     return

@@ -136,7 +136,7 @@
 | MBW-P2-04 | project-detect 只负责识别 | **PASS**（审计） | 逐条核对：只返回 ProjectInfo、无启动/编译/改 UI | 唯一可议：`cwd \|\| DEFAULT_CWD` 回退属根解析，待迁移 |
 | MBW-P2-05 | 建 ProjectContext Factory | **PASS** | `createProjectContext(info, overrides)` + TYPE_SPEC 推导命令 | 含与真实 `detectProject()` 的集成断言 |
 | MBW-P2-06 / 07 | 迁移 Renderer + 回归 | **PASS** | `verify-welcome` 全绿；`verify:demo` **7/0**（含体检 23 项）；`verify-run-url` 5/5 | 只迁「无项目态」一个判据（RULE-04）；**preload 不能过桥**（sandbox:true 不允许 require 本地文件），改走 script+window 全局 |
-| MBW-P2-08 / 09 | 迁移 Runner + 回归 | TODO | — | — |
+| MBW-P2-08 / 09 | 迁移 Runner + 回归 | **PASS** | `test-runner-detect` **25/0**（含 7 项 `rootOfInput`）；`verify-run-url` 5/0（旧路径）；`verify:demo` **7/0**（新路径） | 新增 `rootOfInput()` 容忍字符串/ProjectContext/{ctx}；归一化只翻译输入，*不*默默回退 cwd |
 | MBW-P2-10 ～ P2-14 | 迁移 LSP / Terminal / API / Problems / Agent | TODO | — | `api-debug.js:145` 固定用 DEFAULT_CWD 的疑似缺陷待一并处理 |
 | MBW-P2-15 | 逐个废弃旧变量 | TODO | — | 一次删一个 + 回归（RULE-04） |
 | MBW-P2-16/17/18 | 无项目态 / 多项目切换 / 关闭项目 | TODO | — | `hasProject()` / `isSameProject()` 已就位 |
