@@ -34,13 +34,27 @@ app.whenReady().then(async () => {
   await sleep(3000)
 
   let pass = 0, fail = 0
-  const chk = (n, ok, d) => { if (ok) { pass++; log('  [PASS] ' + n) } else { fail++; log('  [FAIL] ' + n + (d ? '  ' + d : '')) } }
+    /** 布尔断言：**只接受布尔**（detail 仅在失败时显示）。
+   *  ⚠️ 误用防护：传数组/对象进来会**立刻判失败**并提示用 `eq` ——
+   *  历史上 25 处 `eq('x', [a,b], [c,d])` 因为数组恒为真而**永远通过**，等于没验。 */
+  const chk = (n, ok, detail) => {
+    if (typeof ok !== 'boolean') {
+      fail++; log('  [FAIL] ' + n + '   ⚠️ chk 只接受布尔（数组/对象比较请用 eq）：' + JSON.stringify(ok))
+      return
+    }
+    if (ok) { pass++; log('  [PASS] ' + n) } else { fail++; log('  [FAIL] ' + n + (detail ? '  ' + detail : '')) }
+  }
+  /** 相等断言：JSON 相等比较（数组/对象用这个）*/
+  const eq = (n, got, want) => {
+    if (JSON.stringify(got) === JSON.stringify(want)) { pass++; log('  [PASS] ' + n) }
+    else { fail++; log('  [FAIL] ' + n + '   got=' + JSON.stringify(got) + '  want=' + JSON.stringify(want)) }
+  }
 
   log('\n=== ① 打开真实项目并确认识别结果 ===')
   await js(`window.moonbitIDE.openProject(${JSON.stringify(ROOT)})`)
   await sleep(1500)
   const info = JSON.parse(await js('(async () => JSON.stringify(await window.moonbitIDE.agentTools.call("getProjectInfo")))()'))
-  chk('已打开 MoonBit 项目', [info.ok, info.data && info.data.kind], [true, 'moonbit'])
+  eq('已打开 MoonBit 项目', [info.ok, info.data && info.data.kind], [true, 'moonbit'])
 
   log('\n=== ② 跑闭环（真实 moon check / moon test）===')
   const t0 = Date.now()
@@ -50,20 +64,20 @@ app.whenReady().then(async () => {
 
   chk('invoke 本身成功返回', r.ok === true, JSON.stringify(r).slice(0, 120))
   chk('**结论是未通过**（因为本机 moon test 是坏的）', r.verified === false, String(r.verified))
-  chk('状态是 verify_failed', r.report && r.report.status, 'verify_failed')
+  eq('状态是 verify_failed', r.report && r.report.status, 'verify_failed')
 
   const steps = (r.report && r.report.steps) || []
   const names = steps.map((s) => s.name)
-  chk('步骤含 apply 与 check', [names.includes('apply'), names.includes('check')], [true, true])
+  eq('步骤含 apply 与 check', [names.includes('apply'), names.includes('check')], [true, true])
   chk('check 通过（本机 moon check 是好的）', (steps.find((s) => s.name === 'check') || {}).ok, true)
   chk('test 未通过', (steps.find((s) => s.name === 'test') || {}).ok === false, JSON.stringify(steps.find((s) => s.name === 'test')))
-  chk('**失败即停：没有跑 run / health**', [names.includes('run'), names.includes('health')], [false, false])
+  eq('**失败即停：没有跑 run / health**', [names.includes('run'), names.includes('health')], [false, false])
 
   log('\n=== ③ 失败 → 统一 Problem ===')
   const ps = (r.report && r.report.problems) || []
   chk('产生了问题', ps.length >= 1, String(ps.length))
-  chk('来源是 test', ps[0] && ps[0].source, 'test')
-  chk('带严重度与描述', [ps[0] && ps[0].severity, typeof (ps[0] && ps[0].message)], ['error', 'string'])
+  eq('来源是 test', ps[0] && ps[0].source, 'test')
+  eq('带严重度与描述', [ps[0] && ps[0].severity, typeof (ps[0] && ps[0].message)], ['error', 'string'])
 
   log('\n=== ④ 报告文本可用 ===')
   chk('返回了人可读报告', /验证报告/.test(String(r.text)) && /VERIFY_FAILED/.test(String(r.text)), String(r.text).slice(0, 80))
@@ -82,9 +96,9 @@ app.whenReady().then(async () => {
   log('\n=== ⑥ last() 与本次一致 ===')
   {
     const last = JSON.parse(await js('(async () => JSON.stringify(await window.moonbitIDE.agentTools.verify.last()))()'))
-    chk('last().report 与刚才一致', [last.ok, last.report && last.report.status], [true, 'verify_failed'])
+    eq('last().report 与刚才一致', [last.ok, last.report && last.report.status], [true, 'verify_failed'])
   }
 
   log('\n结果：' + pass + ' 通过 / ' + fail + ' 失败 / 共 ' + (pass + fail) + ' 项')
   dump(fail === 0 ? 0 : 1)
-})
+}).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })

@@ -52,4 +52,4 @@ app.whenReady().then(async () => {
   // 清理
   try { fs.rmSync(TMP, { recursive: true, force: true }); console.log('\n  已清理临时目录') } catch (_) {}
   app.quit()
-})
+}).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })

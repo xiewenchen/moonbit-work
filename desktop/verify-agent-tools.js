@@ -33,15 +33,29 @@ app.whenReady().then(async () => {
   await sleep(3000)
 
   let pass = 0, fail = 0
-  const chk = (n, ok, d) => { if (ok) { pass++; log('  [PASS] ' + n) } else { fail++; log('  [FAIL] ' + n + (d ? '  ' + d : '')) } }
+    /** 布尔断言：**只接受布尔**（detail 仅在失败时显示）。
+   *  ⚠️ 误用防护：传数组/对象进来会**立刻判失败**并提示用 `eq` ——
+   *  历史上 25 处 `eq('x', [a,b], [c,d])` 因为数组恒为真而**永远通过**，等于没验。 */
+  const chk = (n, ok, detail) => {
+    if (typeof ok !== 'boolean') {
+      fail++; log('  [FAIL] ' + n + '   ⚠️ chk 只接受布尔（数组/对象比较请用 eq）：' + JSON.stringify(ok))
+      return
+    }
+    if (ok) { pass++; log('  [PASS] ' + n) } else { fail++; log('  [FAIL] ' + n + (detail ? '  ' + detail : '')) }
+  }
+  /** 相等断言：JSON 相等比较（数组/对象用这个）*/
+  const eq = (n, got, want) => {
+    if (JSON.stringify(got) === JSON.stringify(want)) { pass++; log('  [PASS] ' + n) }
+    else { fail++; log('  [FAIL] ' + n + '   got=' + JSON.stringify(got) + '  want=' + JSON.stringify(want)) }
+  }
   const call = async (name, args) => JSON.parse(await js(`(async () => JSON.stringify(await window.moonbitIDE.agentTools.call(${JSON.stringify(name)}, ${JSON.stringify(args || {})})))()`))
 
   log('\n=== ① 工具清单（P6-09）===')
   {
     const l = JSON.parse(await js('(async () => JSON.stringify(await window.moonbitIDE.agentTools.list()))()'))
     const tools = l.tools || []
-    chk('7 个只读工具', tools.length, 7)
-    chk('**全部是 read 权限**', Array.from(new Set(tools.map((t) => t.permission))).join(','), 'read')
+    eq('7 个只读工具', tools.length, 7)
+    eq('**全部是 read 权限**', Array.from(new Set(tools.map((t) => t.permission))).join(','), 'read')
     chk('每个都有超时与输出限额', tools.every((t) => t.timeoutMs > 0 && t.maxOutputBytes > 0), true)
     chk('**没有写/执行工具**', tools.filter((t) => ['writeFile', 'applyPatch', 'project.run', 'project.build'].includes(t.name)).length === 0, JSON.stringify(tools.map((t) => t.name)))
   }
@@ -51,27 +65,29 @@ app.whenReady().then(async () => {
     await js(`window.moonbitIDE.openProject(${JSON.stringify(ROOT)})`)
     await sleep(1200)
     const w = JSON.parse(await js('(async () => JSON.stringify(await window.moonbitIDE.agentTools.workspace()))()'))
-    chk('workspace = 打开的项目', path.normalize(w.workspace || ''), path.normalize(ROOT))
-    chk('**Agent 侧没有 setWorkspace 入口**', (await js('typeof window.moonbitIDE.agentTools.setWorkspace')), 'undefined')
+    eq('workspace = 打开的项目', path.normalize(w.workspace || ''), path.normalize(ROOT))
+    eq('**Agent 侧没有 setWorkspace 入口**', (await js('typeof window.moonbitIDE.agentTools.setWorkspace')), 'undefined')
   }
 
   log('\n=== ③ 在真实数据上跑七个工具 ===')
   {
     const f = await call('readFile', { path: 'hello/cmd/main/main.mbt' })
-    chk('readFile 读到真实文件', [f.ok, /fn main/.test(String(f.data && f.data.content))], [true, true])
+    eq('readFile 读到真实文件', [f.ok, /fn main/.test(String(f.data && f.data.content))], [true, true])
 
     const d = await call('listDir', { path: 'hello' })
-    chk('listDir 列出真实目录', [d.ok, (d.data.entries || []).some((e) => e.name === 'cmd')], [true, true])
+    // 注意：data 可能是 null（工具报错时），先保护再取字段 —— 否则脚本会抛异常而**提前退出**（结果行都不打印，但 exit=0 → 假绿）
+    const entries = (d && d.data && d.data.entries) || []
+    eq('listDir 列出真实目录', [d.ok, entries.some((e) => e.name === 'cmd')], [true, true])
 
-    const s = await call('search', { query: 'createServiceRunner', path: 'runners.js' })
-    chk('search 在真实代码里搜到', [s.ok, (s.data.hits && s.data.hits.results || []).length > 0], [true, true])
+    const s = await call('search', { query: 'createServiceRunner', path: '.' })
+    eq('search 在真实代码里搜到', [s.ok, (s.data.hits && s.data.hits.results || []).length > 0], [true, true])
 
     const sym = await call('symbols', { query: 'safe_byte' })
     chk('symbols 可调用（索引不存在时也明确说明）', sym.ok, true)
     log('      symbols 结果：' + JSON.stringify(sym.data).slice(0, 120))
 
     const info = await call('getProjectInfo')
-    chk('getProjectInfo 读真实项目类型', [info.ok, info.data.kind], [true, 'moonbit'])
+    eq('getProjectInfo 读真实项目类型', [info.ok, info.data.kind], [true, 'moonbit'])
 
     const run = await call('getRunLog')
     chk('getRunLog 可调用（无运行时给出状态）', run.ok, true)
@@ -83,7 +99,7 @@ app.whenReady().then(async () => {
   log('\n=== ④ 越界仍然被拒（沙箱在真实路径下也生效）===')
   {
     const a = await call('readFile', { path: '../secret.txt' })
-    chk('`../secret.txt` → 拒', [a.ok, /越出 workspace/.test(String(a.error))], [false, true])
+    eq('`../secret.txt` → 拒', [a.ok, /越出 workspace/.test(String(a.error))], [false, true])
 
     const b = await call('readFile', { path: 'C:/Windows/System32/drivers/etc/hosts' })
     chk('绝对路径在 workspace 外 → 拒', b.ok === false, JSON.stringify(b).slice(0, 100))
@@ -102,20 +118,20 @@ app.whenReady().then(async () => {
     const w = JSON.parse(await js('(async () => JSON.stringify(await window.moonbitIDE.agentTools.workspace()))()'))
     chk('关闭后 workspace 清空（不再是刚才那个项目）', path.normalize(w.workspace || '') !== path.normalize(ROOT), String(w.workspace))
     const after = await call('readFile', { path: 'hello/cmd/main/main.mbt' })
-    chk('**关闭项目后文件类工具应全部被拒**（不默默退到某个目录）', [after.ok === false, /未打开项目/.test(String(after.error))], [true, true])
+    eq('**关闭项目后文件类工具应全部被拒**（不默默退到某个目录）', [after.ok === false, /未打开项目/.test(String(after.error))], [true, true])
   }
 
   console.log('\n=== ⑥ 执行工具清单（P7）===')
   {
     const l = JSON.parse(await js('(async () => JSON.stringify(await window.moonbitIDE.agentTools.exec.list()))()'))
     const tools = l.tools || []
-    chk('6 个执行工具', tools.length, 6)
-    chk('**全部是 execute（没有 write）**', Array.from(new Set(tools.map((t) => t.permission))).join(','), 'execute')
+    eq('6 个执行工具', tools.length, 6)
+    eq('**全部是 execute（没有 write）**', Array.from(new Set(tools.map((t) => t.permission))).join(','), 'execute')
     chk('**没有改文件的工具**（P8 才开）', tools.filter((t) => ['applyPatch', 'writeFile'].includes(t.name)).length === 0, true)
 
     // health 不带 url → 退回报告运行状态：**不跑任何外部命令**，所以本机 moon 坏也能验
     const h = JSON.parse(await js('(async () => JSON.stringify(await window.moonbitIDE.agentTools.exec.call("health", {})))()'))
-    chk('health 不带 url 可用（不跑外部命令）', [h.ok === true, /未提供 url/.test(String(h.data && h.data.note))], [true, true])
+    eq('health 不带 url 可用（不跑外部命令）', [h.ok === true, /未提供 url/.test(String(h.data && h.data.note))], [true, true])
 
     const a = JSON.parse(await js('(async () => JSON.stringify(await window.moonbitIDE.agentTools.exec.audit()))()'))
     chk('执行有审计记录', (a.audit || []).length >= 1, true)
@@ -124,4 +140,4 @@ app.whenReady().then(async () => {
 
   log('\n结果：' + pass + ' 通过 / ' + fail + ' 失败 / 共 ' + (pass + fail) + ' 项')
   dump(fail === 0 ? 0 : 1)
-})
+}).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })

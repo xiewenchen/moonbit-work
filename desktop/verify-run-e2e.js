@@ -46,4 +46,4 @@ app.whenReady().then(async () => {
     console.log('\n  ' + (r.outLen > 0 ? '✅ 运行有输出 —— IDE 里能看到项目结果' : '❌ 无输出 —— 问题仍存在'))
   }
   app.exit(0)
-})
+}).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })

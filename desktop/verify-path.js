@@ -14,4 +14,4 @@ app.whenReady().then(() => {
   if (r.error) console.log('  spawn(moon): ❌ ' + r.error.code + ' —— 运行项目仍会失败')
   else console.log('  spawn(moon): ✅ ' + String(r.stdout || '').trim().split('\n')[0].slice(0, 50))
   app.exit(0)
-})
+}).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })

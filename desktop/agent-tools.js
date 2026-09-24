@@ -111,6 +111,7 @@ function createReadOnlyToolRegistry(deps = {}) {
     if (typeof deps.readFile !== 'function') return toolResult({ ok: false, error: 'readFile 能力未注入' })
     const g = ctx.guardPath(args.path)
     if (!g.ok) return toolResult({ ok: false, error: g.error })
+    // 注意：`guardPath` 返回的键是 **abs**（它把 resolveInsideWorkspace 的 path 翻译成了 abs）
     const text = await deps.readFile(g.abs)
     const c = ctx.clip(text)
     return toolResult({ ok: true, data: { path: args.path, abs: g.abs, content: c.text }, truncated: c.truncated })

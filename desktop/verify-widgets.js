@@ -115,4 +115,4 @@ app.whenReady().then(async () => {
   console.log(`\n结果：${pass} 通过, ${fail} 失败 / 共 ${pass + fail} 项`)
   app.quit()
   setTimeout(() => process.exit(0), 1500)
-})
+}).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })

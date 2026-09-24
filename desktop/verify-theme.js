@@ -160,4 +160,4 @@ app.whenReady().then(async () => {
   console.log('截图: e2e-shots/theme/')
   app.quit()
   setTimeout(() => process.exit(0), 1500)
-})
+}).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })

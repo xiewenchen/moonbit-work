@@ -70,4 +70,4 @@ app.whenReady().then(async () => {
   try { fs.rmSync(TMP, { recursive: true, force: true }) } catch (_) {}
   log('\n结果：' + pass + ' 通过, ' + fail + ' 失败 / 共 ' + (pass + fail) + ' 项')
   dump(fail === 0 ? 0 : 1)
-})
+}).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })

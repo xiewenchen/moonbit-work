@@ -88,4 +88,4 @@ app.whenReady().then(async () => {
 
   console.log(`\n结果: ${pass} 通过 / ${fail} 失败`)
   app.exit(fail ? 1 : 0)
-})
+}).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })

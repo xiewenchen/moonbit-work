@@ -44,4 +44,4 @@ app.whenReady().then(async () => {
   if (ended) console.log('  结束: ' + JSON.stringify(ended.v))
   console.log('\n  ' + (texts.length ? '✅ 后端链路通 —— agent 返回了文本' : '❌ 没拿到文本'))
   app.exit(0)
-})
+}).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })

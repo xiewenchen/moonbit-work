@@ -32,7 +32,21 @@ app.whenReady().then(async () => {
   await new Promise((r) => setTimeout(r, 800))
 
   let pass = 0, fail = 0
-  const chk = (n, ok, d) => { if (ok) { pass++; log('  [PASS] ' + n) } else { fail++; log('  [FAIL] ' + n + '  ' + (d || '')) } }
+    /** 布尔断言：**只接受布尔**（detail 仅在失败时显示）。
+   *  ⚠️ 误用防护：传数组/对象进来会**立刻判失败**并提示用 `eq` ——
+   *  历史上 25 处 `eq('x', [a,b], [c,d])` 因为数组恒为真而**永远通过**，等于没验。 */
+  const chk = (n, ok, detail) => {
+    if (typeof ok !== 'boolean') {
+      fail++; log('  [FAIL] ' + n + '   ⚠️ chk 只接受布尔（数组/对象比较请用 eq）：' + JSON.stringify(ok))
+      return
+    }
+    if (ok) { pass++; log('  [PASS] ' + n) } else { fail++; log('  [FAIL] ' + n + (detail ? '  ' + detail : '')) }
+  }
+  /** 相等断言：JSON 相等比较（数组/对象用这个）*/
+  const eq = (n, got, want) => {
+    if (JSON.stringify(got) === JSON.stringify(want)) { pass++; log('  [PASS] ' + n) }
+    else { fail++; log('  [FAIL] ' + n + '   got=' + JSON.stringify(got) + '  want=' + JSON.stringify(want)) }
+  }
 
   log('\n=== ① 点「配置模型」应真的打开弹窗 ===')
   const opened = JSON.parse(await js(`(() => {
@@ -102,4 +116,4 @@ app.whenReady().then(async () => {
 
   log('\n结果：' + pass + ' 通过, ' + fail + ' 失败 / 共 ' + (pass + fail) + ' 项')
   dump(fail === 0 ? 0 : 1)
-})
+}).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })

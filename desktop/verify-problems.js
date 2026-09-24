@@ -35,12 +35,26 @@ app.whenReady().then(async () => {
   await sleep(3000)
 
   let pass = 0, fail = 0
-  const chk = (n, ok, d) => { if (ok) { pass++; log('  [PASS] ' + n) } else { fail++; log('  [FAIL] ' + n + (d ? '  ' + d : '')) } }
+    /** 布尔断言：**只接受布尔**（detail 仅在失败时显示）。
+   *  ⚠️ 误用防护：传数组/对象进来会**立刻判失败**并提示用 `eq` ——
+   *  历史上 25 处 `eq('x', [a,b], [c,d])` 因为数组恒为真而**永远通过**，等于没验。 */
+  const chk = (n, ok, detail) => {
+    if (typeof ok !== 'boolean') {
+      fail++; log('  [FAIL] ' + n + '   ⚠️ chk 只接受布尔（数组/对象比较请用 eq）：' + JSON.stringify(ok))
+      return
+    }
+    if (ok) { pass++; log('  [PASS] ' + n) } else { fail++; log('  [FAIL] ' + n + (detail ? '  ' + detail : '')) }
+  }
+  /** 相等断言：JSON 相等比较（数组/对象用这个）*/
+  const eq = (n, got, want) => {
+    if (JSON.stringify(got) === JSON.stringify(want)) { pass++; log('  [PASS] ' + n) }
+    else { fail++; log('  [FAIL] ' + n + '   got=' + JSON.stringify(got) + '  want=' + JSON.stringify(want)) }
+  }
 
   log('\n=== ① 模块加载 ===')
   chk('window.MoonbitProblems 存在（script 已加载）', (await js('typeof window.MoonbitProblems')) === 'object', await js('typeof window.MoonbitProblems'))
   chk('window.moonbitIDE.problems 存在', (await js('typeof window.moonbitIDE.problems')) === 'object', await js('typeof window.moonbitIDE.problems'))
-  chk('五个来源常量齐备', (await js('Object.keys(window.MoonbitProblems.PROBLEM_SOURCE).sort().join(",")')), 'AGENT,API,COMPILER,LSP,RUNTIME,TEST')
+  eq('五个来源常量齐备', (await js('Object.keys(window.MoonbitProblems.PROBLEM_SOURCE).sort().join(",")')), 'AGENT,API,COMPILER,LSP,RUNTIME,TEST')
 
   log('\n=== ② 初始：没有问题 ===')
   {
@@ -57,8 +71,8 @@ app.whenReady().then(async () => {
     chk('report() 写入 1 条', n === 1, String(n))
     await sleep(300)
     const list = JSON.parse(await js('JSON.stringify(window.moonbitIDE.problems.list())'))
-    chk('list() 能看到，且来源是 agent', [list.length, list[0] && list[0].source], [1, 'agent'])
-    chk('severity 与位置正确', [list[0].severity, list[0].line], ['warning', 3])
+    eq('list() 能看到，且来源是 agent', [list.length, list[0] && list[0].source], [1, 'agent'])
+    eq('severity 与位置正确', [list[0].severity, list[0].line], ['warning', 3])
 
     const rows = await js(`document.querySelectorAll('#problems .diag').length`)
     chk('问题面板渲染出 1 行', rows === 1, String(rows))
@@ -72,7 +86,7 @@ app.whenReady().then(async () => {
     await sleep(200)
     chk('相同发现再报一次 → 仍是 1 条', (await js('window.moonbitIDE.problems.list().length')) === 1, await js('String(window.moonbitIDE.problems.list().length)'))
     const st = JSON.parse(await js('JSON.stringify(window.moonbitIDE.problems.stats())'))
-    chk('stats 反映 agent 来源', [st.total, st.bySource.agent], [1, 1])
+    eq('stats 反映 agent 来源', [st.total, st.bySource.agent], [1, 1])
   }
 
   log('\n=== ⑤ 点击跳转（P4-10）===')
@@ -88,4 +102,4 @@ app.whenReady().then(async () => {
 
   log('\n结果：' + pass + ' 通过 / ' + fail + ' 失败 / 共 ' + (pass + fail) + ' 项')
   dump(fail === 0 ? 0 : 1)
-})
+}).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })
