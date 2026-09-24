@@ -248,7 +248,14 @@ function spawnRunner({ bin, args, cwd }, onData, onEnd) {
 // 抽出来之后，这条链路可以用**纯 Node** 在 Linux CI 上 E2E 验证（见 test-run-e2e.js）。
 //
 // 行为与原内联实现保持一致：同一时刻只跑一个进程；URL 命中一次后不再重复触发。
-function createServiceRunner({ openUrl } = {}) {
+/**
+ * 启动阶段默认超时（ms）—— **inactivity 语义**：从「最后一次输出」算起。
+ * 这样「编译很久但一直在吐日志」的项目不会被误杀（hello 首次 native 编译就是这种），
+ * 而「进程起来了但一直不监听、也不输出」的情况仍能被检出（P1-25）。
+ */
+const DEFAULT_START_TIMEOUT = 60000
+
+function createServiceRunner({ openUrl, startTimeout = DEFAULT_START_TIMEOUT } = {}) {
   let current = null          // 底层 child 进程
   let handle = null           // ProcessHandle（P1-16）
   let scanner = null          // URL 扫描器（见 url-detect.js）
@@ -260,6 +267,8 @@ function createServiceRunner({ openUrl } = {}) {
   let startedAt = null
   let lastResult = null
   let activeHandlers = null    // 本轮回调集合 —— 供状态变化主动上报（P1-19）
+  let startTimer = null        // P1-25：STARTING 阶段的超时定时器
+  let startError = null        // 启动阶段的失败原因（超时等）
   const machine = createRunStateMachine()   // P1-14 / P1-15
 
   const MAX_CAPTURE = 64 * 1024   // stdout / stderr 各留 64 KiB 给 RunResult，避免无界增长
@@ -271,8 +280,30 @@ function createServiceRunner({ openUrl } = {}) {
   }
   const emitState = () => { const H = activeHandlers; if (H && H.onState) H.onState(machine.state) }
 
+  function clearStartTimer() {
+    if (startTimer) { clearTimeout(startTimer); startTimer = null }
+  }
+
+  /**
+   * P1-25：STARTING 阶段**静默**超过 startTimeout → FAILED，并主动清掉进程（不留孤儿）。
+   * 每次收到输出都会重新计时（inactivity）。
+   */
+  function armStartTimer() {
+    clearStartTimer()
+    if (!(startTimeout > 0)) return
+    startTimer = setTimeout(() => {
+      startTimer = null
+      if (machine.state !== RUN_STATE.STARTING) return
+      startError = `启动超时（连续 ${startTimeout}ms 无输出且未检测到服务监听）`
+      machine.to(RUN_STATE.FAILED)
+      emitState()
+      if (current) { try { current.kill() } catch (_) {} }
+    }, startTimeout)
+  }
+
   function stop() {
     if (!current || !handle) return { ok: false, error: '当前没有正在运行的进程' }
+    clearStartTimer()            // 用户主动停：不再需要启动超时
     const r = handle.stop()
     if (machine.state === RUN_STATE.RUNNING || machine.state === RUN_STATE.STARTING) {
       machine.to(RUN_STATE.STOPPING)
@@ -286,6 +317,7 @@ function createServiceRunner({ openUrl } = {}) {
     if (myRun !== runSeq) return   // 上一轮进程的迟到事件，丢弃（别污染新一轮的状态）
     if (finished) return
     finished = true
+    clearStartTimer()
 
     const exitCode = r && typeof r.code === 'number' ? r.code : null
     if (handle) handle.recordExit(exitCode, r && r.signal ? r.signal : null)
@@ -300,7 +332,7 @@ function createServiceRunner({ openUrl } = {}) {
       machine.to(RUN_STATE.FAILED)                  // BUILDING 只能去 STARTING / FAILED
     }
 
-    const srvError = r && r.ok === false && r.error ? String(r.error) : null
+    const srvError = startError || (r && r.ok === false && r.error ? String(r.error) : null)
     lastResult = createRunResult({
       status: machine.state,
       exitCode,
@@ -325,6 +357,8 @@ function createServiceRunner({ openUrl } = {}) {
     if (current) { try { current.kill() } catch (_) {} current = null }
     handle = null
     finished = false
+    startError = null
+    clearStartTimer()
     lastUrl = null
     stdoutText = ''
     stderrText = ''
@@ -341,6 +375,7 @@ function createServiceRunner({ openUrl } = {}) {
       if (H.onData) H.onData(text)                        // 兼容旧签名
       if (H.onStreamEvent && ev.ok) H.onStreamEvent(ev.event)
       capture(stream, text)
+      if (machine.state === RUN_STATE.STARTING) armStartTimer()   // 有输出 = 进程还活着，重新计时
 
       const hit = scanner.push(text)
       if (!hit) return
@@ -348,6 +383,7 @@ function createServiceRunner({ openUrl } = {}) {
       // 清单要求的顺序：spawn → collect output → detect URL → **update state** → open browser
       if (machine.state === RUN_STATE.STARTING) {
         machine.to(RUN_STATE.RUNNING)
+        clearStartTimer()                // 已经监听上了，撤销启动超时
         emitState()
       }
       if (H.onUrl) H.onUrl(hit.url)
@@ -376,6 +412,7 @@ function createServiceRunner({ openUrl } = {}) {
     handle.pid = current.pid
     machine.to(RUN_STATE.STARTING)
     emitState()
+    armStartTimer()                      // P1-25：等它监听，超时即 FAILED
     return { ok: true, pid: current.pid }
   }
 
@@ -417,4 +454,4 @@ function registerRunnerIpc({ ipcMain, getWindow }) {
   ipcMain.handle('runner:stop', () => runner.stop())
 }
 
-module.exports = { registerRunnerIpc, createServiceRunner, findRunners, kindOf }
+module.exports = { registerRunnerIpc, createServiceRunner, DEFAULT_START_TIMEOUT, findRunners, kindOf }

@@ -64,11 +64,17 @@
 | MBW-P1-22 | Stop 测试 | **PASS** | P1-19 | stop → STOPPING → STOPPED，且**端口不再可连** | — |
 | MBW-P1-23 | Run 后重复 Stop | **PASS** | P1-22 | 第二次 stop 返回 `ok:false` 且不抛 | — |
 | MBW-P1-24 | 启动失败 | **PASS** | P1-19 | 可执行文件不存在 → `onEnd` 报 `ok:false` + 原因 | — |
-| MBW-P1-25 | 无监听服务超时 | TODO | P1-19 | STARTING → timeout → FAILED | 需引入超时窗口（独立任务）|
+| MBW-P1-25 | 无监听服务超时 | **PASS** | P1-19 | `startTimeout` + **inactivity 语义**（从最后一次输出算起）；超时→FAILED 且主动清掉进程 | 默认 60s，可配；持续输出不会误杀 |
 | MBW-P1-26 | 进程提前退出 | **PASS** | P1-19 | 启动即 exit 1 → FAILED，并上报退出码 | — |
-| MBW-P1-27 | 连续 10 次 Run | TODO | P1-19 | 10/10 | 接线已完成，现在可做 |
-| MBW-P1-28 | 连续 10 次 Run/Stop | TODO | P1-22 | 10/10，0 僵尸 | 同上 |
-| MBW-P1-29 | Run/Stop × 10 红线 | TODO | P1-28 | 0 卡死 / 0 browser 错误 / 0 zombie / 0 永久 STARTING | 同上 |
+| MBW-P1-27 | 连续 10 次 Run | **PASS** | P1-19 | 10/10 进入 RUNNING 并拿到 URL | — |
+| MBW-P1-28 | 连续 10 次 Run/Stop | **PASS** | P1-22 | 10/10，每个 pid 用 `process.kill(pid,0)` 复核已退出（0 僵尸） | — |
+| MBW-P1-29 | Run/Stop × 10 红线 | **PASS** | P1-28 | 0 zombie / 0 永久 STARTING / 0 browser 错误 / 没卡死（实测 10 轮 ≈ 6s） | renderer 卡死用总耗时代理 |
+
+> **P1-25 / P1-27～P1-29 实测**：`cd desktop && node test-run-e2e.js` → **47 通过 / 0 失败**（从 31 扩到 47）。
+> 记录：`docs/changes/phase2-p1-timeout-and-loops.md`。
+>
+> ⚠️ **Gate M1-A = 5/7**：run-url 与 demo rehearsal 两项仍卡在 **R12**（它们的验证要真跑 MoonBit native 项目）。
+> 已给出解法建议（把 `verify-run-url.js` 的靶子换成零依赖 fixture），待单独任务执行。
 
 > **P1-19 接线实测**：`cd desktop && node test-run-e2e.js` → **31 通过 / 0 失败**（从 17 扩到 31）。
 > 测试拓到 2 个真缺陷并已修：① `stop()` 进 STOPPING 未上报状态；② `close` 丢掉 `signal`。

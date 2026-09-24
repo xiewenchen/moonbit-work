@@ -44,6 +44,16 @@ function chk(name, ok, detail) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+/** 进程是否还活着（用来查僵尸）*/
+function isAlive(pid) {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (_) {
+    return false
+  }
+}
+
 /** 轮询直到 fn() 返回真值或超时 */
 async function waitUntil(fn, { timeout = 15000, interval = 100 } = {}) {
   const t0 = Date.now()
@@ -198,16 +208,16 @@ async function main() {
       onState: (s) => seen.push(s),
       onUrl: () => { stateAtUrl = runner.state },   // 抓 URL 的那一刻，状态应该**已经**是 RUNNING
     })
-    chk('start() 后进入 STARTING', runner.state, 'STARTING')
+    chk('start() 后进入 STARTING', runner.state === 'STARTING', runner.state)
 
     await waitUntil(() => stateAtUrl, { timeout: 15000 })
-    chk('抓到 URL 时状态已是 RUNNING（顺序：detect → update state → open browser）', stateAtUrl, 'RUNNING')
-    chk('打开浏览器时状态也是 RUNNING', stateAtBrowser, 'RUNNING')
+    chk('抓到 URL 时状态已是 RUNNING（顺序：detect → update state → open browser）', stateAtUrl === 'RUNNING', String(stateAtUrl))
+    chk('打开浏览器时状态也是 RUNNING', stateAtBrowser === 'RUNNING', String(stateAtBrowser))
 
     runner.stop()
-    chk('stop() 后进入 STOPPING', runner.state, 'STOPPING')
+    chk('stop() 后进入 STOPPING', runner.state === 'STOPPING', runner.state)
     await waitUntil(() => (runner.state === 'STOPPED' ? true : null), { timeout: 8000 })
-    chk('进程结束后进入 STOPPED', runner.state, 'STOPPED')
+    chk('进程结束后进入 STOPPED', runner.state === 'STOPPED', runner.state)
     chk('onState 收到过 RUNNING / STOPPING / STOPPED', ['RUNNING', 'STOPPING', 'STOPPED'].every((s) => seen.includes(s)), true)
   }
 
@@ -221,7 +231,7 @@ async function main() {
     const r = await waitUntil(() => ended, { timeout: 8000 })
     const keys = ['ok', 'status', 'exitCode', 'url', 'stdout', 'stderr', 'duration', 'error']
     chk('onEnd 带全 RunResult 字段', !!r && keys.every((k) => k in r), keys.filter((k) => !r || !(k in r)).join(','))
-    chk('status = STOPPED', r && r.status, 'STOPPED')
+    chk('status = STOPPED', !!r && r.status === 'STOPPED', String(r && r.status))
     chk('url 被记进结果', /^http:\/\/127\.0\.0\.1:\d+$/.test(String(r && r.url)), String(r && r.url))
     chk('duration 非负', !!r && r.duration >= 0, String(r && r.duration))
     chk('stdout 里有服务输出', !!r && String(r.stdout).includes('Server at'), String(r && r.stdout).slice(0, 40))
@@ -241,6 +251,94 @@ async function main() {
       && ['stdout', 'stderr'].includes(e0.stream)
       && typeof e0.chunk === 'string'
       && typeof e0.timestamp === 'number', JSON.stringify(e0))
+  }
+
+  console.log('\n=== ⑫ 无监听服务超时（P1-25）===')
+  {
+    const ended = []
+    const runner = createServiceRunner({ startTimeout: 1500 })   // 窗口留宽：免得进程冷启动比超时还慢（并发跑时会 flaky）
+    runner.start(
+      { bin: NODE, args: ['-e', 'console.log("starting up, will never listen"); setInterval(() => {}, 1000)'], cwd: __dirname },
+      { onEnd: (r) => ended.push(r) },
+    )
+    const hungPid = runner.handle && runner.handle.pid
+    chk('start 后处于 STARTING', runner.state === 'STARTING', runner.state)
+
+    const r = await waitUntil(() => ended[0] || null, { timeout: 10000 })
+    chk('超时后变 FAILED', runner.state === 'FAILED', runner.state)
+    chk('错误信息含「超时」', /超时/.test(String(r && r.error)), String(r && r.error))
+    chk('结果 ok=false', !!(r && r.ok === false), JSON.stringify(r && { ok: r.ok, status: r.status }))
+    chk('running=false', runner.running === false, String(runner.running))
+    if (hungPid) {
+      const dead = await waitUntil(() => (isAlive(hungPid) ? null : true), { timeout: 5000 })
+      chk('超时后进程被清掉（不留孤儿）', dead === true, 'pid ' + hungPid + ' 仍存活')
+    }
+  }
+
+  console.log('\n=== ⑬ 连续 10 次 Run（P1-27）===')
+  {
+    const RUNS = 10
+    const urls = []
+    let reachedRunning = 0
+    for (let i = 0; i < RUNS; i++) {
+      const runner = createServiceRunner({ openUrl: (u) => urls.push(u), startTimeout: 10000 })
+      runner.start({ bin: NODE, args: [FIXTURE], cwd: __dirname }, {})
+      const ok = await waitUntil(() => (runner.state === 'RUNNING' ? true : null), { timeout: 10000 })
+      if (ok) reachedRunning++
+      runner.stop()
+      await waitUntil(() => (runner.state === 'STOPPED' ? true : null), { timeout: 8000 })
+    }
+    chk(RUNS + ' 次都进入 RUNNING 且拿到 URL', reachedRunning === RUNS && urls.length === RUNS, `running=${reachedRunning} urls=${urls.length}`)
+  }
+
+  console.log('\n=== ⑭ Run/Stop × 10：无僵尸 / 无永久 STARTING（P1-28）===')
+  {
+    const RUNS = 10
+    const runner = createServiceRunner({ startTimeout: 10000 })
+    const pids = []
+    const browserErrors = []
+    let stuck = 0
+    const t0 = Date.now()
+
+    for (let i = 0; i < RUNS; i++) {
+      runner.start({ bin: NODE, args: [FIXTURE], cwd: __dirname }, {
+        onBrowserOpen: (b) => { if (!b.ok) browserErrors.push(b) },
+      })
+      const pid = runner.handle && runner.handle.pid
+      if (pid) pids.push(pid)
+      await waitUntil(() => (runner.state === 'RUNNING' ? true : null), { timeout: 10000 })
+      runner.stop()
+      await waitUntil(() => (runner.state === 'STOPPED' ? true : null), { timeout: 8000 })
+      if (runner.state !== 'STOPPED') stuck++
+      if (pid) await waitUntil(() => (isAlive(pid) ? null : true), { timeout: 5000 })
+    }
+
+    const alive = pids.filter((p) => isAlive(p)).length
+    const elapsed = Date.now() - t0
+    chk(RUNS + ' 轮都停在 STOPPED（0 永久 STARTING / RUNNING）', stuck === 0, 'stuck=' + stuck)
+    chk(RUNS + ' 个进程全部退出（0 僵尸）', alive === 0, `alive=${alive}/${pids.length}`)
+    chk('每轮都是新进程', new Set(pids).size === pids.length, `unique=${new Set(pids).size}/${pids.length}`)
+
+    console.log('\n=== ⑮ 红线汇总（P1-29）===')
+    chk('0 zombie', alive === 0, String(alive))
+    chk('0 永久 STARTING', stuck === 0, String(stuck))
+    chk('0 browser 错误', browserErrors.length === 0, JSON.stringify(browserErrors.slice(0, 2)))
+    chk('没卡死（10 轮 ' + Math.round(elapsed / 1000) + 's，上限 60s）', elapsed < 60000, elapsed + 'ms')
+  }
+
+  console.log('\n=== ⑯ 超时是 inactivity 语义：持续输出不会被误杀（P1-25）===')
+  {
+    const runner = createServiceRunner({ startTimeout: 1500 })
+    // 每 300ms 吐一行 —— 永远不监听端口，但一直在输出（模拟「编译很久」）
+    runner.start(
+      { bin: NODE, args: ['-e', 'setInterval(() => console.log("compiling..."), 300)'], cwd: __dirname },
+      {},
+    )
+    await sleep(4000)   // 远超 1500ms 的静默窗口
+    chk('持续有输出 → 不判超时（仍是 STARTING）', runner.state === 'STARTING', runner.state)
+    runner.stop()
+    await waitUntil(() => (runner.state === 'STOPPED' ? true : null), { timeout: 6000 })
+    chk('停止后回到 STOPPED', runner.state === 'STOPPED', runner.state)
   }
 
   console.log('\n结果：' + pass + ' 通过 / ' + fail + ' 失败 / 共 ' + (pass + fail) + ' 项')
