@@ -84,6 +84,7 @@ jobs:
           node test-url-detect.js        # URL 检测（含「正则在生产代码里只有一处实现」的防漂移断言）
           node test-run-state.js         # Run 生命周期原语（状态枚举/转换/ProcessHandle/RunResult）
           node test-project-context.js   # 单一工程上下文（类型归一/命令推导/无项目态/多项目判定）
+          node test-commands.js          # Command Registry（注册/执行/超时/日志 + 6 个项目命令）
 
       # Run 链路 E2E：spawn → 抓 URL → 打开浏览器（测试里注入桩）→ 页面可访问 → 停止。
       # 靶子是纯 Node 服务（desktop/testdata/fixture-http-server.js）—— **不需要 Electron、

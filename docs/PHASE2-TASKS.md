@@ -90,7 +90,7 @@
 | Phase | 主题 | Status |
 |---|---|---|
 | P2 | ProjectContext（单一工程上下文） | **进行中**：P2-01～P2-05 PASS；P2-06～P2-18 待做 |
-| P3 | Command Registry | TODO |
+| P3 | Command Registry | **进行中**：P3-01～P3-08、P3-13～P3-15 PASS；P3-09～P3-12（接线）待做 |
 | P4 | Problem Model | TODO |
 | P5 | Agent Context | TODO |
 | P5.5 | Agent 安全门（路径/命令沙箱、超时、输出限制、IPC 审查） | TODO |
