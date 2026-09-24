@@ -96,7 +96,7 @@
 | P5.5 | Agent 安全门 | **PASS**（门已建好，尚未装到 Agent 执行路径上）：Path/Command Sandbox、Timeout、Output Limit、IPC 审查全部完成 |
 | P6 | Agent Read-only Tools | **PASS（含接线）**：七个工具 + 统一结果 + 审计字段 + **接到真实数据**（19/0 验证）；喂给 Agent 属 P7 |
 | P7 | Agent Execute Tools | **PASS（含接线）**：六个执行工具（一律经命令表）+ 审计 + 预算 + 失败不重试；**执行表拒绝 write**（仍不能改文件）；喂给 Agent 待做 |
-| P8 | Agent Modify（Patch） | **PASS（核心层）**：默认拒绝/精确匹配/备份先行/失败回滚/危险目标判定 + 36 项安全单测；**UI 确认对话框未做** |
+| P8 | Agent Modify（Patch） | **PASS**：核心层（默认拒绝/精确匹配/备份先行/失败回滚）+ **UI 确认对话框**（28/0 真点击验证）；接到 Agent 属 P9 |
 | P9 | Agent Verification Loop | TODO |
 | P10 | Session | TODO |
 | P11 | 项目级 Agent Memory | TODO |

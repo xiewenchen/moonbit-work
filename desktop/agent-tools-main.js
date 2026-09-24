@@ -143,7 +143,7 @@ function registerAgentToolIpc({ ipcMain, getWindow, getRunner, executeCommand })
     execRegistry.call(payload.name, payload.args || {}))
   ipcMain.handle('agentTools:execAudit', () => ({ ok: true, audit: execRegistry.audit(), budget: execRegistry.budget() }))
 
-  return { read: registry, exec: execRegistry }
+  return { read: registry, exec: execRegistry, getWorkspace: () => workspace }
 }
 
 module.exports = { registerAgentToolIpc }

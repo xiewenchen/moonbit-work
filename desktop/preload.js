@@ -106,6 +106,11 @@ contextBridge.exposeInMainWorld('moonAPI', {
   agentToolsExecList: () => ipcRenderer.invoke('agentTools:execList'),
   agentToolsExecCall: (name, args) => ipcRenderer.invoke('agentTools:execCall', { name, args }),
   agentToolsExecAudit: () => ipcRenderer.invoke('agentTools:execAudit'),
+  // ---- Patch（P8）：两阶段 —— propose 拿 token 与预览，**用户确认后**才 apply ----
+  agentPatchPropose: (patch) => ipcRenderer.invoke('agentPatch:propose', patch),
+  agentPatchApply: (token) => ipcRenderer.invoke('agentPatch:apply', { token }),
+  agentPatchCancel: (token) => ipcRenderer.invoke('agentPatch:cancel', { token }),
+  agentPatchAudit: () => ipcRenderer.invoke('agentPatch:audit'),
 
   // 注：ProjectContext 不在这里过桥 —— 本 preload 是 sandbox:true，
   // require 本地文件会让整个 preload 挂掉（实测踩过）。

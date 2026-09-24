@@ -828,8 +828,64 @@ async function boot(dir) {
   }
 }
 
-/** 关闭当前项目：清掉上下文与依赖它的缓存，回到「无项目态」（P2-18）*/
-async function closeProject() {
+// ── P8 补完：Patch 预览对话框（真正的「用户确认」）──────────────────────────────
+/**
+ * 展示 patch 预览，等用户点「应用」或「取消」。
+ * 用动态 DOM 创建 —— **不改 index.html**（那是转译产物，直接改会被下次转译覆盖）。
+ */
+function showPatchDialog(proposal) {
+  return new Promise((resolve) => {
+    const old = document.getElementById('patchDialog')
+    if (old) old.remove()
+    const mask = document.createElement('div')
+    mask.id = 'patchDialog'
+    mask.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999'
+    const card = document.createElement('div')
+    card.style.cssText = 'max-width:880px;width:92%;max-height:82vh;display:flex;flex-direction:column;background:#1e1e1e;color:#ddd;border:1px solid #333;border-radius:8px;padding:14px;box-shadow:0 10px 40px rgba(0,0,0,.5)'
+    const title = document.createElement('div')
+    title.textContent = '确认修改：' + (proposal.file || '') + (proposal.summary ? '（' + proposal.summary + '）' : '')
+    title.style.cssText = 'font-weight:600;margin-bottom:8px'
+    const meta = document.createElement('div')
+    const a = proposal.analysis || {}
+    meta.textContent = '新增约 ' + (a.addedLines || 0) + ' 行 / 删除约 ' + (a.removedLines || 0) + ' 行 · 应用前会自动备份'
+    meta.style.cssText = 'font-size:11px;color:#888;margin-bottom:8px'
+    const pre = document.createElement('pre')
+    pre.textContent = proposal.preview || ''
+    pre.style.cssText = 'flex:1;overflow:auto;white-space:pre-wrap;font-size:12px;line-height:1.5;background:#121212;border:1px solid #2a2a2a;border-radius:6px;padding:10px;margin:0'
+    const bar = document.createElement('div')
+    bar.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:12px'
+    const cancel = document.createElement('button')
+    cancel.textContent = '取消'
+    cancel.style.cssText = 'padding:6px 14px;background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:6px;cursor:pointer'
+    const apply = document.createElement('button')
+    apply.textContent = '应用'
+    apply.style.cssText = 'padding:6px 14px;background:#2b6cb0;color:#fff;border:1px solid #2b6cb0;border-radius:6px;cursor:pointer'
+    cancel.onclick = () => { mask.remove(); resolve(false) }
+    apply.onclick = () => { mask.remove(); resolve(true) }
+    bar.appendChild(cancel)
+    bar.appendChild(apply)
+    card.appendChild(title)
+    card.appendChild(meta)
+    card.appendChild(pre)
+    card.appendChild(bar)
+    mask.appendChild(card)
+    document.body.appendChild(mask)
+  })
+}
+
+/** 提议 → 用户确认 → 应用（一条龙；Agent 与验证脚本都用它）*/
+async function proposeAndApplyPatch(patch) {
+  const p = await window.moonAPI.agentPatchPropose(patch)
+  if (!p || !p.ok) return p
+  const ok = await showPatchDialog(p)
+  if (!ok) {
+    await window.moonAPI.agentPatchCancel(p.token)
+    return { ok: false, reason: 'cancelled', error: '用户取消了修改' }
+  }
+  return await window.moonAPI.agentPatchApply(p.token)
+}
+
+/** 关闭当前项目：清掉上下文与依赖它的缓存，回到「无项目态」（P2-18）*/async function closeProject() {
   projectCtx = null
   projectInfoCache = null
   symbolsList = null
@@ -872,6 +928,15 @@ window.moonbitIDE = {
       list: () => window.moonAPI.agentToolsExecList(),
       call: (name, args) => window.moonAPI.agentToolsExecCall(name, args),
       audit: () => window.moonAPI.agentToolsExecAudit(),
+    },
+    // P8：改文件走 Patch —— 两阶段（propose → 用户确认 → apply）。
+    // **没有直接写文件的能力**：Agent 只能提议，落盘必须过用户那一下。
+    patch: {
+      propose: (patch) => window.moonAPI.agentPatchPropose(patch),
+      apply: (token) => window.moonAPI.agentPatchApply(token),
+      cancel: (token) => window.moonAPI.agentPatchCancel(token),
+      proposeAndApply: proposeAndApplyPatch,
+      audit: () => window.moonAPI.agentPatchAudit(),
     },
   },
   // 问题模型（P4）：对外提供只读查询 + 一个"写入发现"的入口。

@@ -1,0 +1,46 @@
+
+=== ① 打开临时 workspace ===
+  [PASS] workspace 指向临时项目
+
+=== ② propose：校验 + 预览 + token ===
+  [PASS] 正常 patch → ok + token + preview
+  [PASS] 带 diff 分析
+  [PASS] 越界 → 拒
+  [PASS] 危险目标（.git）→ 拒
+  [PASS] old 匹配不上 → 拒
+
+=== ③ 取消 → 文件一个字节都不许变 ===
+  [PASS] cancel 成功
+  [PASS] 取消后 token 失效
+  [PASS] **文件内容没变**
+
+=== ④ apply：真的改 + 真的备份 + token 一次性 ===
+  [PASS] apply 成功
+  [PASS] 文件真的改了
+  [PASS] **备份存在且内容是改前的**
+  [PASS] token 一次性（再 apply 被拒）
+
+=== ⑤ 真实对话框：点「应用」===
+  [PASS] 对话框出现了
+  [PASS] 有「取消 / 应用」两个按钮
+  [PASS] 标题含文件名与摘要
+  [PASS] 对话框已关闭
+  [PASS] 应用结果 ok
+  [PASS] 文件经对话框改了
+  [PASS] 改动前的内容确实不同
+
+=== ⑥ 真实对话框：点「取消」→ 文件不变 ===
+  [PASS] 对话框出现
+  [PASS] 结果是 cancelled
+  [PASS] **文件一个字节都没变**
+  [PASS] 对话框已关闭
+
+=== ⑦ 审计 ===
+  [PASS] 有审计记录
+  [PASS] 含 applied 与 cancelled 两类
+
+=== ⑧ Agent 侧没有"直接写文件"的能力 ===
+  [PASS] patch API 只有 propose/apply/cancel（+审计）
+  [PASS] 没有 writeFile 这类入口
+
+结果：28 通过 / 0 失败 / 共 28 项
