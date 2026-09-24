@@ -871,7 +871,9 @@ async function showProviderPanel() {
     listBox.innerHTML = ''
     const r = await window.moonAPI.aiProviderList()
     const st = await window.moonAPI.aiProviderStorage()
-    hint.textContent = '配置文件：' + ((st && st.file) || '?') + '（在用户目录，不进项目）'
+    const act = await window.moonAPI.aiProviderActive()
+    hint.style.color = '#888'
+    hint.textContent = '配置：' + ((st && st.file) || '?') + '（用户目录，不进项目）　当前生效：' + ((act && act.model) || '（未配置）')
     const items = (r && r.providers) || []
     if (!items.length) {
       const d = mk('div', { textContent: '（还没有配置）' })
@@ -897,7 +899,17 @@ async function showProviderPanel() {
       const delBtn = mk('button', { textContent: '删除' })
       delBtn.style.cssText = testBtn.style.cssText
       delBtn.onclick = async () => { await window.moonAPI.aiProviderRemove(p.name); refresh() }
-      row.appendChild(info); row.appendChild(res); row.appendChild(testBtn); row.appendChild(delBtn)
+      // 激活 = 把它写成 opencode 当前使用的模型（合并、不覆盖其它 provider）
+      const actBtn = mk('button', { textContent: '激活' })
+      actBtn.style.cssText = 'padding:3px 10px;background:#2b6cb0;color:#fff;border:1px solid #2b6cb0;border-radius:5px;cursor:pointer'
+      actBtn.onclick = async () => {
+        const a = await window.moonAPI.aiProviderActivate(p.name)
+        if (!a || !a.ok) { res.textContent = '✗ ' + String((a && a.error) || '激活失败'); res.style.color = '#fc8181'; return }
+        res.textContent = '✓ 已激活'
+        res.style.color = '#68d391'
+        await refresh()
+      }
+      row.appendChild(info); row.appendChild(res); row.appendChild(actBtn); row.appendChild(testBtn); row.appendChild(delBtn)
       listBox.appendChild(row)
     }
   }
@@ -1047,6 +1059,8 @@ window.moonbitIDE = {
       remove: (name) => window.moonAPI.aiProviderRemove(name),
       test: (p) => window.moonAPI.aiProviderTest(p),
       storage: () => window.moonAPI.aiProviderStorage(),
+      activate: (name) => window.moonAPI.aiProviderActivate(name),
+      active: () => window.moonAPI.aiProviderActive(),
       openPanel: () => showProviderPanel(),
     },
   },

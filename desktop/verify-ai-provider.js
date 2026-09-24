@@ -15,7 +15,24 @@ const TEST_NAME = '__verify_provider__'
 const REAL_KEY = 'sk-verify-abcdefghijklmnop1234'
 const lines = []
 const log = (s) => { lines.push(String(s)); console.log(s) }
+
+// ★ opencode 的真实模型配置：本脚本会写它（验证激活），所以必须备份 + 任何退出路径都还原
+let CFG_PATH = null
+let CFG_BACKUP = null
+function restoreCfg() {
+  try {
+    if (!CFG_PATH) return
+    if (CFG_BACKUP === null) {
+      if (fs.existsSync(CFG_PATH)) fs.unlinkSync(CFG_PATH)
+    } else {
+      fs.writeFileSync(CFG_PATH, CFG_BACKUP, 'utf8')
+    }
+  } catch (e) {
+    console.log('[WARN] 还原 opencode 配置失败：' + String((e && e.message) || e))
+  }
+}
 function dump(code) {
+  restoreCfg()                                    // ★ 无论怎么退出，都把用户的配置还原
   try {
     fs.writeFileSync(OUT, lines.join('\n') + '\n', 'utf8')
   } catch (e) {
@@ -122,6 +139,57 @@ app.whenReady().then(async () => {
     const list = await P('await window.moonbitIDE.agentTools.provider.list()')
     chk('清单里没有了', !(list.providers || []).some((x) => x.name === TEST_NAME))
     chk('删不存在的 → 明确失败', (await P(`await window.moonbitIDE.agentTools.provider.remove('__nope__')`)).ok === false, true)
+  }
+
+  log('\n=== ⑦ 激活：翻译成 opencode 配置（合并写回，不能破坏已有 provider）===')
+  {
+    const act0 = await P('await window.moonbitIDE.agentTools.provider.active()')
+    CFG_PATH = act0.file
+    CFG_BACKUP = fs.existsSync(CFG_PATH) ? fs.readFileSync(CFG_PATH, 'utf8') : null
+    log('   opencode 配置：' + CFG_PATH + '（备份 ' + (CFG_BACKUP === null ? '无（原本不存在）' : CFG_BACKUP.length + ' 字节') + '）')
+
+    const before = CFG_BACKUP ? JSON.parse(CFG_BACKUP.replace(/^\s*\/\/.*$/gm, '')) : {}
+    const beforeIds = Object.keys(before.provider || {})
+    log('   激活前的 provider：' + JSON.stringify(beforeIds))
+
+    // 先存一个可激活的 provider（测试用名）
+    await P(`await window.moonbitIDE.agentTools.provider.save(${JSON.stringify({
+      name: TEST_NAME, type: 'openai', apiKey: REAL_KEY, model: 'gpt-4o-mini',
+    })})`)
+    const a = await P(`await window.moonbitIDE.agentTools.provider.activate(${JSON.stringify(TEST_NAME)})`)
+    chk('激活成功', a.ok === true, JSON.stringify(a).slice(0, 120))
+    eq('返回的 model 是 id/model 形式', a.model, a.id + '/gpt-4o-mini')
+
+    const after = JSON.parse(fs.readFileSync(CFG_PATH, 'utf8'))
+    chk('配置里出现了该 provider', !!(after.provider && after.provider[a.id]), Object.keys((after.provider || {})).join(','))
+    eq('provider 的 baseURL 写对了', after.provider[a.id].options.baseURL, 'https://api.openai.com/v1')
+    eq('apiKey 真的写进去了（否则根本驱动不了）', after.provider[a.id].options.apiKey, REAL_KEY)
+    eq('npm 驱动是 openai-compatible', after.provider[a.id].npm, '@ai-sdk/openai-compatible')
+    eq('models 里有那个模型', Object.keys(after.provider[a.id].models || {}), ['gpt-4o-mini'])
+    eq('顶层 model 指向它', after.model, a.model)
+    chk('**原有 provider 一个都没丢**（合并而非覆盖）',
+      beforeIds.every((id) => !!(after.provider && after.provider[id])), JSON.stringify({ before: beforeIds, after: Object.keys(after.provider || {}) }))
+    eq('原有顶层字段保留（如 $schema）', after.$schema, before.$schema)
+
+    const act1 = await P('await window.moonbitIDE.agentTools.provider.active()')
+    eq('active() 读回来一致', [act1.model, act1.baseUrl], [a.model, 'https://api.openai.com/v1'])
+
+    chk('激活不存在的 → 拒', (await P(`await window.moonbitIDE.agentTools.provider.activate('__nope__')`)).ok === false)
+    // 缺 Key 的 openai 类型不能激活（写进去也没用）
+    await P(`await window.moonbitIDE.agentTools.provider.save(${JSON.stringify({ name: TEST_NAME + '_nokey', type: 'ollama' })})`)
+    chk('ollama 类型（不需要 key）可以激活', (await P(`await window.moonbitIDE.agentTools.provider.activate(${JSON.stringify(TEST_NAME + '_nokey')})`)).ok === true)
+    await P(`await window.moonbitIDE.agentTools.provider.remove(${JSON.stringify(TEST_NAME + '_nokey')})`)
+
+    // 面板上要有「激活」按钮
+    await js('window.moonbitIDE.agentTools.provider.openPanel()')
+    await sleep(800)
+    const btnTexts = await js(`JSON.stringify(Array.from(document.querySelectorAll('#providerPanel button')).map(x => x.textContent))`)
+    chk('面板有「激活」按钮', String(btnTexts).includes('激活'), String(btnTexts).slice(0, 140))
+    chk('面板显示了「当前生效」', /当前生效/.test(await js(`(document.getElementById('providerPanel') || {}).textContent || ''`)))
+    await js(`(() => { const b = Array.from(document.querySelectorAll('#providerPanel button')).find(x => x.textContent === '关闭'); if (b) b.click() })()`)
+    await sleep(300)
+    // 收尾：第 ⑦ 组自己存的 provider 也要删掉，否则会留在用户的 providers.json 里
+    await P(`await window.moonbitIDE.agentTools.provider.remove(${JSON.stringify(TEST_NAME)})`)
   }
 
   log('\n结果：' + pass + ' 通过 / ' + fail + ' 失败 / 共 ' + (pass + fail) + ' 项')

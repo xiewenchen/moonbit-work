@@ -235,4 +235,6 @@ function registerAgentIpc({ getWindow }) {
   })
 }
 
-module.exports = { registerAgentIpc, findOpencode, CFG_FILE }
+// readConfig / writeConfig 也导出：P12 的 Provider 激活要**复用同一套读写**
+// （否则「配置模型」弹窗与「Provider 面板」会各写一份、格式漂移）
+module.exports = { registerAgentIpc, findOpencode, CFG_FILE, configPath, readConfig, writeConfig }

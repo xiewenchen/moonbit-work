@@ -130,6 +130,8 @@ contextBridge.exposeInMainWorld('moonAPI', {
   aiProviderRemove: (name) => ipcRenderer.invoke('aiProvider:remove', { name }),
   aiProviderTest: (p) => ipcRenderer.invoke('aiProvider:test', p),
   aiProviderStorage: () => ipcRenderer.invoke('aiProvider:storage'),
+  aiProviderActivate: (name) => ipcRenderer.invoke('aiProvider:activate', { name }),
+  aiProviderActive: () => ipcRenderer.invoke('aiProvider:active'),
 
   // 注：ProjectContext 不在这里过桥 —— 本 preload 是 sandbox:true，
   // require 本地文件会让整个 preload 挂掉（实测踩过）。
