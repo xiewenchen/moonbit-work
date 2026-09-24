@@ -89,7 +89,7 @@
 
 | Phase | 主题 | Status |
 |---|---|---|
-| P2 | ProjectContext（单一工程上下文） | TODO |
+| P2 | ProjectContext（单一工程上下文） | **进行中**：P2-01～P2-05 PASS；P2-06～P2-18 待做 |
 | P3 | Command Registry | TODO |
 | P4 | Problem Model | TODO |
 | P5 | Agent Context | TODO |
@@ -123,6 +123,26 @@
 | MBW-X2 | P1 | **run-url 换零依赖靶子 + 修「shell 启动留孤儿」真缺陷** | **PASS** | `verify-run-url` **5/5**；`verify:demo` **7/0**；`test-run-e2e` **51/0**；端口监听数独立核对 = 0 | 200d78c | 记录：`changes/phase2-p1-run-url-target-and-orphan-fix.md` |
 
 > **Gate M1-A 已 7/7 通过**；**P1-01～P1-29 全部 PASS** → 按 Gate A 可进入 **P2（ProjectContext）**。
+
+---
+
+## P2 明细（ProjectContext）
+
+| ID | Task | Status | Verification | Notes |
+|---|---|---|---|---|
+| MBW-P2-01 | 统计重复状态（只读） | **PASS** | 盘点表见 `changes/phase2-p2-context.md` §一 | 项目根散在 **4 处**且不同步；类型有 **2 套算法** |
+| MBW-P2-02 | 定义 ProjectContext | **PASS** | `desktop/project-context.js`：9 个字段 + label/features/createdAt，**整对象冻结** | — |
+| MBW-P2-03 | 定义 ProjectType | **PASS** | 8 种类型（含 java/static）+ 归一化（大小写/怪输入） | — |
+| MBW-P2-04 | project-detect 只负责识别 | **PASS**（审计） | 逐条核对：只返回 ProjectInfo、无启动/编译/改 UI | 唯一可议：`cwd \|\| DEFAULT_CWD` 回退属根解析，待迁移 |
+| MBW-P2-05 | 建 ProjectContext Factory | **PASS** | `createProjectContext(info, overrides)` + TYPE_SPEC 推导命令 | 含与真实 `detectProject()` 的集成断言 |
+| MBW-P2-06 / 07 | 迁移 Renderer + 回归 | TODO | — | — |
+| MBW-P2-08 / 09 | 迁移 Runner + 回归 | TODO | — | — |
+| MBW-P2-10 ～ P2-14 | 迁移 LSP / Terminal / API / Problems / Agent | TODO | — | `api-debug.js:145` 固定用 DEFAULT_CWD 的疑似缺陷待一并处理 |
+| MBW-P2-15 | 逐个废弃旧变量 | TODO | — | 一次删一个 + 回归（RULE-04） |
+| MBW-P2-16/17/18 | 无项目态 / 多项目切换 / 关闭项目 | TODO | — | `hasProject()` / `isSameProject()` 已就位 |
+
+> **P2-01～P2-05 实测**：`cd desktop && node test-project-context.js` → **36 通过 / 0 失败**。
+> 记录：`docs/changes/phase2-p2-context.md`。**未改动任何调用点**（renderer/runners/main/lsp-manager… 均零改动）。
 
 **MBW-X1 覆盖映射（诚实）**：P1-19 链路核心 ✅ / P1-20 ✅ / P1-21 ✅ / P1-22 ✅ / P1-23 ✅ / P1-24 ✅ / P1-26 ✅；
 **P1-25（无监听超时）与 P1-27～P1-29（连续 10 次）仍未覆盖** —— 需要状态机（P1-14～P1-18）。
