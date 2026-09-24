@@ -105,6 +105,20 @@ let editor = null
 // projectInfoCache / lspRoot 仍在用，按 RULE-04 逐个处理（一次删一个 + 回归）。
 let projectCtx = null
 
+// 问题统一到一个 Store（P4）：目前写进「诊断」与「运行时」两类，
+// 将来 测试 / API / Agent 也往这里写 —— 面板只从它渲染。
+// 模块来自 index.html 的 <script src="./problem-model.js">（与 project-context 同理）。
+let problemStore = null
+// 延迟创建：renderer.js 在本页**先于** problem-model.js 加载（见 index.html 的 script 顺序），
+// 若在模块顶层就读 window.MoonbitProblems，拿到的永远是 undefined（实测踩到）。
+function getProblemStore() {
+  if (problemStore) return problemStore
+  if (typeof window !== 'undefined' && window.MoonbitProblems) {
+    problemStore = window.MoonbitProblems.createProblemStore()
+  }
+  return problemStore
+}
+
 // 传给主进程的「根」：优先用单一工程上下文（P2），但**必须与地址栏一致**才认 ——
 // 否则可能拿一个过期上下文去调 IPC（例如用户手改了地址栏、还没重新打开项目）。
 // 不一致（或还没打开项目）时退回地址栏的值，行为与迁移前完全一致。
@@ -833,6 +847,27 @@ window.moonbitIDE = {
     list: () => window.moonAPI.commandList(),
     execute: (name, args, opts) => window.moonAPI.commandExecute(name, args, opts),
   },
+  // 问题模型（P4）：对外提供只读查询 + 一个"写入发现"的入口。
+  // report 的正当用途是 P4-08「Agent 发现 → Problem」（P7 会把它接到 Agent 工具里），
+  // 有了它，五类问题才真的都进同一个 Store。
+  problems: {
+    list: (filter) => {
+      const s = getProblemStore()
+      return s ? s.list(filter) : []
+    },
+    stats: () => {
+      const s = getProblemStore()
+      return s ? s.stats() : null
+    },
+    refresh: () => refreshProblemPanel(),
+    report: (finding) => {
+      const s = getProblemStore()
+      if (!s || !window.MoonbitProblems) return 0
+      const n = s.add(window.MoonbitProblems.fromAgentFinding(finding))
+      refreshProblemPanel()
+      return n
+    },
+  },
 }
 
 // 顶栏按钮的中文名（给提示语用）
@@ -1312,21 +1347,42 @@ function highlightErrorLines() {
 }
 
 function renderProblems(diags) {
-  lastDiags = diags || []
+  if (diags) lastDiags = diags
   const el = $('problems')
   el.innerHTML = ''
-  const rows = []
-  for (const d of lastDiags) rows.push({ ...d, kind: 'compile' })
-  for (const r of runtimeLocs) {
-    rows.push({
-      severity: 'error',
-      file: r.file,
-      line: r.line,
-      col: r.col,
-      message: '运行时错误位置（来自崩溃堆栈）',
-      kind: 'runtime',
-    })
+
+  // P4：诊断与运行时都进**同一个** Store，面板只从它渲染 —— 五类问题统一在一处。
+  let rows = []
+  const P = window.MoonbitProblems
+  const store = getProblemStore()
+  if (store && P) {
+    store.replaceSource(P.PROBLEM_SOURCE.LSP, P.fromLspDiagnostics(lastDiags || []))
+    store.replaceSource(P.PROBLEM_SOURCE.RUNTIME, P.fromRuntimeLocs(runtimeLocs || []))
+    rows = store.list().map((p) => ({
+      severity: p.severity,
+      file: p.file,
+      line: p.line,
+      col: p.column,
+      message: p.message,
+      kind: p.source === P.PROBLEM_SOURCE.RUNTIME ? 'runtime' : 'compile',
+      source: p.source,
+      id: p.id,
+    }))
+  } else {
+    // 兜底：Store 没加载时退回旧行为（总比面板空白好）
+    for (const d of lastDiags) rows.push(Object.assign({}, d, { kind: 'compile' }))
+    for (const r of runtimeLocs) {
+      rows.push({
+        severity: 'error',
+        file: r.file,
+        line: r.line,
+        col: r.col,
+        message: '运行时错误位置（来自崩溃堆栈）',
+        kind: 'runtime',
+      })
+    }
   }
+
   if (!rows.length) {
     const d = document.createElement('div')
     d.className = 'diag'
@@ -1350,14 +1406,18 @@ function renderProgressRows(el, rows) {
     row.className = 'diag ' + d.severity
     const loc = document.createElement('span')
     loc.className = 'loc'
-    loc.textContent =
-      d.file.split(/[\/]/).pop() + ':' + d.line + (d.col ? ':' + d.col : '') + '  '
+    // 统一模型后会有「没有文件位置」的问题（测试/API/Agent 类），别在这里抛
+    const base = d.file ? String(d.file).split(/[\/\\]/).pop() : '（无文件）'
+    loc.textContent = base + (d.file ? ':' + d.line + (d.col ? ':' + d.col : '') : '') + '  '
     row.appendChild(loc)
     const mark = d.severity === 'error' ? 'x ' : '! '
     row.appendChild(document.createTextNode(mark + d.message))
-    row.onclick = async () => {
-      await openFile(d.file)
-      jumpToLine(d.line, d.col)
+    // 只有带位置的问题才能跳转
+    if (d.file) {
+      row.onclick = async () => {
+        await openFile(d.file)
+        jumpToLine(d.line, d.col)
+      }
     }
     el.appendChild(row)
   }

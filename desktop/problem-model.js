@@ -12,7 +12,14 @@
  * 本批只建模型与 Store；把它接到问题面板 / 编辑器高亮属下一批（RULE-04）。
  */
 
-const { parseDiagnostics } = require('./lsp-parse')
+// 解析器的取用延后到调用时：Node 走 require，浏览器走全局
+// （双环境导出见 lsp-parse.js；这里不能在模块顶层 require，否则浏览器里直接报错）
+function getParseDiagnostics() {
+  if (typeof window !== 'undefined') {
+    return (window.MoonbitLspParse && window.MoonbitLspParse.parseDiagnostics) || null
+  }
+  return require('./lsp-parse').parseDiagnostics
+}
 
 // ── P4-02 严重度 ──────────────────────────────────────────────────────────────
 const SEVERITY = Object.freeze({ ERROR: 'error', WARNING: 'warning', INFO: 'info' })
@@ -102,7 +109,9 @@ function fromLspDiagnostics(diags, opts = {}) {
 
 /** P4-04 编译器输出（`moon check` 文本）→ Problem —— 复用已有的解析器，不重写正则 */
 function fromCompilerOutput(text, opts = {}) {
-  return fromLspDiagnostics(parseDiagnostics(text), Object.assign({ source: PROBLEM_SOURCE.COMPILER }, opts))
+  const parse = getParseDiagnostics()
+  if (typeof parse !== 'function') return []   // 浏览器里没加载 lsp-parse 时不报错，只是解析不出来
+  return fromLspDiagnostics(parse(text), Object.assign({ source: PROBLEM_SOURCE.COMPILER }, opts))
 }
 
 /** P4-05 运行时位置 → Problem（接受 renderer 已经解析好的 {file,line,col}，不重复解析）*/
@@ -306,24 +315,29 @@ function createProblemStore({ limit = 2000, historyLimit = 500 } = {}) {
   }
 }
 
-module.exports = {
-  SEVERITY,
-  SEVERITY_ORDER,
-  ALL_SEVERITIES,
-  PROBLEM_SOURCE,
-  ALL_SOURCES,
-  PROBLEM_LIFECYCLE,
-  ALL_LIFECYCLES,
-  normalizeSeverity,
-  normalizeSource,
-  normalizeLifecycle,
-  fingerprint,
-  createProblem,
-  fromLspDiagnostics,
-  fromCompilerOutput,
-  fromRuntimeLocs,
-  fromTestResult,
-  fromApiResult,
-  fromAgentFinding,
-  createProblemStore,
-}
+// 导出用 IIFE 包起来（同 lsp-parse.js）：浏览器全局作用域里不能裸写 `const API`。
+;(function () {
+  const API = {
+    SEVERITY,
+    SEVERITY_ORDER,
+    ALL_SEVERITIES,
+    PROBLEM_SOURCE,
+    ALL_SOURCES,
+    PROBLEM_LIFECYCLE,
+    ALL_LIFECYCLES,
+    normalizeSeverity,
+    normalizeSource,
+    normalizeLifecycle,
+    fingerprint,
+    createProblem,
+    fromLspDiagnostics,
+    fromCompilerOutput,
+    fromRuntimeLocs,
+    fromTestResult,
+    fromApiResult,
+    fromAgentFinding,
+    createProblemStore,
+  }
+  if (typeof module !== 'undefined' && module.exports) module.exports = API
+  if (typeof window !== 'undefined') window.MoonbitProblems = API
+})()

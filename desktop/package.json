@@ -23,7 +23,8 @@
     "dist": "electron-builder --win --x64",
     "verify:demo": "node verify-demo.js",
     "verify:demo:fast": "node verify-demo.js --fast",
-    "verify:multiproject": "electron verify-multiproject.js"
+    "verify:multiproject": "electron verify-multiproject.js",
+    "verify:problems": "electron verify-problems.js"
   },
   "devDependencies": {
     "@xterm/addon-fit": "^0.10.0",

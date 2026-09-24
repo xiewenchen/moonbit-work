@@ -53,4 +53,14 @@ function parseOutline(text) {
   return out
 }
 
-module.exports = { parseDiagnostics, parseOutline }
+// 导出用 IIFE 包起来 —— 这三个文件在**同一个浏览器全局作用域**里执行，
+// 顶层裸写 `const API` 会让后来者抛 "Identifier 'API' has already been declared"
+// （Node 里各自是独立模块作用域，所以单测发现不了 —— 实测踩到）。
+;(function () {
+  const API = { parseDiagnostics, parseOutline }
+
+  // 双环境导出：Node（单测 / CI / 主进程）走 CommonJS；
+  // 渲染进程通过 index.html 的 <script> 取全局 —— preload 是 sandbox:true，不能 require 本地文件。
+  if (typeof module !== 'undefined' && module.exports) module.exports = API
+  if (typeof window !== 'undefined') window.MoonbitLspParse = API
+})()

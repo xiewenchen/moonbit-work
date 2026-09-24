@@ -170,28 +170,27 @@ function describeContext(ctx) {
   return `${ctx.label}（${ctx.projectType}）@ ${ctx.rootDir}`
 }
 
-const API = {
-  PROJECT_TYPE,
-  ALL_TYPES,
-  TYPE_SPEC,
-  normalizeType,
-  rootOfInput,
-  normalizeRoot,
-  // 短名：渲染进程里写起来顺手（`window.moonbitProjectContext.create(...)`）。
-  // 两个名字都指同一个函数 —— 曾因为只有全名、而 renderer 调的是 create，
-  // 导致「打开项目」整条路径静默失败（文件树空），所以现在显式提供别名。
-  create: createProjectContext,
-  createProjectContext,
-  emptyContext,
-  hasProject,
-  isSameProject,
-  withActiveFile,
-  describeContext,
-}
-
-// 双环境导出：
-//   · Node（单测 / CI / 主进程）走 CommonJS；
-//   · 渲染进程通过 index.html 的 <script> 引入后取全局 —— 因为 preload 是 sandbox:true，
-//     **不能 require 本地文件**（实测：那样会让整个 preload 挂掉、window.moonAPI 变 undefined）。
-if (typeof module !== 'undefined' && module.exports) module.exports = API
-if (typeof window !== 'undefined') window.moonbitProjectContext = API
+// 导出用 IIFE 包起来（同 lsp-parse.js / problem-model.js）：
+// 浏览器全局作用域里不能裸写 `const API`，多个脚本会互相冲突。
+;(function () {
+  const API = {
+    PROJECT_TYPE,
+    ALL_TYPES,
+    TYPE_SPEC,
+    normalizeType,
+    rootOfInput,
+    normalizeRoot,
+    // 短名：渲染进程里写起来顺手（`window.moonbitProjectContext.create(...)`）。
+    // 两个名字都指同一个函数 —— 曾因为只有全名、而 renderer 调的是 create，
+    // 导致「打开项目」整条路径静默失败（文件树空），所以现在显式提供别名。
+    create: createProjectContext,
+    createProjectContext,
+    emptyContext,
+    hasProject,
+    isSameProject,
+    withActiveFile,
+    describeContext,
+  }
+  if (typeof module !== 'undefined' && module.exports) module.exports = API
+  if (typeof window !== 'undefined') window.moonbitProjectContext = API
+})()
