@@ -28,7 +28,9 @@
     "verify:agent-tools": "electron verify-agent-tools.js",
     "verify:agent-patch": "electron verify-agent-patch.js",
     "verify:agent-verify": "electron verify-agent-verify.js",
-    "verify:ai-provider": "electron verify-ai-provider.js"
+    "verify:ai-provider": "electron verify-ai-provider.js",
+    "verify:agent-request": "electron verify-agent-request.js",
+    "check:local-chk": "node ../tools/check-local-chk.js --ci"
   },
   "devDependencies": {
     "@xterm/addon-fit": "^0.10.0",

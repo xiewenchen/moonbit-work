@@ -1011,6 +1011,37 @@ async function proposeAndApplyPatch(patch) {
 // 对外的 IDE 入口。
 // 存在的理由（P2-17）：自动化点不到系统文件夹对话框，需要一个**显式可调用**的「打开项目」；
 // 它同时是 P3（Command Registry）的雏形 —— 同一个动作既给 UI，也给脚本与未来的 Agent。
+/**
+ * P5A-03 / P5A-04：收集**渲染侧真实状态**，交给主进程组装 AgentRequest。
+ *
+ * 这里刻意不"造"数据：取不到就是 null / []，由主进程记为 absent。
+ * 本批接上的是 P5A 明确要求的两项 —— ProjectContext 与 Problems；
+ * activeFile / selection / lastRun / lastTest 留给 P5A 后续（调用方可显式传入）。
+ */
+async function buildAgentRequest(message, opts = {}) {
+  const problems = (window.moonbitIDE && typeof window.moonbitIDE.problems.list === 'function')
+    ? (window.moonbitIDE.problems.list() || []).slice(0, 50)
+    : []
+  return window.moonAPI.agentBuildRequest({
+    message,
+    sessionId: opts.sessionId || null,
+    // 只在**真有值**时才带上这一项。
+    // 这样主进程才能区分「没接线」(absent) 与「接线了但本轮无数据」(empty) ——
+    // 否则一律被算成 empty，快照就看不出哪一块还没接（review 指出）。
+    inputs: Object.assign(
+      {
+        projectContext: (opts.context !== undefined ? opts.context : projectCtx) || null,
+        problems,
+      },
+      opts.activeFile != null ? { activeFile: opts.activeFile } : {},
+      opts.selection != null ? { selection: opts.selection } : {},
+      opts.lastRun != null ? { lastRun: opts.lastRun } : {},
+      opts.lastTest != null ? { lastTest: opts.lastTest } : {},
+      (Array.isArray(opts.recentFiles) && opts.recentFiles.length) ? { recentFiles: opts.recentFiles } : {},
+    ),
+  })
+}
+
 window.moonbitIDE = {
   openProject: (dir) => boot(dir),      // 等价于用户「打开文件夹」之后走的那条路
   closeProject,
@@ -1022,6 +1053,11 @@ window.moonbitIDE = {
   commands: {
     list: () => window.moonAPI.commandList(),
     execute: (name, args, opts) => window.moonAPI.commandExecute(name, args, opts),
+  },
+  // P5A：Agent 请求（渲染侧收集真实状态 → 主进程校验/组装/快照）
+  agentRequest: {
+    build: (message, opts) => buildAgentRequest(message, opts),
+    lastSnapshot: () => window.moonAPI.agentLastSnapshot(),
   },
   // 只读工具（P6）：Agent 的"眼睛"。它们全部经路径沙箱，且表里**没有**写/执行工具。
   // 注意：**不提供 setWorkspace** —— workspace 由 openProject（用户操作）设定，Agent 不该能改沙箱根。

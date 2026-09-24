@@ -24,6 +24,7 @@ const { registerAgentToolIpc, simpleRequest } = require('./agent-tools-main')
 const { registerAgentPatchIpc } = require('./agent-patch-main')
 const { registerAgentVerifyIpc } = require('./agent-verify-main')
 const { registerAiProviderIpc } = require('./ai-provider-main')
+const { registerAgentRequestIpc } = require('./agent-request-main')
 
 // ── 环境准备：必须在任何 spawn 之前 ─────────────────────────────────────
 // 从桌面快捷方式启动时，进程 PATH 是 Windows 默认值，**不含** ~/.moon/bin
@@ -211,6 +212,13 @@ registerAiProviderIpc({
   ipcMain,
   request: simpleRequest,
   onLog: (e) => console.log('[provider]', JSON.stringify(e)),
+})
+
+// P5A 接线：AgentRequest（校验 + 组装 + 快照）。
+// 渲染侧只负责收集它才有的真实状态（当前文件/选区/问题/上次运行）。
+registerAgentRequestIpc({
+  ipcMain,
+  onLog: (e) => console.log('[agent]', JSON.stringify(e)),
 })
 
 // LSP 客户端（接官方 moon-lsp）—— 见 lsp-manager.js
