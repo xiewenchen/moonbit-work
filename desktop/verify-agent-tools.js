@@ -105,6 +105,23 @@ app.whenReady().then(async () => {
     chk('**关闭项目后文件类工具应全部被拒**（不默默退到某个目录）', [after.ok === false, /未打开项目/.test(String(after.error))], [true, true])
   }
 
+  console.log('\n=== ⑥ 执行工具清单（P7）===')
+  {
+    const l = JSON.parse(await js('(async () => JSON.stringify(await window.moonbitIDE.agentTools.exec.list()))()'))
+    const tools = l.tools || []
+    chk('6 个执行工具', tools.length, 6)
+    chk('**全部是 execute（没有 write）**', Array.from(new Set(tools.map((t) => t.permission))).join(','), 'execute')
+    chk('**没有改文件的工具**（P8 才开）', tools.filter((t) => ['applyPatch', 'writeFile'].includes(t.name)).length === 0, true)
+
+    // health 不带 url → 退回报告运行状态：**不跑任何外部命令**，所以本机 moon 坏也能验
+    const h = JSON.parse(await js('(async () => JSON.stringify(await window.moonbitIDE.agentTools.exec.call("health", {})))()'))
+    chk('health 不带 url 可用（不跑外部命令）', [h.ok === true, /未提供 url/.test(String(h.data && h.data.note))], [true, true])
+
+    const a = JSON.parse(await js('(async () => JSON.stringify(await window.moonbitIDE.agentTools.exec.audit()))()'))
+    chk('执行有审计记录', (a.audit || []).length >= 1, true)
+    chk('审计含 tool / result / duration', (a.audit[0] || {}).tool === 'health' && typeof (a.audit[0] || {}).duration === 'number', true)
+  }
+
   log('\n结果：' + pass + ' 通过 / ' + fail + ' 失败 / 共 ' + (pass + fail) + ' 项')
   dump(fail === 0 ? 0 : 1)
 })

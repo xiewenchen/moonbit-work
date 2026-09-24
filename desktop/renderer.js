@@ -866,6 +866,13 @@ window.moonbitIDE = {
     list: () => window.moonAPI.agentToolsList(),
     call: (name, args) => window.moonAPI.agentToolsCall(name, args),
     workspace: () => window.moonAPI.agentToolsGetWorkspace(),
+    // P7 执行工具：build/test/run/stop/health/apiRequest。
+    // 它们**一律经命令表**（不自己 spawn），且表里**没有 write 工具** —— 能跑但不能改文件。
+    exec: {
+      list: () => window.moonAPI.agentToolsExecList(),
+      call: (name, args) => window.moonAPI.agentToolsExecCall(name, args),
+      audit: () => window.moonAPI.agentToolsExecAudit(),
+    },
   },
   // 问题模型（P4）：对外提供只读查询 + 一个"写入发现"的入口。
   // report 的正当用途是 P4-08「Agent 发现 → Problem」（P7 会把它接到 Agent 工具里），

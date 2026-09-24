@@ -102,6 +102,10 @@ contextBridge.exposeInMainWorld('moonAPI', {
   agentToolsCall: (name, args) => ipcRenderer.invoke('agentTools:call', { name, args }),
   agentToolsSetWorkspace: (root) => ipcRenderer.invoke('agentTools:setWorkspace', root),
   agentToolsGetWorkspace: () => ipcRenderer.invoke('agentTools:getWorkspace'),
+  // P7 执行工具（build/test/run/stop/health/apiRequest）—— 一律经命令表
+  agentToolsExecList: () => ipcRenderer.invoke('agentTools:execList'),
+  agentToolsExecCall: (name, args) => ipcRenderer.invoke('agentTools:execCall', { name, args }),
+  agentToolsExecAudit: () => ipcRenderer.invoke('agentTools:execAudit'),
 
   // 注：ProjectContext 不在这里过桥 —— 本 preload 是 sandbox:true，
   // require 本地文件会让整个 preload 挂掉（实测踩过）。

@@ -95,7 +95,7 @@
 | P5 | Agent Context | **进行中**：P5-01～P5-09 PASS（组装器 + 预算 + 优先级）；真实取数与接到 Agent 待做 |
 | P5.5 | Agent 安全门 | **PASS**（门已建好，尚未装到 Agent 执行路径上）：Path/Command Sandbox、Timeout、Output Limit、IPC 审查全部完成 |
 | P6 | Agent Read-only Tools | **PASS（含接线）**：七个工具 + 统一结果 + 审计字段 + **接到真实数据**（19/0 验证）；喂给 Agent 属 P7 |
-| P7 | Agent Execute Tools | TODO |
+| P7 | Agent Execute Tools | **PASS（含接线）**：六个执行工具（一律经命令表）+ 审计 + 预算 + 失败不重试；**执行表拒绝 write**（仍不能改文件）；喂给 Agent 待做 |
 | P8 | Agent Modify（Patch） | TODO |
 | P9 | Agent Verification Loop | TODO |
 | P10 | Session | TODO |

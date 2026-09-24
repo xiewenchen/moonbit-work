@@ -179,6 +179,8 @@ registerAgentToolIpc({
   ipcMain,
   getWindow: () => mainWindow,
   getRunner: () => projectRunner,
+  // P7-01：执行工具**一律经命令表**，不自己 spawn
+  executeCommand: (name, args, opts) => registry.execute(name, args, opts),
 })
 
 // LSP 客户端（接官方 moon-lsp）—— 见 lsp-manager.js

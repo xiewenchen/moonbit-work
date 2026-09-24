@@ -18,8 +18,39 @@ const { searchInDir } = require('./search')
 const { loadSymbols, searchSymbols } = require('./symbols')
 const { detectProject } = require('./project-detect')
 const { createReadOnlyToolRegistry } = require('./agent-tools')
+const { createExecuteToolRegistry, API_LIMITS } = require('./agent-exec-tools')
+const http = require('http')
+const https = require('https')
 
-function registerAgentToolIpc({ ipcMain, getWindow, getRunner }) {
+/** 极简 HTTP 请求（带响应体上限）—— 供 apiRequest / health 工具用 */
+function simpleRequest({ url, method = 'GET', headers = {}, body = '', timeoutMs = 15000, maxBodyBytes = API_LIMITS.maxResponseBytes }) {
+  return new Promise((resolve) => {
+    let u
+    try {
+      u = new URL(url)
+    } catch (e) {
+      resolve({ ok: false, error: 'URL 非法：' + String((e && e.message) || e) })
+      return
+    }
+    const mod = u.protocol === 'https:' ? https : http
+    const req = mod.request(u, { method, headers, timeout: timeoutMs }, (res) => {
+      let data = ''
+      let truncated = false
+      res.on('data', (chunk) => {
+        if (data.length >= maxBodyBytes) { truncated = true; return }
+        data += chunk.toString('utf8')
+        if (data.length > maxBodyBytes) { data = data.slice(0, maxBodyBytes); truncated = true }
+      })
+      res.on('end', () => resolve({ ok: res.statusCode < 400, status: res.statusCode, headers: res.headers, body: data, truncated }))
+    })
+    req.on('timeout', () => { req.destroy(new Error('请求超时（' + timeoutMs + 'ms）')) })
+    req.on('error', (e) => resolve({ ok: false, error: String((e && e.message) || e) }))
+    if (body) req.write(body)
+    req.end()
+  })
+}
+
+function registerAgentToolIpc({ ipcMain, getWindow, getRunner, executeCommand }) {
   let workspace = ''
 
   /**
@@ -95,7 +126,24 @@ function registerAgentToolIpc({ ipcMain, getWindow, getRunner }) {
   ipcMain.handle('agentTools:call', (_e, payload = {}) =>
     registry.call(payload.name, payload.args || {}))
 
-  return registry
+  // ── P7 执行工具：**一律经命令表**（P7-01），不自己 spawn ──────────────────────
+  const execRegistry = createExecuteToolRegistry({
+    executeCommand: (name, args, opts) => {
+      if (typeof executeCommand !== 'function') throw new Error('命令表未就绪')
+      return executeCommand(name, args, opts)
+    },
+    request: simpleRequest,
+    runLog: async () => {
+      const r = getRunner && getRunner()
+      return r ? { state: r.state, result: r.result || null } : null
+    },
+  })
+  ipcMain.handle('agentTools:execList', () => ({ ok: true, tools: execRegistry.list() }))
+  ipcMain.handle('agentTools:execCall', (_e, payload = {}) =>
+    execRegistry.call(payload.name, payload.args || {}))
+  ipcMain.handle('agentTools:execAudit', () => ({ ok: true, audit: execRegistry.audit(), budget: execRegistry.budget() }))
+
+  return { read: registry, exec: execRegistry }
 }
 
 module.exports = { registerAgentToolIpc }
