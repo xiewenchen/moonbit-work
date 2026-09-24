@@ -75,6 +75,11 @@ jobs:
       - name: No new empty catch
         run: node tools/check-empty-catch.js --ci
 
+      # P19-18：verify 脚本必须用公共 verify-harness，不许再自带局部 chk 定义
+      # （历史上 16 份局部定义里有 25 处因"数组恒为真"而永远通过）
+      - name: No new local chk
+        run: node tools/check-local-chk.js --ci
+
       - name: Desktop IDE logic tests
         run: |
           cd desktop
@@ -85,6 +90,7 @@ jobs:
           node test-run-state.js         # Run 生命周期原语（状态枚举/转换/ProcessHandle/RunResult）
           node test-project-context.js   # 单一工程上下文（类型归一/命令推导/无项目态/多项目判定）
           node test-verify-harness.js    # 元测试：验证「验证器本身」能抓到错（防断言假通过复发）
+          node test-agent-request.js     # P5A：AgentRequest 契约 + 真实取数（ProjectContext/Problems）+ 快照
           node test-commands.js          # Command Registry（注册/执行/超时/日志 + 6 个项目命令）
           node test-problem-model.js     # 问题模型（五类来源统一/去重/生命周期/Store）
           node test-renderer-globals.js # 渲染进程同作用域加载（防 const 重名这类"浏览器才暴露"的问题）

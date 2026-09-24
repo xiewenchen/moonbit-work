@@ -17,6 +17,8 @@ const fs = require('fs')
 const path = require('path')
 
 const ROOT = path.resolve(__dirname, '..')          // moonbit-platform 根
+// P19-16：断言统一走公共 harness（消灭这份脚本里的局部 chk 定义）
+const { createHarness } = require('./verify-harness')
 const FIXTURE = path.join(__dirname, 'testdata', 'fixture-http-server.js')
 const OUT = path.join(__dirname, 'run-url-result.txt')
 const lines = []
@@ -30,12 +32,9 @@ app.whenReady().then(async () => {
   const js = (c) => win.webContents.executeJavaScript(c)
   await new Promise((r) => setTimeout(r, 3000))
 
-  let pass = 0, fail = 0
-  // P19：类型防护 —— 传非布尔（数组/对象）说明用错了函数，必须当场失败
-const chk = (n, ok, d) => {
-  if (typeof ok !== 'boolean') { fail++; log('  [FAIL] ' + n + '   chk 只接受布尔（数组/对象比较请用 eq）：' + JSON.stringify(ok)); return }
-  if (ok) { pass++; log('  [PASS] ' + n) } else { fail++; log('  [FAIL] ' + n + '  ' + (d || '')) }
-}
+  // P19-16：不再自定义 chk —— 类型闸与计数都由 verify-harness 统一提供
+  const H = createHarness({ log })
+  const chk = H.chk
 
   log('\n=== ① IDE 能列出可运行入口 ===')
   const listed = JSON.parse(await js(`(async () => JSON.stringify(await window.moonAPI.runnerList(${JSON.stringify(ROOT)})))()`))
@@ -102,6 +101,6 @@ const chk = (n, ok, d) => {
   chk('停止后端口不再可连（进程真的结束了）', gone, String(res.url))
   log('   已停止')
 
-  log('\n结果：' + pass + ' 通过, ' + fail + ' 失败 / 共 ' + (pass + fail) + ' 项')
-  dump(fail === 0 ? 0 : 1)
+  log('\n' + H.summary())
+  dump(H.exitCode())
 }).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })

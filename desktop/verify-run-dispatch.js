@@ -12,16 +12,15 @@ const os = require('os')
 const path = require('path')
 
 const OUT = path.join(__dirname, 'run-dispatch-result.txt')
+// P19-17：断言统一走公共 harness（消灭这份脚本里的局部 chk 定义）
+const { createHarness } = require('./verify-harness')
 const lines = []
 const log = (s) => { lines.push(String(s)); console.log(s) }
 function dump(code) { try { fs.writeFileSync(OUT, lines.join('\n') + '\n', 'utf8') } catch (_) {} ; setTimeout(() => app.exit(code), 500) }
 
-let pass = 0, fail = 0
-// P19：类型防护 —— 传非布尔（数组/对象）说明用错了函数，必须当场失败
-const chk = (n, ok, d) => {
-  if (typeof ok !== 'boolean') { fail++; log('  [FAIL] ' + n + '   chk 只接受布尔（数组/对象比较请用 eq）：' + JSON.stringify(ok)); return }
-  if (ok) { pass++; log('  [PASS] ' + n) } else { fail++; log('  [FAIL] ' + n + '  ' + (d || '')) }
-}
+// P19-17：不再自定义 chk —— 类型闸与计数都由 verify-harness 统一提供
+const H = createHarness({ log })
+const chk = H.chk
 
 app.whenReady().then(async () => {
   // 造一个临时 Node 项目：它的 test 脚本会打印一个**只有 npm 跑才会出现**的标记
@@ -48,7 +47,7 @@ app.whenReady().then(async () => {
     await new Promise((r) => setTimeout(r, 12000))   // 等 npm 真正跑完
     return JSON.stringify({ text: (out ? out.textContent : '').slice(0, 1200) })
   })()`))
-  if (res.err) { log('  ' + res.err); log('\n结果：' + pass + ' 通过, ' + fail + ' 失败'); return dump(1) }
+  if (res.err) { log('  ' + res.err); log('\n' + H.summary()); return dump(1) }
   log('   输出片段：' + JSON.stringify(res.text.replace(/\s+/g, ' ').slice(0, 220)))
 
   // 行为断言：跑的是 npm 脚本（出现标记），而不是 moon
@@ -72,6 +71,6 @@ app.whenReady().then(async () => {
   chk('  npm 项目的标记没有串到这里', !/NPM_TEST_RAN/.test(res2.text), res2.text.slice(0, 120))
 
   try { fs.rmSync(TMP, { recursive: true, force: true }) } catch (_) {}
-  log('\n结果：' + pass + ' 通过, ' + fail + ' 失败 / 共 ' + (pass + fail) + ' 项')
-  dump(fail === 0 ? 0 : 1)
+  log('\n' + H.summary())
+  dump(H.exitCode())
 }).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })
