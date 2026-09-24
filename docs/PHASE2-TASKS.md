@@ -102,6 +102,18 @@
 
 ---
 
+## 清单外补充任务（用户指定）
+
+| ID | Phase | Task | Status | Verification | Commit | Notes |
+|---|---|---|---|---|---|---|
+| MBW-X1 | P1 | **Run 链路可测化 + E2E 搬进 CI** | **PASS** | `node desktop/test-run-e2e.js` → **17/0**；CI step「Run E2E (pure Node)」；`verify-run-dispatch` **5/5** 回归 | 见本轮提交 | 记录：`changes/phase2-p1-run-e2e-ci.md` |
+
+**MBW-X1 覆盖映射（诚实）**：P1-19 链路核心 ✅ / P1-20 ✅ / P1-21 ✅ / P1-22 ✅ / P1-23 ✅ / P1-24 ✅ / P1-26 ✅；
+**P1-25（无监听超时）与 P1-27～P1-29（连续 10 次）仍未覆盖** —— 需要状态机（P1-14～P1-18）。
+本次只做了「可测化 + 等价抽取 + 接线」，**未引入状态机**，故 P1-14～P1-18 仍为 BLOCKED。
+
+---
+
 ## 备注
 
 1. **tag 不推送到远端**：`git tag` 已在本地建好；推送需要网络（当前 FlClash 出口为香港机房 IP，链路慢且抖动，见记忆 `clash-chatgpt-blocked-diagnosis`）。待人工确认后再 `git push origin hackathon-final-2026-09-24`。

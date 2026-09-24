@@ -1,8 +1,8 @@
-// 验证 URL 抓取正则：用 Strapi 的真实输出样本（含 ANSI 色码）测试，
-// 并覆盖「URL 被 chunk 切成两段」这个真实情况（日志流是分块到达的）。
-const RE = /https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?[^\s'"<>)]*/i
-// 与 runners.js 一致的预处理：先剥离 ANSI 色码
-const stripAnsi = (s) => s.replace(/\u001b\[[0-9;]*m/g, '')
+// 验证 URL 抓取：Strapi 的真实输出样本（含 ANSI 色码）+ 跨 chunk 场景。
+//
+// 注意：正则与 ANSI 剥离**不再本地复制** —— 统一来自 url-detect.js（单一实现）。
+// 之前这里是第二份副本，两份容易漂移；现在由 test-url-detect.js 的契约断言锁住「只有一处实现」。
+const { detectUrl, createUrlScanner } = require('./url-detect')
 
 const strapiSample =
   'Welcome back!\n' +
@@ -22,8 +22,7 @@ const cases = [
 
 let pass = 0, fail = 0
 for (const [name, input, want] of cases) {
-  const m = stripAnsi(input).match(RE)
-  const got = m ? m[0].replace(/[.,;:]+$/, '') : null
+  const got = detectUrl(input)
   const ok = got === want
   console.log('  ' + (ok ? 'PASS' : 'FAIL') + '  ' + name.padEnd(18) + ' → ' + JSON.stringify(got) + (ok ? '' : '  期望 ' + JSON.stringify(want)))
   ok ? pass++ : fail++
@@ -31,13 +30,12 @@ for (const [name, input, want] of cases) {
 
 // 分块到达：URL 被切成 "http://local" + "host:1337"
 {
-  let buf = ''
+  const s = createUrlScanner()
   const chunks = ['Welcome!\nhttp://local', 'host:1337\n[info] started']
   let found = null
   for (const c of chunks) {
-    buf = (buf + stripAnsi(c)).slice(-2048)
-    const m = buf.match(RE)
-    if (m) { found = m[0]; break }
+    const hit = s.push(c)
+    if (hit) { found = hit.url; break }
   }
   const ok = found === 'http://localhost:1337'
   console.log('  ' + (ok ? 'PASS' : 'FAIL') + '  ' + '跨 chunk 分割'.padEnd(16) + ' → ' + JSON.stringify(found))

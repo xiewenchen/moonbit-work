@@ -9,6 +9,7 @@ const fs = require('fs')
 const path = require('path')
 const { spawn, spawnSync } = require('child_process')
 const { resolveSpawn } = require('./spawn-util')
+const { createUrlScanner } = require('./url-detect')
 
 const has = (p) => { try { return fs.existsSync(p) } catch (_) { return false } }
 const isFile = (p) => { try { return fs.statSync(p).isFile() } catch (_) { return false } }
@@ -232,52 +233,85 @@ function spawnRunner({ bin, args, cwd }, onData, onEnd) {
   return child
 }
 
+// 跑一个本地服务：spawn → 收集输出 → 抓 URL → 打开浏览器
+//
+// 抽成独立函数（不依赖 Electron）的理由：「Run → URL → Browser」这条链路是 IDE 的核心验收点，
+// 但原实现内联在 `ipcMain.handle('runner:run')` 里 —— 离开 Electron 就没法测，
+// 而本机 MoonBit native 工具链当前是坏的（moon build 全目标 exit 127），跑不了真服务。
+// 抽出来之后，这条链路可以用**纯 Node** 在 Linux CI 上 E2E 验证（见 test-run-e2e.js）。
+//
+// 行为与原内联实现保持一致：同一时刻只跑一个进程；URL 命中一次后不再重复触发。
+function createServiceRunner({ openUrl } = {}) {
+  let current = null
+  let scanner = null
+
+  function stop() {
+    if (!current) return { ok: false, error: '当前没有正在运行的进程' }
+    try { current.kill() } catch (_) {}
+    current = null
+    return { ok: true }
+  }
+
+  function start({ bin, args, cwd, label } = {}, handlers = {}) {
+    const H = handlers || {}
+    if (current) { try { current.kill() } catch (_) {} current = null }
+    scanner = createUrlScanner()   // 跨 chunk 累积 + 命中一次，见 url-detect.js
+    if (H.onStart) H.onStart({ label: label || bin })
+
+    const onChunk = (chunk) => {
+      if (H.onData) H.onData(chunk)
+      const hit = scanner.push(chunk)
+      if (!hit) return
+      if (H.onUrl) H.onUrl(hit.url)
+      // 浏览器打不开**不该**把服务标成失败 —— 服务是好的，只是没能自动开页面。
+      // 所以在这里捕获并**单独上报**（browser launch status ≠ server status，P1-21）。
+      let browserError = null
+      if (typeof openUrl === 'function') {
+        try { openUrl(hit.url) } catch (e) { browserError = String((e && e.message) || e) }
+      }
+      if (H.onBrowserOpen) H.onBrowserOpen({ url: hit.url, ok: !browserError, error: browserError })
+    }
+
+    current = spawnRunner({ bin, args, cwd }, onChunk, (r) => {
+      if (H.onEnd) H.onEnd(r)
+      current = null
+    })
+    return { ok: !!current, pid: current ? current.pid : null }
+  }
+
+  return {
+    start,
+    stop,
+    get running() { return !!current },
+  }
+}
+
 function registerRunnerIpc({ ipcMain, getWindow }) {
   const send = (ch, payload) => {
     const w = getWindow && getWindow()
     if (w && !w.isDestroyed()) w.webContents.send(ch, payload)
   }
-  let current = null   // 当前运行的子进程（同一时刻只跑一个，避免输出串台）
+  // 服务启停 / 输出 / URL 检测都在 createServiceRunner 里（可脱离 Electron 测试）；
+  // 只有「用系统浏览器打开」这一步交给 Electron。
+  const runner = createServiceRunner({
+    openUrl: (url) => require('electron').shell.openExternal(url),
+  })
 
   ipcMain.handle('runner:list', (_e, root) => {
     try { return { ok: true, ...findRunners(root || process.cwd()) } } catch (e) { return { ok: false, error: e.message } }
   })
 
-  ipcMain.handle('runner:run', (_e, { bin, args, cwd, label }) => {
-    if (current) { try { current.kill() } catch (_) {} current = null }
-    send('runner:start', { label: label || bin })
-    // 从运行输出里抓本地 URL 并自动用系统浏览器打开 ——
-    // 服务类项目（Strapi / 各类 web 框架）启动后会打印「访问 http://localhost:PORT」，
-    // 抓住它，用户点一次「运行」就能看到网站，而不是自己从日志里找地址。
-    // 注意 URL 可能被切成两个 chunk，所以累积一小段再匹配。
-    let buf = ''
-    let opened = false
-    const onChunk = (chunk) => {
-      send('runner:data', { data: chunk })
-      if (opened) return
-      // 先剥离 ANSI 色码：Strapi 这类程序的输出带颜色转义，URL 后面常紧跟 \u001b[39m，
-      // 不剥离就会把色码当成 URL 的一部分，打开必然失败（这是实测踩到的）。
-      const clean = chunk.replace(/\u001b\[[0-9;]*m/g, '')
-      buf = (buf + clean).slice(-2048)
-      const m = buf.match(/https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?[^\s'"<>)]*/i)
-      if (!m) return
-      opened = true
-      const url = m[0].replace(/[.,;:]+$/, '')
-      send('runner:url', { url })
-      try { require('electron').shell.openExternal(url) } catch (_) {}
-    }
-    current = spawnRunner(
-      { bin, args, cwd },
-      onChunk,
-      (r) => { send('runner:end', r); current = null },
-    )
-    return { ok: !!current, pid: current ? current.pid : null }
-  })
+  ipcMain.handle('runner:run', (_e, spec) =>
+    runner.start(spec, {
+      onStart: (p) => send('runner:start', p),
+      onData: (d) => send('runner:data', { data: d }),
+      onUrl: (url) => send('runner:url', { url }),
+      // 浏览器打开结果单独成一路事件（renderer 暂未消费，留给 P1-21 的界面提示）
+      onBrowserOpen: (r) => send('runner:browser', r),
+      onEnd: (r) => send('runner:end', r),
+    }))
 
-  ipcMain.handle('runner:stop', () => {
-    if (!current) return { ok: false, error: '当前没有正在运行的进程' }
-    try { current.kill(); current = null; return { ok: true } } catch (e) { return { ok: false, error: e.message } }
-  })
+  ipcMain.handle('runner:stop', () => runner.stop())
 }
 
-module.exports = { registerRunnerIpc, findRunners, kindOf }
+module.exports = { registerRunnerIpc, createServiceRunner, findRunners, kindOf }

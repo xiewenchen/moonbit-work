@@ -81,4 +81,13 @@ jobs:
           node test-runner-detect.js     # 项目类型识别 / 运行入口（输入→输出）
           node test-project-detect.js    # 项目类型识别（另一套口径）
           node test-relay.js             # 文件中转站核心逻辑
-          node test-url-detect.js        # URL 检测（含「正则与 runners.js:262 逐字符一致」的防漂移断言）
+          node test-url-detect.js        # URL 检测（含「正则在生产代码里只有一处实现」的防漂移断言）
+
+      # Run 链路 E2E：spawn → 抓 URL → 打开浏览器（测试里注入桩）→ 页面可访问 → 停止。
+      # 靶子是纯 Node 服务（desktop/testdata/fixture-http-server.js）—— **不需要 Electron、
+      # 不需要 MoonBit native 构建**，所以 Linux CI 能跑。
+      # 这条链路此前只有本机 verify-run-url.js 覆盖，而本机 MoonBit 工具链一坏就再也验不了（红灯 R12）。
+      - name: Run E2E (pure Node)
+        run: |
+          cd desktop
+          node test-run-e2e.js

@@ -98,16 +98,14 @@ console.log('\n=== P1-13 重复 URL 只触发一次 ===')
   chk('reset 后可再次命中', (s.push('again http://127.0.0.1:8123') || {}).url, 'http://127.0.0.1:8123')
 }
 
-console.log('\n=== 防漂移：正则必须与 runners.js:262 一致 ===')
+console.log('\n=== 契约：URL 正则在生产代码里只有一处实现（防漂移）===')
 {
   const runnersSrc = fs.readFileSync(path.join(__dirname, 'runners.js'), 'utf8')
-  const lit = runnersSrc.match(/buf\.match\((\/[^\n]*\/[a-z]*)\)/)
-  if (!lit) {
-    chk('能在 runners.js 里找到生产正则', false, true)
-  } else {
-    const inner = lit[1].slice(1, lit[1].lastIndexOf('/'))
-    chk('url-detect.js 的正则 === runners.js:262 的正则', LOCAL_URL_RE.source, inner)
-  }
+  const verifySrc = fs.readFileSync(path.join(__dirname, 'verify-url-regex.js'), 'utf8')
+  chk('runners.js 已接线到 url-detect.js', /require\('\.\/url-detect'\)/.test(runnersSrc), true)
+  chk('runners.js 用 createUrlScanner（而非本地正则）', /createUrlScanner/.test(runnersSrc), true)
+  chk('runners.js 不再保留本地正则副本', /buf\.match\(/.test(runnersSrc), false)
+  chk('verify-url-regex.js 也不再复制正则', /const RE = \/https/.test(verifySrc), false)
 }
 
 console.log('\n结果：' + pass + ' 通过 / ' + fail + ' 失败 / 共 ' + (pass + fail) + ' 项')
