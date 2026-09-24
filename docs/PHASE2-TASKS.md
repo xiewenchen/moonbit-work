@@ -119,7 +119,10 @@
 
 | ID | Phase | Task | Status | Verification | Commit | Notes |
 |---|---|---|---|---|---|---|
-| MBW-X1 | P1 | **Run 链路可测化 + E2E 搬进 CI** | **PASS** | `node desktop/test-run-e2e.js` → **17/0**；CI step「Run E2E (pure Node)」；`verify-run-dispatch` **5/5** 回归 | 见本轮提交 | 记录：`changes/phase2-p1-run-e2e-ci.md` |
+| MBW-X1 | P1 | **Run 链路可测化 + E2E 搬进 CI** | **PASS** | `node desktop/test-run-e2e.js`；CI step「Run E2E (pure Node)」；`verify-run-dispatch` 5/5 | 见提交 | 记录：`changes/phase2-p1-run-e2e-ci.md` |
+| MBW-X2 | P1 | **run-url 换零依赖靶子 + 修「shell 启动留孤儿」真缺陷** | **PASS** | `verify-run-url` **5/5**；`verify:demo` **7/0**；`test-run-e2e` **51/0**；端口监听数独立核对 = 0 | 200d78c | 记录：`changes/phase2-p1-run-url-target-and-orphan-fix.md` |
+
+> **Gate M1-A 已 7/7 通过**；**P1-01～P1-29 全部 PASS** → 按 Gate A 可进入 **P2（ProjectContext）**。
 
 **MBW-X1 覆盖映射（诚实）**：P1-19 链路核心 ✅ / P1-20 ✅ / P1-21 ✅ / P1-22 ✅ / P1-23 ✅ / P1-24 ✅ / P1-26 ✅；
 **P1-25（无监听超时）与 P1-27～P1-29（连续 10 次）仍未覆盖** —— 需要状态机（P1-14～P1-18）。

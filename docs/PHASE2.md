@@ -63,6 +63,16 @@
 
 **P5.5 安全门（Path Sandbox / Command Sandbox / Timeout / Output Limit / IPC Review）未过，禁止进入 Agent Execute / Modify。**
 
+### 当前进度（2026-09-24）
+
+| 门禁 | 状态 |
+|---|---|
+| Gate P0（TAG / BRANCH / BASELINE / DOC） | ✅ 通过 |
+| **Gate M1-A**（run-url 5/5、run-dispatch 5/5、错误项目、timeout、Run×10、Run/Stop×10、demo rehearsal） | ✅ **7/7 通过** |
+| **Gate A**（P1 PASS → 可开始 ProjectContext） | ✅ **已解锁**（P1-01～P1-29 全部 PASS）|
+
+> 下一步：**P2 ProjectContext**。
+
 ## 五、已知红灯（不得写成绿色）
 
 以下为 2026-09-24 基线的**真实状态**，来自桌面端验证结果文件与仓库文档：
@@ -85,7 +95,7 @@
 | R9 | 断点调试器 | 已评估为**不可行**（Windows 只有 PDB，无 DWARF） |
 | R10 | 桌面 LSP hover/跳转 | 依赖本机 `moon-lsp`，部分能力走符号索引降级 |
 | R11 | **`verify:desktop` 的串联方式** | 9 个脚本用 `&&` 串联 → `verify-run-url` 一失败，后面 3 个（含 23 项功能体检）**静默不跑**；因此「verify:desktop 通过」与「23/23」当前无法在同一次运行里取得 | 本次 P0 基线快照（`changes/phase2-p0-baseline.md`） |
-| R12 | **本机 MoonBit native 工具链故障** | `moon build --target native <可执行目标>` **全部 EXIT=127**（`moonc link-core` 失败，`main.c` 不生成）；`moon check` 正常、`moon test` 零输出。→ 本机跑不起任何 native 服务。**已缓解**：Run 链路核心已改造成纯 Node E2E 并挂进 CI（`changes/phase2-p1-run-e2e-ci.md`）—— 但 Electron 集成与真 native 服务仍只能等环境修好 | `changes/phase2-p1-run-diagnosis.md`（P1-06）|
+| R12 | **本机 MoonBit native 工具链故障** | `moon build --target native <可执行目标>` **全部 EXIT=127**（`moonc link-core` 失败，`main.c` 不生成）；`moon check` 正常、`moon test` 零输出。→ 本机仍跑不起 native 服务。**已不再阻塞任何门禁**：Run 链路验证已与 native 工具链解耦（纯 Node E2E + CI + 零依赖靶子），Gate M1-A 已 7/7 通过 | `changes/phase2-p1-run-diagnosis.md`（P1-06）、`changes/phase2-p1-run-url-target-and-orphan-fix.md` |
 
 ## 六、已知技术债
 
