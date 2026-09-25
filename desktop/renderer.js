@@ -1160,6 +1160,138 @@ async function showQualityPanel() {
   return true
 }
 
+/**
+ * P15 面板：数据库工作台（动态 DOM，不改 index.html）。
+ *
+ * 只读 —— 每句 SQL 都过安全闸（在 db-explorer-main 里，过不了根本不会执行）。
+ * 没装 psql / redis-cli 时**如实显示"未找到客户端"**，而不是一个空表
+ * （空表会被误读成"这张表是空的"）。
+ */
+async function showDatabasePanel() {
+  const old = document.getElementById('dbPanel')
+  if (old) old.remove()
+  const mk = (tag, props) => { const el = document.createElement(tag); Object.assign(el, props || {}); return el }
+  const btnCss = 'padding:3px 9px;background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:5px;cursor:pointer'
+  const mask = mk('div', { id: 'dbPanel' })
+  mask.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999'
+  const card = mk('div')
+  card.style.cssText = 'max-width:960px;width:95%;max-height:88vh;display:flex;flex-direction:column;gap:8px;background:#1e1e1e;color:#ddd;border:1px solid #333;border-radius:8px;padding:14px;font-size:12px'
+  const title = mk('div', { textContent: '数据库工作台（只读）' })
+  title.style.cssText = 'font-weight:600;font-size:14px'
+  const hint = mk('div')
+  hint.id = 'dbHint'
+  hint.style.cssText = 'color:#888;font-size:11px'
+  const body = mk('div')
+  body.style.cssText = 'display:flex;gap:10px;min-height:300px'
+  const left = mk('div')
+  left.id = 'dbTables'
+  left.style.cssText = 'width:240px;overflow:auto;max-height:56vh;border:1px solid #2a2a2a;border-radius:6px;padding:6px;background:#161616'
+  const right = mk('div')
+  right.style.cssText = 'flex:1;display:flex;flex-direction:column;gap:8px;overflow:auto;max-height:56vh'
+  const colsBox = mk('div')
+  colsBox.id = 'dbCols'
+  colsBox.style.cssText = 'border:1px solid #2a2a2a;border-radius:6px;padding:6px;background:#161616'
+  const rowsBox = mk('pre')
+  rowsBox.id = 'dbRows'
+  rowsBox.style.cssText = 'margin:0;border:1px solid #2a2a2a;border-radius:6px;padding:6px;background:#121212;color:#bbb;overflow:auto;flex:1;white-space:pre-wrap;word-break:break-all'
+  right.appendChild(colsBox); right.appendChild(rowsBox)
+  body.appendChild(left); body.appendChild(right)
+
+  const tools = mk('div')
+  tools.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;align-items:center'
+  const searchIn = mk('input', { placeholder: '搜索（转义后走 LIKE）', style: 'padding:4px 8px;background:#121212;color:#ddd;border:1px solid #333;border-radius:5px;font-size:12px;width:200px' })
+  const searchBtn = mk('button', { textContent: '搜索', style: btnCss })
+  const prevBtn = mk('button', { textContent: '上一页', style: btnCss })
+  const nextBtn = mk('button', { textContent: '下一页', style: btnCss })
+  const redisIn = mk('input', { placeholder: 'Redis pattern（如 user:*）', style: 'padding:4px 8px;background:#121212;color:#ddd;border:1px solid #333;border-radius:5px;font-size:12px;width:200px' })
+  const redisBtn = mk('button', { textContent: '看 Keys', style: btnCss })
+  const bar = mk('div')
+  bar.style.cssText = 'display:flex;gap:8px;justify-content:flex-end'
+  const closeBtn = mk('button', { textContent: '关闭', style: btnCss })
+  bar.appendChild(closeBtn)
+  tools.appendChild(searchIn); tools.appendChild(searchBtn); tools.appendChild(prevBtn); tools.appendChild(nextBtn)
+  tools.appendChild(redisIn); tools.appendChild(redisBtn)
+  card.appendChild(title); card.appendChild(hint); card.appendChild(body); card.appendChild(tools); card.appendChild(bar)
+  mask.appendChild(card)
+  body.appendChild(left)
+  document.body.appendChild(mask)
+  closeBtn.onclick = () => mask.remove()
+
+  let currentTable = null
+  let currentCols = []
+  let offset = 0
+  const PAGE = 50
+
+  function showProblem(msg) {
+    rowsBox.textContent = String(msg)
+    colsBox.textContent = '（看不了列信息）'
+  }
+
+  async function loadData(table, opts = {}) {
+    currentTable = table
+    offset = Math.max(0, opts.offset || 0)
+    hint.textContent = '正在读 ' + table + ' …'
+    const cols = await window.moonAPI.dbColumns(table)
+    if (cols.ok !== true) {
+      colsBox.textContent = '列信息失败：' + String(cols.error)
+    } else {
+      currentCols = (cols.rows || []).map((r) => r.column_name)
+      colsBox.textContent = '列（' + currentCols.length + '）：' + currentCols.join(', ')
+    }
+    let r
+    if (opts.mode === 'search') {
+      r = await window.moonAPI.dbQuery({ mode: 'search', table, term: opts.term, columns: currentCols.slice(0, 6) })
+    } else {
+      r = await window.moonAPI.dbQuery({ table, limit: PAGE, offset })
+    }
+    if (r.ok !== true) { showProblem('读取失败：' + String(r.error)); hint.textContent = ''; return }
+    hint.textContent = table + '：第 ' + (Math.floor(offset / PAGE) + 1) + ' 页，本页 ' + (r.rowCount || 0) + ' 行'
+    rowsBox.textContent = (r.rows || []).map((o) => JSON.stringify(o)).join('\n') || '（本页没有数据）'
+  }
+
+  async function refreshTables() {
+    left.textContent = '正在读表列表…'
+    const r = await window.moonAPI.dbTables('public')
+    left.textContent = ''
+    if (r.ok !== true) {
+      // ★ 如实显示"未找到客户端 / 数据库错误"，而不是空列表
+      const d = mk('div', { textContent: String(r.error) })
+      d.style.cssText = 'color:#fc8181;line-height:1.6'
+      left.appendChild(d)
+      return
+    }
+    const names = (r.rows || []).map((x) => x.table_name)
+    if (!names.length) {
+      const d = mk('div', { textContent: '（public schema 里没有表）' })
+      d.style.cssText = 'color:#888'
+      left.appendChild(d)
+      return
+    }
+    for (const n of names) {
+      const b = mk('button', { textContent: n })
+      b.style.cssText = 'display:block;width:100%;text-align:left;margin:2px 0;' + btnCss
+      b.onclick = () => loadData(n)
+      left.appendChild(b)
+    }
+    hint.textContent = '共 ' + names.length + ' 张表'
+  }
+
+  searchBtn.onclick = () => { if (currentTable) loadData(currentTable, { mode: 'search', term: searchIn.value }) }
+  prevBtn.onclick = () => { if (currentTable) loadData(currentTable, { offset: Math.max(0, offset - PAGE) }) }
+  nextBtn.onclick = () => { if (currentTable) loadData(currentTable, { offset: offset + PAGE }) }
+  redisBtn.onclick = async () => {
+    rowsBox.textContent = '正在 SCAN …'
+    const r = await window.moonAPI.dbRedisKeys(redisIn.value || '*')
+    if (r.ok !== true) { rowsBox.textContent = 'Redis：' + String(r.error); return }
+    const lines = r.lines || []
+    rowsBox.textContent = lines.slice(0, 50).join('\n') || '（没有匹配的 key）'
+    hint.textContent = 'Redis SCAN 返回 ' + lines.length + ' 行（SCAN 不保证一次给全，可再点一次）'
+  }
+
+  await refreshTables()
+  return true
+}
+
 window.moonbitIDE = {
   openProject: (dir) => boot(dir),      // 等价于用户「打开文件夹」之后走的那条路
   closeProject,
@@ -1171,6 +1303,16 @@ window.moonbitIDE = {
   commands: {
     list: () => window.moonAPI.commandList(),
     execute: (name, args, opts) => window.moonAPI.commandExecute(name, args, opts),
+  },
+  // P15：数据库工作台（只读；每句都过 SQL/Redis 安全闸）
+  database: {
+    show: () => showDatabasePanel(),
+    tables: (schema) => window.moonAPI.dbTables(schema),
+    columns: (table, schema) => window.moonAPI.dbColumns(table, schema),
+    query: (payload) => window.moonAPI.dbQuery(payload),
+    raw: (sql) => window.moonAPI.dbRaw(sql),
+    redisKeys: (pattern, cursor, count) => window.moonAPI.dbRedisKeys(pattern, cursor, count),
+    redisValue: (key, type) => window.moonAPI.dbRedisValue(key, type),
   },
   // P16-10～12：工程状态（Quality Center）
   quality: {
