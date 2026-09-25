@@ -101,7 +101,8 @@
 | P10 | Session | **PASS**：不可变会话模型（id/绑定项目/四类记录）+ 持久化到**用户目录**（按项目分文件，不进项目）+ 项目切换自动切会话 + 关项目结束上下文 + **面板**（按项目展示会话与四类记录，不提供改历史）；**修掉真缺陷**：渲染侧原来用全局 localStorage 键 → 换项目会串；`test-session` **68/0**、`verify-session` **25/0**、`verify-session-memory-ui` **17/0** |
 | P11 | 项目级记忆 | **PASS**：`.moonbit-work/`（project.md / agent-rules.md / context.json / history）—— 只做"项目知识"；规则**未经确认不可修改**（判定提到写盘层）；经验只收 `verified`、相关度检索、压缩（**原条目归档**）+ **面板**（规则与经验只读展示，**不含编辑入口**）；`test-project-memory` **101/0**、`verify-project-memory` **38/0** |
 | P12 | AI Provider Center | **PASS**：核心层（44/0）+ 存储/面板/真实探测（23/0）+ **激活并写入 opencode 配置（38/0，含「原有 provider 一个不丢」与「配置原样还原」）**；端到端「真跑一次模型」未验（需 Key/额度） |
-| P19 | 测试体系 | **进行中（5/10）**：`verify-harness` + 元测试 36 项 + 扫描器（认可相等语义的 chk）+ 异常退出码双向证明 + 4 个长期红灯已修；**chk 迁移 29 个已迁并逐个真跑**（25/0、25/0、51/0、20/0、42/0…），**剩 5 个**（基线 5，门禁守只减不增）；⚠️ 两次批量尝试均**失败并回滚**（第二次又是 `
+| P19 | 测试体系 | **进行中（8/10，剩 2 个待查）**：`verify-harness` + 元测试 36 项 + 扫描器（认可相等语义的 chk）+ 异常退出码双向证明 + 4 个长期红灯已修；**chk 已迁 32 个且逐个真跑**；剩 `verify-dash.js`（跑出 10/7，**原因待查**）与 `verify-dash-v2.js`（`log` 未定义）**已回滚**；⚠️ 三次批量尝试失败均回滚（含第四次 `
+` 转义，改 JS 源码只用 `edit_file`） |
 ` 转义 —— 改 JS 源码只用 `edit_file`，见 `docs/changes/phase2.1-p19-migration-2.md`） |
 | P5A | Agent Context 真接线 | **PASS（第一批）**：AgentRequest/AgentResponse 契约（含四态）+ **ProjectContext/Problems 真实接入**（`verify-agent-request` 19/0，用真实项目与真实问题验证）+ Context Snapshot（含取数四态 absent/empty/ok/error）；**activeFile/selection/lastRun/lastTest 待接** |
 | P9A | Ask / Understand | **PASS（第二批）**：`TaskUnderstanding`（6 栏全部**可核对来源**，不做思维链）+ 规则化 `proposedActions`（每条带 rule）+ `applyLlmPlan` 只许覆盖计划、事实不许改；理解卡（开始执行/取消）+ Auto-start 开关（卡上可见可写，且不解除 P8）；`test-task-understanding` 53/0、`verify-agent-request` **41/0**（含真切界面与"越界路径被拒"） |

@@ -1,4 +1,5 @@
 // 验证工作台 widget：均匀网格 / 拖拽已挂载 / 增删 / 持久化
+const { createHarness } = require('./verify-harness')
 require('./main.js')
 const { app, BrowserWindow } = require('electron')
 const fs = require('fs')
@@ -14,12 +15,8 @@ app.whenReady().then(async () => {
   const SHOT = path.join(__dirname, 'e2e-shots', 'dash')
   fs.mkdirSync(SHOT, { recursive: true })
 
-  let pass = 0, fail = 0
-  // P19：类型防护 —— 传非布尔（数组/对象）说明用错了函数，必须当场失败
-  const chk = (n, ok, d) => {
-    if (typeof ok !== 'boolean') { fail++; console.log(`  [FAIL] ${n}   chk 只接受布尔（数组/对象比较请用 eq）：${JSON.stringify(ok)}`); return }
-    if (ok) { pass++; console.log(`  [PASS] ${n}`) } else { fail++; console.log(`  [FAIL] ${n}  ${d || ''}`) }
-  }
+  const H = createHarness()
+  const chk = H.chk
 
   console.log('=== ① SortableJS 是否真的可用（UMD 加载顺序对不对）===')
   const s0 = JSON.parse(await js(`(() => JSON.stringify({
@@ -116,7 +113,7 @@ app.whenReady().then(async () => {
   fs.writeFileSync(path.join(SHOT, 'dashboard-widgets.png'), (await win.webContents.capturePage()).toPNG())
   console.log('  dashboard-widgets.png')
 
-  console.log(`\n结果：${pass} 通过, ${fail} 失败 / 共 ${pass + fail} 项`)
+  console.log('\n' + H.summary())
   app.quit()
-  setTimeout(() => process.exit(0), 1500)
+  setTimeout(() => process.exit(H.exitCode()), 1500)
 }).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })

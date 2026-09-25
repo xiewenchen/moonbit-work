@@ -1,5 +1,6 @@
 // 验证「组件是否真的跟着主题变了」——上一轮只做了机制、组件颜色写死，所以日间下卡片还是黑的。
 // 判据：浅色主题下组件底色应当「亮」（相对亮度高），深色主题下应当「暗」，且两套必须不同。
+const { createHarness } = require('./verify-harness')
 require('./main.js')
 const { app, BrowserWindow } = require('electron')
 const fs = require('fs')
@@ -25,12 +26,8 @@ app.whenReady().then(async () => {
   fs.mkdirSync(SHOT, { recursive: true })
   const safeShot = async (n) => { try { fs.writeFileSync(path.join(SHOT, n), (await win.webContents.capturePage()).toPNG()); console.log('  截图 ' + n) } catch (e) { console.log('  截图失败: ' + n) } }
 
-  let pass = 0, fail = 0
-  // P19：类型防护 —— 传非布尔（数组/对象）说明用错了函数，必须当场失败
-  const chk = (n, ok, d) => {
-    if (typeof ok !== 'boolean') { fail++; console.log(`  [FAIL] ${n}   chk 只接受布尔（数组/对象比较请用 eq）：${JSON.stringify(ok)}`); return }
-    if (ok) { pass++; console.log(`  [PASS] ${n}`) } else { fail++; console.log(`  [FAIL] ${n}  ${d || ''}`) }
-  }
+  const H = createHarness()
+  const chk = H.chk
 
   // 取样表达式（写成字符串，多处复用；避免 probe.toString() 那种脆做法）
   const PROBE = `(() => {
@@ -104,7 +101,7 @@ app.whenReady().then(async () => {
   chk('日间 Monaco 编辑器底色是亮的', lum(parseRGB(projLight.editorBg) || [0, 0, 0]) > 0.8, projLight.editorBg)
   await safeShot('comp-light-project.png')
 
-  console.log(`\n结果：${pass} 通过, ${fail} 失败 / 共 ${pass + fail} 项`)
+  console.log('\n' + H.summary())
   app.quit()
-  setTimeout(() => process.exit(0), 1500)
+  setTimeout(() => process.exit(H.exitCode()), 1500)
 }).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })
