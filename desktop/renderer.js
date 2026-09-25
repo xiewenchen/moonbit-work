@@ -1418,6 +1418,140 @@ async function showWorkbenchPanel() {
   return true
 }
 
+/**
+ * P10 面板：当前项目的会话（只读展示）。
+ *
+ * 只显示**绑定当前项目**的那条会话 —— 会话本来就是按项目隔离的（P10-11），
+ * 这里只是把它摊开给人看。不提供"改历史"，因为历史是事实。
+ */
+async function showSessionPanel() {
+  const old = document.getElementById('sessPanel')
+  if (old) old.remove()
+  const mk = (tag, props) => { const el = document.createElement(tag); Object.assign(el, props || {}); return el }
+  const btnCss = 'padding:3px 9px;background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:5px;cursor:pointer'
+  const mask = mk('div', { id: 'sessPanel' })
+  mask.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999'
+  const card = mk('div')
+  card.style.cssText = 'max-width:760px;width:94%;max-height:84vh;display:flex;flex-direction:column;gap:8px;background:#1e1e1e;color:#ddd;border:1px solid #333;border-radius:8px;padding:14px;font-size:12px'
+  const title = mk('div', { textContent: '会话（当前项目）' })
+  title.style.cssText = 'font-weight:600;font-size:14px'
+  const hint = mk('div', { id: 'sessHint' })
+  hint.style.cssText = 'color:#888;font-size:11px'
+  const body = mk('pre', { id: 'sessBody' })
+  body.style.cssText = 'margin:0;padding:8px;background:#121212;border:1px solid #333;border-radius:6px;color:#bbb;overflow:auto;flex:1;max-height:56vh;white-space:pre-wrap;word-break:break-all'
+  const bar = mk('div')
+  bar.style.cssText = 'display:flex;gap:8px;justify-content:flex-end'
+  const closeBtn = mk('button', { textContent: '关闭', style: btnCss })
+  bar.appendChild(closeBtn)
+  card.appendChild(title); card.appendChild(hint); card.appendChild(body); card.appendChild(bar)
+  mask.appendChild(card)
+  document.body.appendChild(mask)
+  closeBtn.onclick = () => mask.remove()
+
+  const mbi = window.moonbitIDE || {}
+  const c = (typeof mbi.getContext === 'function') ? mbi.getContext() : null
+  if (!c) {
+    hint.textContent = '（未打开项目）'
+    body.textContent = '会话是按项目绑定的 —— 先打开一个项目再来看。'
+    return true
+  }
+  const r = await window.moonAPI.sessionResume({ projectContext: c })
+  if (!r || !r.ok) {
+    hint.textContent = '（读不到会话）'
+    body.textContent = String((r && r.error) || '')
+    return true
+  }
+  const s = r.session || {}
+  hint.textContent = String(r.describe || '') + '　｜ ' + (r.restored ? '从已有会话恢复' : '新建的会话')
+  const lines = []
+  lines.push('会话 id：' + (s.id || '?'))
+  lines.push('绑定项目：' + (s.projectRoot || '（无）'))
+  lines.push('状态：' + (s.state || '?'))
+  lines.push('')
+  lines.push('消息 ' + (s.messages || []).length + ' 条：')
+  for (const m of (s.messages || []).slice(-15)) lines.push('  [' + m.role + '] ' + String(m.text || '').slice(0, 120))
+  lines.push('')
+  lines.push('工具调用 ' + (s.toolCalls || []).length + ' 次：')
+  for (const t of (s.toolCalls || []).slice(-10)) lines.push('  ' + (t.ok ? '✓' : '✗') + ' ' + t.name + (t.error ? '  ' + String(t.error).slice(0, 80) : ''))
+  lines.push('')
+  lines.push('补丁 ' + (s.patches || []).length + ' 个：')
+  for (const p of (s.patches || []).slice(-10)) lines.push('  ' + (p.applied ? '已落盘' : '未落盘') + ' ' + p.file)
+  lines.push('')
+  lines.push('验证 ' + (s.verifications || []).length + ' 次：')
+  for (const v of (s.verifications || []).slice(-5)) lines.push('  ' + (v.ok ? '通过' : '未通过') + ' ' + (v.status || ''))
+  body.textContent = lines.join('\n')
+  return true
+}
+
+/**
+ * P11 面板：项目知识（规则 + 已验证经验）。
+ *
+ * ⚠️ 规则是**只读展示**的 —— 改写必须由用户明确确认（P11-05），
+ * 所以这里不提供"编辑规则"的按钮。经验也只显示 `verified` 的。
+ */
+async function showMemoryPanel() {
+  const old = document.getElementById('memPanel')
+  if (old) old.remove()
+  const mk = (tag, props) => { const el = document.createElement(tag); Object.assign(el, props || {}); return el }
+  const btnCss = 'padding:3px 9px;background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:5px;cursor:pointer'
+  const mask = mk('div', { id: 'memPanel' })
+  mask.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999'
+  const card = mk('div')
+  card.style.cssText = 'max-width:760px;width:94%;max-height:84vh;display:flex;flex-direction:column;gap:8px;background:#1e1e1e;color:#ddd;border:1px solid #333;border-radius:8px;padding:14px;font-size:12px'
+  const title = mk('div', { textContent: '项目知识（.moonbit-work/）' })
+  title.style.cssText = 'font-weight:600;font-size:14px'
+  const hint = mk('div', { id: 'memHint' })
+  hint.style.cssText = 'color:#888;font-size:11px'
+  const body = mk('pre', { id: 'memBody' })
+  body.style.cssText = 'margin:0;padding:8px;background:#121212;border:1px solid #333;border-radius:6px;color:#bbb;overflow:auto;flex:1;max-height:56vh;white-space:pre-wrap;word-break:break-all'
+  const bar = mk('div')
+  bar.style.cssText = 'display:flex;gap:8px;justify-content:flex-end'
+  const createBtn = mk('button', { textContent: '创建/刷新', style: btnCss })
+  const closeBtn = mk('button', { textContent: '关闭', style: btnCss })
+  bar.appendChild(createBtn); bar.appendChild(closeBtn)
+  card.appendChild(title); card.appendChild(hint); card.appendChild(body); card.appendChild(bar)
+  mask.appendChild(card)
+  document.body.appendChild(mask)
+  closeBtn.onclick = () => mask.remove()
+
+  async function refresh() {
+    const mbi = window.moonbitIDE || {}
+    const c = (typeof mbi.getContext === 'function') ? mbi.getContext() : null
+    if (!c) { hint.textContent = '（未打开项目）'; body.textContent = '项目知识是项目级的 —— 先打开一个项目。'; return }
+    const root = c.rootDir
+    const rules = await window.moonAPI.memoryRules(root)
+    const exps = await window.moonAPI.memoryExperiences(root)
+    const lines = []
+    if (!rules.ok || !rules.exists) {
+      lines.push('还没有 agent-rules.md —— 点下面「创建/刷新」生成模板。')
+    } else {
+      const list = rules.rules || []
+      const hard = list.filter((r) => r.hard).length
+      hint.textContent = '规则 ' + list.length + ' 条（硬约束 ' + hard + '）｜ 经验 ' + ((exps.experiences || []).length) + ' 条'
+      lines.push('规则（' + list.length + ' 条，! 开头是硬约束）：')
+      for (const r of list) lines.push('  ' + (r.hard ? '! ' : '- ') + r.text + (r.section ? '    [' + r.section + ']' : ''))
+      lines.push('')
+      lines.push('⚠️ 规则受保护：修改必须由用户明确确认（P11-05），这个面板不提供编辑。')
+    }
+    lines.push('')
+    const list = (exps.experiences || [])
+    lines.push('已验证的经验（' + list.length + ' 条）：')
+    if (!list.length) lines.push('  （还没有 —— 经验只收 verified 的，"我猜"不算）')
+    for (const e of list.slice(-12)) lines.push('  ' + (e.verified ? '✓ ' : '  ') + String(e.error || '').slice(0, 90) + '\n      → ' + String(e.solution || '').slice(0, 110))
+    body.textContent = lines.join('\n')
+  }
+
+  createBtn.onclick = async () => {
+    const mbi = window.moonbitIDE || {}
+    const c = (typeof mbi.getContext === 'function') ? mbi.getContext() : null
+    if (!c) return
+    await window.moonAPI.memoryEnsure(c.rootDir, c)
+    await refresh()
+  }
+  await refresh()
+  return true
+}
+
 window.moonbitIDE = {
   openProject: (dir) => boot(dir),      // 等价于用户「打开文件夹」之后走的那条路
   closeProject,
@@ -1429,6 +1563,17 @@ window.moonbitIDE = {
   commands: {
     list: () => window.moonAPI.commandList(),
     execute: (name, args, opts) => window.moonAPI.commandExecute(name, args, opts),
+  },
+  // P10/P11：会话与项目记忆（只读展示为主）
+  session: {
+    show: () => showSessionPanel(),
+    resume: (ctx) => window.moonAPI.sessionResume({ projectContext: ctx }),
+  },
+  memory: {
+    show: () => showMemoryPanel(),
+    rules: (root) => window.moonAPI.memoryRules(root),
+    experiences: (root) => window.moonAPI.memoryExperiences(root),
+    ensure: (root, ctx) => window.moonAPI.memoryEnsure(root, ctx),
   },
   // P13：工作台（最近项目 / 待办 / 便签）
   workbench: {
