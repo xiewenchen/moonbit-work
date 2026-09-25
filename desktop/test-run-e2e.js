@@ -25,22 +25,11 @@ const path = require('path')
 const { createServiceRunner } = require('./runners')
 
 const FIXTURE = path.join(__dirname, 'testdata', 'fixture-http-server.js')
+const { createHarness } = require('./verify-harness')
 const NODE = process.execPath
 
-let pass = 0
-let fail = 0
-const failures = []
-
-function chk(name, ok, detail) {
-  if (ok) {
-    pass++
-    console.log('  [PASS] ' + name)
-  } else {
-    fail++
-    failures.push(name)
-    console.log('  [FAIL] ' + name + (detail ? '   ' + detail : ''))
-  }
-}
+const H = createHarness()
+const chk = H.chk
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -380,9 +369,9 @@ async function main() {
     chk('停止后端口不再可连（真正的服务进程被杀掉，不是只杀了 cmd）', closed === true, String(url))
   }
 
-  console.log('\n结果：' + pass + ' 通过 / ' + fail + ' 失败 / 共 ' + (pass + fail) + ' 项')
-  if (fail) console.log('失败项：\n  - ' + failures.join('\n  - '))
-  process.exit(fail === 0 ? 0 : 1)
+  console.log('\n' + H.summary())
+  if (H.fail) console.log('失败项：\n  - ' + H.failures.join('\n  - '))
+  process.exit(H.exitCode())
 }
 
 main().catch((e) => {

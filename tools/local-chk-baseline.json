@@ -1,7 +1,6 @@
 {
   "note": "还自带局部 chk 定义的 verify 脚本（渐进迁移中，只允许减少）。迁移完一个就删掉一个。",
   "files": [
-    "test-run-e2e.js",
     "verify-components-theme.js",
     "verify-dash-v2.js",
     "verify-dash.js",
