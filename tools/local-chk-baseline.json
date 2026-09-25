@@ -4,7 +4,6 @@
     "verify-components-theme.js",
     "verify-dash-v2.js",
     "verify-dash.js",
-    "verify-relay.js",
     "verify-widget-size.js",
     "verify-widgets.js"
   ]

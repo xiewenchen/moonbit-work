@@ -1,6 +1,7 @@
 // 文件中转站验证（WPS 风格布局）：
 //   标签名/图标 · 左分类+计数 · 顶工具条 · 宫格/列表双视图 · 搜索 · 排序
 //   · 悬浮/右键操作 · 版本历史 · 真实还原 · 固定监控（下载/桌面 不可移除）
+const { createHarness } = require('./verify-harness')
 require('./main.js')
 const { app, BrowserWindow } = require('electron')
 const fs = require('fs')
@@ -23,12 +24,8 @@ app.whenReady().then(async () => {
   fs.mkdirSync(SHOT, { recursive: true })
   const safeShot = async (n) => { try { fs.writeFileSync(path.join(SHOT, n), (await win.webContents.capturePage()).toPNG()); console.log('  截图 ' + n) } catch (e) { console.log('  截图失败: ' + n) } }
 
-  let pass = 0, fail = 0
-  // P19：类型防护 —— 传非布尔（数组/对象）说明用错了函数，必须当场失败
-  const chk = (n, ok, d) => {
-    if (typeof ok !== 'boolean') { fail++; console.log(`  [FAIL] ${n}   chk 只接受布尔（数组/对象比较请用 eq）：${JSON.stringify(ok)}`); return }
-    if (ok) { pass++; console.log(`  [PASS] ${n}`) } else { fail++; console.log(`  [FAIL] ${n}  ${d || ''}`) }
-  }
+  const H = createHarness()
+  const chk = H.chk
 
   try { fs.rmSync(path.join(os.homedir(), '.moonbit-backups', crypto.createHash('sha1').update(DOC).digest('hex').slice(0, 16)), { recursive: true, force: true }) } catch (_) {}
 
@@ -311,7 +308,7 @@ app.whenReady().then(async () => {
   await sleep(1000)
   await safeShot('fm-grid-view.png')
 
-  console.log(`\n结果：${pass} 通过, ${fail} 失败 / 共 ${pass + fail} 项`)
+  console.log('\n' + H.summary())
   app.quit()
-  setTimeout(() => process.exit(0), 1500)
+  setTimeout(() => process.exit(H.exitCode()), 1500)
 }).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })
