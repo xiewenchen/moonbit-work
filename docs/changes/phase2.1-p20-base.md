@@ -55,3 +55,38 @@
 | 纯 Node 全量 | 39 个脚本全通过 |
 | 门禁 | 空 catch 93 ≤ 95；local-chk 基线 0 |
 | CI | 新增 `node test-startup-state.js` |
+
+---
+
+## 接线（同批补齐）
+
+`startup-main.js` + 7 个 IPC + **两个面板**：
+
+| 能力 | 入口 |
+|---|---|
+| 启动恢复 | `startup:plan`（读快照并决定怎么恢复）|
+| 退出标记 | `app.on('before-quit')` → `markCleanExitNow()` |
+| 启动标记 | `markRunningNow()`（启动时立刻标记）|
+| 环境检查 | `env:check`（spawnSync 探 `--version`）|
+| 环境诊断面板 | `showEnvironmentPanel()` |
+| **面板统一入口** | `showPanelMenu()` |
+
+### 那个"容易忘的一步"
+
+`markCleanExit` 我特意注册到了 `app.on('before-quit')`。不做这一步的后果是：
+**每次启动都会被判成"异常退出"**，于是用户会发现"我的标签为什么没恢复"，
+而实际原因只是退出时没清标记。端到端两种路径都验了（clean-exit 恢复 2 个标签；
+after-crash 只恢复项目、标签清空）。
+
+### 面板统一入口（P20-04 的实质）
+
+这批做了 7 个面板，但它们此前**只能靠手敲 API 名**才能打开
+（`window.moonbitIDE.database.show()` 之类）—— 等于"功能有了但没人找得到"。
+`showPanelMenu()` 把它们列成一列：环境诊断 / 工作台 / 工程状态 / 数据库 / 会话 /
+项目知识 / 办公文件。点开即用，而且打开一个就自动收起菜单（不叠两层）。
+
+环境诊断面板每项都显示"**为什么需要它**"与"**缺了怎么办**"，
+并且把"没装"（`✗` + 橙色建议）与"**探测时报错**"（单独一行说明"与「没装」不是一回事"）分开。
+
+回归：`verify-welcome`、`verify-workbench` 23/0、`verify-office` 25/0；
+纯 Node 全量 39 个全过；门禁与安全审计均通过。

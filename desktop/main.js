@@ -29,6 +29,8 @@ const { registerSessionIpc } = require('./session-main')
 const { registerMemoryIpc } = require('./memory-main')
 const { registerWorkbenchIpc } = require('./workbench-main')
 const { registerOfficeLinkIpc } = require('./office-main')
+const { registerStartupIpc, defaultProbes } = require('./startup-main')
+const { findOpencode } = require('./agent')
 const wbCore = require('./workbench')
 const wbMain = require('./workbench-main')
 const { registerQualityIpc } = require('./quality-main')
@@ -275,6 +277,30 @@ registerOfficeLinkIpc({
   onLog: (e) => console.log('[office]', JSON.stringify(e)),
   readNote: (root) => wbCore.noteFor(wbMain.readStore(), root),
   writeNote: (root, text) => wbMain.writeStore(wbCore.setNote(wbMain.readStore(), root, text).store),
+})
+
+// P20：启动恢复 + 环境检查。
+// ⚠️ markCleanExit 这一步必须做：不做的话每次启动都会被判成「异常退出」并降级恢复，
+//    用户会以为「我的标签为什么没恢复」。所以注册在 before-quit 上。
+const startupState = registerStartupIpc({
+  ipcMain,
+  onLog: (e) => console.log('[startup]', JSON.stringify(e)),
+  probes: defaultProbes({
+    agentProbe: () => {
+      try {
+        const r = findOpencode()
+        return r && r.path ? { found: true, version: String(r.path).slice(-40) } : { found: false }
+      } catch (e) {
+        return { found: false, error: String((e && e.message) || e) }
+      }
+    },
+  }),
+})
+startupState.markRunningNow()
+app.on('before-quit', () => {
+  try { startupState.markCleanExitNow() } catch (e) {
+    console.error('[startup] 标记正常退出失败：' + String((e && e.message) || e))
+  }
 })
 
 // P16-10：Quality Center 面板的数据源（聚合已有验证产物，不重跑）

@@ -182,6 +182,14 @@ contextBridge.exposeInMainWorld('moonAPI', {
   officePreview: (payload) => ipcRenderer.invoke('office:preview', payload || {}),
   officeToAgent: (payload) => ipcRenderer.invoke('office:toAgent', payload || {}),
   officeSummaryToNote: (payload) => ipcRenderer.invoke('office:summaryToNote', payload || {}),
+  // ---- P20：启动恢复 + 环境检查 ----
+  startupPlan: () => ipcRenderer.invoke('startup:plan'),
+  startupMarkRunning: () => ipcRenderer.invoke('startup:markRunning'),
+  startupMarkCleanExit: () => ipcRenderer.invoke('startup:markCleanExit'),
+  startupUpdate: (patch) => ipcRenderer.invoke('startup:update', patch || {}),
+  startupFile: () => ipcRenderer.invoke('startup:file'),
+  envCheck: () => ipcRenderer.invoke('env:check', {}),
+  envLast: () => ipcRenderer.invoke('env:last'),
 
   // 注：ProjectContext 不在这里过桥 —— 本 preload 是 sandbox:true，
   // require 本地文件会让整个 preload 挂掉（实测踩过）。

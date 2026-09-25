@@ -1653,6 +1653,128 @@ async function showOfficePanel() {
   return true
 }
 
+/**
+ * P20-10 环境诊断面板：Moon / Node / Git / Docker / Agent 各在不在。
+ *
+ * 每一项都显示"为什么需要它"与"缺了怎么办" —— 并且**区分"没装"与"探测报错"**。
+ */
+async function showEnvironmentPanel() {
+  const old = document.getElementById('envPanel')
+  if (old) old.remove()
+  const mk = (tag, props) => { const el = document.createElement(tag); Object.assign(el, props || {}); return el }
+  const btnCss = 'padding:3px 9px;background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:5px;cursor:pointer'
+  const mask = mk('div', { id: 'envPanel' })
+  mask.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999'
+  const card = mk('div')
+  card.style.cssText = 'max-width:760px;width:94%;max-height:86vh;display:flex;flex-direction:column;gap:8px;background:#1e1e1e;color:#ddd;border:1px solid #333;border-radius:8px;padding:14px;font-size:12px'
+  const title = mk('div', { textContent: '环境诊断' })
+  title.style.cssText = 'font-weight:600;font-size:14px'
+  const hint = mk('div', { id: 'envHint' })
+  hint.style.cssText = 'color:#888;font-size:11px'
+  const list = mk('div', { id: 'envList' })
+  list.style.cssText = 'overflow:auto;max-height:58vh;display:flex;flex-direction:column;gap:6px'
+  const bar = mk('div')
+  bar.style.cssText = 'display:flex;gap:8px;justify-content:flex-end'
+  const reBtn = mk('button', { textContent: '重新检查', style: btnCss })
+  const closeBtn = mk('button', { textContent: '关闭', style: btnCss })
+  bar.appendChild(reBtn); bar.appendChild(closeBtn)
+  card.appendChild(title); card.appendChild(hint); card.appendChild(list); card.appendChild(bar)
+  mask.appendChild(card)
+  document.body.appendChild(mask)
+  closeBtn.onclick = () => mask.remove()
+
+  async function refresh() {
+    list.textContent = '正在检查…'
+    hint.textContent = ''
+    const r = await window.moonAPI.envCheck()
+    const env = (r && r.env) || { items: [] }
+    list.textContent = ''
+    hint.textContent = String(env.summary || '')
+    for (const it of (env.items || [])) {
+      const row = mk('div')
+      const bad = !it.found
+      row.style.cssText = 'border:1px solid ' + (bad ? '#5a2a2a' : '#2a3a2a') + ';border-radius:6px;padding:7px 9px;background:#161616'
+      const head = mk('div')
+      const mark = mk('span', { textContent: (it.found ? '✓ ' : '✗ ') + it.name })
+      mark.style.cssText = 'font-weight:600;color:' + (it.found ? '#68d391' : '#fc8181')
+      head.appendChild(mark)
+      if (it.version) {
+        const v = mk('span', { textContent: '  ' + it.version })
+        v.style.cssText = 'color:#888'
+        head.appendChild(v)
+      }
+      row.appendChild(head)
+      const why = mk('div', { textContent: '为什么需要：' + it.why })
+      why.style.cssText = 'color:#aaa;margin-top:2px'
+      row.appendChild(why)
+      if (!it.found && it.hint) {
+        const h = mk('div', { textContent: '缺了怎么办：' + it.hint })
+        h.style.cssText = 'color:#f6ad55;margin-top:2px'
+        row.appendChild(h)
+      }
+      if (it.error) {
+        // ★ 探测报错与"没装"分开显示
+        const e = mk('div', { textContent: '探测时报错（与「没装」不是一回事）：' + it.error })
+        e.style.cssText = 'color:#f6ad55;margin-top:2px'
+        row.appendChild(e)
+      }
+      list.appendChild(row)
+    }
+  }
+
+  reBtn.onclick = refresh
+  await refresh()
+  return true
+}
+
+/**
+ * P20：面板统一入口 —— 所有面板从这里进。
+ *
+ * 加它的理由很实际：这批做了 7 个面板（工作台/工程状态/数据库/会话/项目知识/办公文件/环境），
+ * 但它们此前都只能靠手敲 `window.moonbitIDE.database.show()` 打开 —— 等于"功能有了但没人找得到"。
+ * 这里把它们列成一列，点开即用。
+ */
+async function showPanelMenu() {
+  const PANELS = [
+    ['环境诊断', () => showEnvironmentPanel()],
+    ['工作台（最近项目 / 待办 / 便签）', () => showWorkbenchPanel()],
+    ['工程状态（Quality：构建/测试/安全/桌面验证）', () => showQualityPanel()],
+    ['数据库工作台（只读）', () => showDatabasePanel()],
+    ['会话（当前项目）', () => showSessionPanel()],
+    ['项目知识（规则 / 已验证经验）', () => showMemoryPanel()],
+    ['办公文件 ↔ 项目（关联 / 送 Agent / 存便签）', () => showOfficePanel()],
+  ]
+  const old = document.getElementById('panelMenu')
+  if (old) old.remove()
+  const mk = (tag, props) => { const el = document.createElement(tag); Object.assign(el, props || {}); return el }
+  const btnCss = 'padding:3px 9px;background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:5px;cursor:pointer'
+  const mask = mk('div', { id: 'panelMenu' })
+  mask.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9998'
+  const card = mk('div')
+  card.style.cssText = 'max-width:520px;width:92%;display:flex;flex-direction:column;gap:8px;background:#1e1e1e;color:#ddd;border:1px solid #333;border-radius:8px;padding:14px;font-size:12px'
+  const title = mk('div', { textContent: '面板' })
+  title.style.cssText = 'font-weight:600;font-size:14px'
+  const hint = mk('div', { textContent: '（都是只读展示或经确认才写；面板本身不改项目文件）' })
+  hint.style.cssText = 'color:#888;font-size:11px'
+  const list = mk('div')
+  list.style.cssText = 'display:flex;flex-direction:column;gap:6px'
+  for (const [label, open] of PANELS) {
+    const b = mk('button', { textContent: label })
+    b.style.cssText = 'text-align:left;padding:8px 10px;background:#161616;color:#ddd;border:1px solid #2a2a2a;border-radius:6px;cursor:pointer;font-size:12px'
+    b.onclick = () => { mask.remove(); open() }
+    list.appendChild(b)
+  }
+  const bar = mk('div')
+  bar.style.cssText = 'display:flex;justify-content:flex-end'
+  const closeBtn = mk('button', { textContent: '关闭', style: btnCss })
+  bar.appendChild(closeBtn)
+  card.appendChild(title); card.appendChild(hint); card.appendChild(list); card.appendChild(bar)
+  mask.appendChild(card)
+  document.body.appendChild(mask)
+  closeBtn.onclick = () => mask.remove()
+  return true
+}
+
 window.moonbitIDE = {
   openProject: (dir) => boot(dir),      // 等价于用户「打开文件夹」之后走的那条路
   closeProject,
@@ -1664,6 +1786,16 @@ window.moonbitIDE = {
   commands: {
     list: () => window.moonAPI.commandList(),
     execute: (name, args, opts) => window.moonAPI.commandExecute(name, args, opts),
+  },
+  // P20：启动恢复 + 环境诊断 + 面板统一入口
+  panels: { menu: () => showPanelMenu() },
+  env: { show: () => showEnvironmentPanel(), check: () => window.moonAPI.envCheck() },
+  startup: {
+    plan: () => window.moonAPI.startupPlan(),
+    update: (p) => window.moonAPI.startupUpdate(p),
+    markRunning: () => window.moonAPI.startupMarkRunning(),
+    markCleanExit: () => window.moonAPI.startupMarkCleanExit(),
+    file: () => window.moonAPI.startupFile(),
   },
   // P13-04～07：办公文件 ↔ 项目联动
   office: {
