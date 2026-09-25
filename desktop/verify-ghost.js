@@ -31,4 +31,4 @@ app.whenReady().then(async () => {
 
   await q('还原', `(()=>{ editor.getModel().setValue('// ok' + ${NL}); return 'ok' })()`)
   app.quit()
-}).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })
+}).catch((e) => { console.error('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); process.exit(1) })

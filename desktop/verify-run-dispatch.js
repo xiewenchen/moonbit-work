@@ -73,4 +73,4 @@ app.whenReady().then(async () => {
   try { fs.rmSync(TMP, { recursive: true, force: true }) } catch (_) {}
   log('\n' + H.summary())
   dump(H.exitCode())
-}).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })
+}).catch((e) => { console.error('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); process.exit(1) })

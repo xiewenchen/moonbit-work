@@ -143,4 +143,4 @@ app.whenReady().then(async () => {
     log('（临时目录清理失败，忽略：' + String((e && e.message) || e) + '）')
   }
   dump(fail === 0 ? 0 : 1)
-}).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })
+}).catch((e) => { console.error('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); process.exit(1) })

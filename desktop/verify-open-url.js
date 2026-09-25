@@ -39,4 +39,4 @@ app.whenReady().then(async () => {
     console.log('  ' + (r.urls && r.urls.length ? '✅ 链路通 —— 点运行会自动打开网站' : '❌ 没抓到 URL'))
   }
   app.exit(0)
-}).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })
+}).catch((e) => { console.error('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); process.exit(1) })

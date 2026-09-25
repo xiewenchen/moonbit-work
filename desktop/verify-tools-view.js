@@ -34,4 +34,4 @@ app.whenReady().then(async () => {
     console.log('  ' + (r.cards > 0 ? '✅ 工具标签已填充' : '❌ 工具标签仍为空'))
   }
   app.exit(0)
-}).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })
+}).catch((e) => { console.error('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); process.exit(1) })

@@ -119,4 +119,4 @@ app.whenReady().then(async () => {
   // 清理本次测试对 localStorage 的污染（点标签会写入 moonbit-view）
   try { await win.webContents.executeJavaScript(`(() => { localStorage.removeItem('moonbit-view') })()`) } catch (_) {}
   app.exit(okEmpty && okLayout && okOther && okBack ? 0 : 1)
-}).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })
+}).catch((e) => { console.error('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); process.exit(1) })

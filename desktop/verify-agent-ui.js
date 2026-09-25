@@ -129,4 +129,4 @@ app.whenReady().then(async () => {
   try { await win.webContents.executeJavaScript(`(() => { localStorage.removeItem('moonbit-view') })()`) } catch (_) {}
   log('\n  RESULT: ' + (okUi && okSend ? 'PASS' : 'FAIL'))
   dump(okUi && okSend ? 0 : 1)
-}).catch((e) => { log('  主流程异常: ' + (e && e.stack || e)); dump(1) })
+}).catch((e) => { console.log('  主流程异常: ' + (e && e.stack || e)); dump(1) })
