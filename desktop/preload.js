@@ -158,6 +158,13 @@ contextBridge.exposeInMainWorld('moonAPI', {
   // ---- P16-10～12：工程状态（Quality Center）----
   qualitySnapshot: (opts) => ipcRenderer.invoke('quality:snapshot', opts || {}),
   qualityLog: (file) => ipcRenderer.invoke('quality:log', { file }),
+  // ---- P15：数据库工作台（只读；每句都过 SQL/Redis 安全闸）----
+  dbTables: (schema) => ipcRenderer.invoke('db:tables', { schema }),
+  dbColumns: (table, schema) => ipcRenderer.invoke('db:columns', { table, schema }),
+  dbQuery: (payload) => ipcRenderer.invoke('db:query', payload || {}),
+  dbRaw: (sql) => ipcRenderer.invoke('db:raw', { sql }),
+  dbRedisKeys: (pattern, cursor, count) => ipcRenderer.invoke('db:redisKeys', { pattern, cursor, count }),
+  dbRedisValue: (key, type) => ipcRenderer.invoke('db:redisValue', { key, type }),
 
   // 注：ProjectContext 不在这里过桥 —— 本 preload 是 sandbox:true，
   // require 本地文件会让整个 preload 挂掉（实测踩过）。

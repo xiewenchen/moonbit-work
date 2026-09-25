@@ -28,6 +28,7 @@ const { registerAgentRequestIpc } = require('./agent-request-main')
 const { registerSessionIpc } = require('./session-main')
 const { registerMemoryIpc } = require('./memory-main')
 const { registerQualityIpc } = require('./quality-main')
+const { registerDbExplorerIpc } = require('./db-explorer-main')
 const { canWriteRules } = require('./project-memory')
 
 // ── 环境准备：必须在任何 spawn 之前 ─────────────────────────────────────
@@ -261,6 +262,13 @@ registerMemoryIpc({
 registerQualityIpc({
   ipcMain,
   onLog: (e) => console.log('[quality]', JSON.stringify(e)),
+})
+
+// P15：数据库工作台（只读；执行用 psql / redis-cli，跑不动就如实报"未找到客户端"）
+registerDbExplorerIpc({
+  ipcMain,
+  runCommand: runCommandCapture,
+  onLog: (e) => console.log('[db]', JSON.stringify(e)),
 })
 
 // LSP 客户端（接官方 moon-lsp）—— 见 lsp-manager.js
