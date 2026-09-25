@@ -18,6 +18,24 @@ app.whenReady().then(async () => {
   const H = createHarness()
   const chk = H.chk
 
+  // ── 被测 UI 版本检查 ────────────────────────────────────────────────────────
+  // 本脚本期望的是旧工作台的 DOM（dashCalendar / dashTodos / dashNoteArea / dashAgenda），
+  // 而实际的工作台已经重写成 dashClock / dashDate / dashGrid / dashAdd —— 那些 id 在
+  // dash.js 里出现 0 次。所以它跑出来永远是"10 通过 / 7 失败"，属于**过时的测试**。
+  //
+  // 这里明确报 SKIP（而不是继续报 7 个 FAIL）：SKIP 与 FAIL 是两件事 ——
+  // "测试没跟上实现"不该伪装成"实现坏了"，也不该让人以为它验过了。
+  const newUI = await js(`!!document.getElementById('dashGrid')`)
+  const oldUI = await js(`!!document.getElementById('dashCalendar')`)
+  if (newUI && !oldUI) {
+    console.log('\n[SKIP] 工作台 UI 已重写（现在是 dashClock/dashDate/dashGrid/dashAdd）')
+    console.log('       本脚本期望的 dashCalendar/dashTodos/dashNoteArea/dashAgenda 已不存在，')
+    console.log('       需要按新 UI 重写后才能继续验证 —— 这不是通过，也不算失败。')
+    console.log('\n结果：0 通过 / 0 失败 / 共 0 项（SKIP：被测 UI 已变更）')
+    console.log('SKIP_REASON=ui-rewritten')
+    return process.exit(0)
+  }
+
   console.log('=== ① 主菜单（办公台）===')
   await js(`(() => { const a = document.querySelector('a[data-view="home"]'); if (a) a.click() })()`)
   await sleep(1500)

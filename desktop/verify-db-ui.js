@@ -75,4 +75,4 @@ app.whenReady().then(async () => {
 
   log('\n' + H.summary())
   dump(H.exitCode())
-}).catch((e) => { console.log('\n[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })
+}).catch((e) => { console.error('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); process.exit(1) })
