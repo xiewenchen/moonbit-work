@@ -54,7 +54,8 @@ app.whenReady().then(async () => {
   {
     const l = JSON.parse(await js('(async () => JSON.stringify(await window.moonbitIDE.agentTools.list()))()'))
     const tools = l.tools || []
-    eq('7 个只读工具', tools.length, 7)
+    eq('8 个只读工具（P14 新增 backendStatus）', tools.length, 8)
+    chk('  新增的 backendStatus 在里面', tools.some((t) => t.name === 'backendStatus'), JSON.stringify(tools.map((t) => t.name)))
     eq('**全部是 read 权限**', Array.from(new Set(tools.map((t) => t.permission))).join(','), 'read')
     chk('每个都有超时与输出限额', tools.every((t) => t.timeoutMs > 0 && t.maxOutputBytes > 0), true)
     chk('**没有写/执行工具**', tools.filter((t) => ['writeFile', 'applyPatch', 'project.run', 'project.build'].includes(t.name)).length === 0, JSON.stringify(tools.map((t) => t.name)))
@@ -136,6 +137,17 @@ app.whenReady().then(async () => {
     const a = JSON.parse(await js('(async () => JSON.stringify(await window.moonbitIDE.agentTools.exec.audit()))()'))
     chk('执行有审计记录', (a.audit || []).length >= 1, true)
     chk('审计含 tool / result / duration', (a.audit[0] || {}).tool === 'health' && typeof (a.audit[0] || {}).duration === 'number', true)
+  }
+
+  log('\n=== P14-12 backendStatus 工具：真的能调（只读）===')
+  {
+    const r = JSON.parse(await js(`(async () => JSON.stringify(await window.moonbitIDE.agentTools.call('backendStatus', {})))()`))
+    chk('backendStatus 可调用', r.ok === true, JSON.stringify(r).slice(0, 160))
+    chk('  返回里有 port 与 deps', !!(r.data && typeof r.data.port === 'number' && r.data.deps), JSON.stringify(r.data).slice(0, 200))
+    chk('  deps 标了 known（拿不到 docker 时不假装"没有"）', typeof r.data.deps.known === 'boolean', JSON.stringify(r.data.deps))
+    // 本机没起后端服务 → 必须如实 ok:false，并给出可读原因
+    chk('  如实报告连不上（不是假装健康）', r.data.ok === false, String(r.data.ok))
+    chk('  且带可读错误', /连不上/.test(String(r.data.error)), String(r.data.error))
   }
 
   log('\n结果：' + pass + ' 通过 / ' + fail + ' 失败 / 共 ' + (pass + fail) + ' 项')

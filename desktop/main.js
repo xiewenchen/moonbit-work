@@ -10,7 +10,7 @@ const { parseDiagnostics, parseOutline } = require('./lsp-parse')
 const { spawn } = require('node:child_process')
 const path = require('node:path')
 const fsops = require('./fsops')
-const { registerBackendIpc } = require('./backend')
+const { registerBackendIpc, probeHealth, hasDocker, buildHealthReport, DEFAULT_PORT } = require('./backend')
 const { registerApiDebugIpc } = require('./api-debug')
 const { registerProjectIpc, detectProject } = require('./project-detect')
 const { registerRelayIpc } = require('./relay-main')
@@ -188,6 +188,13 @@ const agentTools = registerAgentToolIpc({
   getRunner: () => projectRunner,
   // P7-01：执行工具**一律经命令表**，不自己 spawn
   executeCommand: (name, args, opts) => registry.execute(name, args, opts),
+  // P14-12：给 Agent 的**只读**后端状态（健康/端口/PG/Redis）。
+  // 与 backend:health IPC **共用** buildHealthReport —— 不各写一份（那份曾把 docker 探测的
+  // 耗时算进 latencyMs，同一个字段两份语义）。
+  backendStatus: async () => buildHealthReport({
+    root: (agentTools && typeof agentTools.getWorkspace === 'function' ? agentTools.getWorkspace() : '') || DEFAULT_CWD,
+    port: DEFAULT_PORT,
+  }),
 })
 
 // P8 补完：Patch 的两阶段流程（propose → 用户确认 → apply）。

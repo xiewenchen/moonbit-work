@@ -51,11 +51,22 @@ function findBinary(root) {
 
 function hasDocker() {
   return new Promise((resolve) => {
-    const c = spawn('docker', ['ps', '--format', '{{.Names}}'])
+    // ⚠️ 必须带超时：docker CLI 挂住的话，上层（backendStatus / backend:health）会**无限挂住**。
+    let done = false
+    const finish = (v) => { if (!done) { done = true; resolve(v) } }
+    let c
+    try { c = spawn('docker', ['ps', '--format', '{{.Names}}']) } catch (e) { return finish(null) }
     let out = ''
+    const killer = setTimeout(() => {
+      try { c.kill() } catch (e) {
+        // 杀不掉也没别的办法：已经超时了，只能当作"查不到 docker"（返回 null）
+        if (typeof console !== 'undefined' && console.warn) console.warn('结束 docker 探测失败：', e && e.message)
+      }
+      finish(null)
+    }, 5000)
     c.stdout.on('data', (d) => (out += d.toString()))
-    c.on('error', () => resolve(null))
-    c.on('close', () => resolve(out.split(/\s+/).filter(Boolean)))
+    c.on('error', () => { clearTimeout(killer); finish(null) })
+    c.on('close', () => { clearTimeout(killer); finish(out.split(/\s+/).filter(Boolean)) })
   })
 }
 
@@ -135,6 +146,15 @@ function registerBackendIpc({ ipcMain, getWindow, DEFAULT_CWD }) {
       redis: names.includes('mbp-redis'),
     }
   })
+
+  // ---- P14-06 一键健康检查（顺手把 PG/Redis 依赖状态一起带回 —— P14-09/10）----
+  // 编排提到模块级 buildHealthReport()，与 Agent 的 backendStatus 工具**共用同一份**
+  // （review 指出：两处各写一遍会导致同名字段语义不一致，例如 latencyMs 是否包含 docker 探测）。
+  ipcMain.handle('backend:health', async (_e, input = {}) => buildHealthReport({
+    root: rootOfInput(input.cwd) || DEFAULT_CWD,
+    port: input.port || DEFAULT_PORT,
+    path: input.path,
+  }))
 
   // ---- 编译（可选步骤，让用户能自己在 IDE 里构建）----
   ipcMain.handle('backend:build', async (_e, input) => {
@@ -282,4 +302,42 @@ function registerBackendIpc({ ipcMain, getWindow, DEFAULT_CWD }) {
   })
 }
 
-module.exports = { registerBackendIpc, DEFAULT_PORT }
+/**
+ * P14-06 的健康报告（**唯一实现**）：backend:health IPC 与 Agent 的 backendStatus 工具共用。
+ *
+ * 关键语义（review 指出两处曾不一致）：
+ *   · `latencyMs` 只计 `probeHealth`，**不含** `docker ps` 的耗时；
+ *   · `deps.known=false` 表示"查不到 docker"，而不是"没有容器"；
+ *   · 端口/路径做校验，避免变成"对 127.0.0.1 任意端口发 GET"的通用探测原语。
+ */
+async function buildHealthReport({ root, port, path: p } = {}) {
+  const portN = Number.isInteger(port) && port > 0 && port < 65536 ? port : DEFAULT_PORT
+  let rel = String(p || '/health')
+  if (!rel.startsWith('/')) rel = '/' + rel
+  if (!/^\/[A-Za-z0-9_\-./]{0,120}$/.test(rel)) rel = '/health'      // 去掉乱七八糟的路径
+  const url = 'http://127.0.0.1:' + portN + rel
+
+  const t0 = Date.now()
+  let v = null
+  try { v = await probeHealth(portN) } catch (e) { v = null }
+  const latencyMs = Date.now() - t0                                // ★ 只看探测本身
+
+  let names = null
+  try { names = await hasDocker() } catch (e) { names = null }
+  const deps = names === null
+    ? { docker: false, pg: false, redis: false, known: false }
+    : { docker: true, pg: names.includes('mbp-pg'), redis: names.includes('mbp-redis'), known: true }
+
+  return {
+    ok: !!v,
+    url,
+    port: portN,
+    rootDir: root || null,
+    latencyMs,
+    body: v ? String(v).slice(0, 300) : null,
+    error: v ? null : ('连不上 ' + url),
+    deps,
+  }
+}
+
+module.exports = { registerBackendIpc, DEFAULT_PORT, probeHealth, hasDocker, buildHealthReport }

@@ -50,7 +50,7 @@ function simpleRequest({ url, method = 'GET', headers = {}, body = '', timeoutMs
   })
 }
 
-function registerAgentToolIpc({ ipcMain, getWindow, getRunner, executeCommand }) {
+function registerAgentToolIpc({ ipcMain, getWindow, getRunner, executeCommand, backendStatus }) {
   let workspace = ''
 
   /**
@@ -108,6 +108,9 @@ function registerAgentToolIpc({ ipcMain, getWindow, getRunner, executeCommand })
     },
 
     projectInfo: async () => detectProject(rootOf()),
+
+    // P14-12：后端状态（健康/端口/PG/Redis）—— 只读；未注入时该工具会直接报“能力未注入”
+    backendStatus: typeof backendStatus === 'function' ? () => backendStatus() : undefined,
   })
 
   ipcMain.handle('agentTools:setWorkspace', (_e, root) => {

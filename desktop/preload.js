@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('moonAPI', {
 
   // ---- 后端服务控制（IDE 内一键启停）----
   backendStatus: (cwd, port) => ipcRenderer.invoke('backend:status', { cwd, port }),
+  // P14-06：一键健康检查（含 PG/Redis 依赖状态 —— P14-09/10）
+  backendHealth: (cwd, port, path) => ipcRenderer.invoke('backend:health', { cwd, port, path }),
   backendDeps: () => ipcRenderer.invoke('backend:deps'),
   backendBuild: () => ipcRenderer.invoke('backend:build'),
   backendStart: (cwd, port, build) => ipcRenderer.invoke('backend:start', { cwd, port, build }),

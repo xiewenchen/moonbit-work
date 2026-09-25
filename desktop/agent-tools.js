@@ -34,6 +34,8 @@ const READ_TOOL_SPECS = Object.freeze([
   { name: 'getDiagnostics', permission: PERMISSION.READ, timeoutMs: 2000, maxOutputBytes: 32768, workspaceOnly: false, description: '读统一问题模型（P4 的 Store）' },
   { name: 'getRunLog', permission: PERMISSION.READ, timeoutMs: 2000, maxOutputBytes: 32768, workspaceOnly: false, description: '读最近一次运行结果' },
   { name: 'getProjectInfo', permission: PERMISSION.READ, timeoutMs: 2000, maxOutputBytes: 16384, workspaceOnly: false, description: '读单一工程上下文（P2）' },
+  // P14-12：读后端状态（健康/端口/PG/Redis）—— **只读**，不启动、不构建
+  { name: 'backendStatus', permission: PERMISSION.READ, timeoutMs: 8000, maxOutputBytes: 32768, workspaceOnly: false, description: '当前项目的后端状态（健康/端口/PG/Redis）' },
 ])
 
 /**
@@ -169,6 +171,17 @@ function createReadOnlyToolRegistry(deps = {}) {
     const info = await deps.projectInfo()
     const c = ctx.clip(JSON.stringify(info))
     return toolResult({ ok: true, data: info, truncated: c.truncated })
+  })
+
+  // ── P14-12 backendStatus ────────────────────────────────────────────────────
+  // 只读地表征"后端现在怎么样"：健康、端口、PG/Redis。它是**读**，所以放在只读表里；
+  // 真正要 build/run/stop 的话走执行表（`agent-exec-tools.js`，一律经命令表）。
+  register(READ_TOOL_SPECS[7], async (_args, ctx) => {
+    if (typeof deps.backendStatus !== 'function') return toolResult({ ok: false, error: 'backendStatus 能力未注入' })
+    let st = null
+    try { st = await deps.backendStatus() } catch (e) { return toolResult({ ok: false, error: String((e && e.message) || e) }) }
+    const c = ctx.clip(JSON.stringify(st))
+    return toolResult({ ok: true, data: st, truncated: c.truncated })
   })
 
   return { list, has: (n) => tools.has(n), call, register }

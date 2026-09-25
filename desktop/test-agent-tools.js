@@ -47,8 +47,8 @@ async function main() {
   {
     const reg = createReadOnlyToolRegistry(fakeDeps())
     const list = reg.list()
-    chk('七个只读工具齐备', list.map((t) => t.name).sort(),
-      ['getDiagnostics', 'getProjectInfo', 'getRunLog', 'listDir', 'readFile', 'search', 'symbols'])
+    chk('八个只读工具齐备', list.map((t) => t.name).sort(),
+      ['backendStatus', 'getDiagnostics', 'getProjectInfo', 'getRunLog', 'listDir', 'readFile', 'search', 'symbols'])
     chk('**全部是 read 权限**', Array.from(new Set(list.map((t) => t.permission))), ['read'])
     chk('每个都有正的 timeoutMs', list.every((t) => Number(t.timeoutMs) > 0), true)
     chk('每个都有正的 maxOutputBytes', list.every((t) => Number(t.maxOutputBytes) > 0), true)
