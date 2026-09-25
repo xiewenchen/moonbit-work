@@ -26,6 +26,8 @@ const { registerAgentVerifyIpc } = require('./agent-verify-main')
 const { registerAiProviderIpc } = require('./ai-provider-main')
 const { registerAgentRequestIpc } = require('./agent-request-main')
 const { registerSessionIpc } = require('./session-main')
+const { registerMemoryIpc } = require('./memory-main')
+const { canWriteRules } = require('./project-memory')
 
 // ── 环境准备：必须在任何 spawn 之前 ─────────────────────────────────────
 // 从桌面快捷方式启动时，进程 PATH 是 Windows 默认值，**不含** ~/.moon/bin
@@ -241,6 +243,12 @@ registerSessionIpc({
   onLog: (e) => console.log('[session]', JSON.stringify(e)),
 })
 
+// P11：项目级记忆（.moonbit-work/ 在**项目内**，可随项目提交；规则写入需确认）
+registerMemoryIpc({
+  ipcMain,
+  onLog: (e) => console.log('[memory]', JSON.stringify(e)),
+})
+
 // LSP 客户端（接官方 moon-lsp）—— 见 lsp-manager.js
 registerLspIpc({ ipcMain, getWindow: () => mainWindow })
 
@@ -453,7 +461,30 @@ ipcMain.handle('fs:read', (_e, file) => {
     return { ok: false, error: String(err) }
   }
 })
-ipcMain.handle('fs:write', (_e, { file, content }) => {
+/**
+ * P11-05 的**统一入口把关**。
+ *
+ * review 抓到的绕过：规则保护原本只在 `memory:writeRules` 这一条路径上，
+ * 而 `fs:write` 是“接受任意绝对路径”的通用写口 —— 直接写
+ * `<root>/.moonbit-work/agent-rules.md` 就绕过去了。
+ * 所以把判定提到**写盘这一层**，两条路径共用。
+ *
+ * 边界要说清：这拦的是“顺手写/Agent 自动写”，**不是**防恶意 renderer
+ * （renderer 本来就能传 confirmed:true）。真正的 Agent 写路径是 agent-patch，
+ * 那条另有一套危险表。
+ */
+function guardProtectedWrite(file, opts = {}) {
+  const norm = String(file || '').replace(/\\/g, '/')
+  if (/\/\.moonbit-work\/agent-rules\.md$/.test(norm)) {
+    return canWriteRules({ confirmed: opts.confirmed === true })
+  }
+  return { ok: true }
+}
+
+ipcMain.handle('fs:write', (_e, { file, content, confirmed } = {}) => {
+  // ★ 受保护文件先过关（agent-rules.md 未经确认不可写）
+  const gate = guardProtectedWrite(file, { confirmed })
+  if (gate.ok !== true) return gate
   try {
     return { ok: true, ...fsops.writeTextFile(file, content) }
   } catch (err) {

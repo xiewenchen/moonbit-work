@@ -99,7 +99,7 @@
 | P8 | Agent Modify（Patch） | **PASS**：核心层（默认拒绝/精确匹配/备份先行/失败回滚）+ **UI 确认对话框**（28/0 真点击验证）；接到 Agent 属 P9 |
 | P9 | Agent Verification Loop | **PASS（含接线）**：闭环 + 失败即停 + 轮次上限 + 防死循环 + 报告 + **结果进输出/问题面板**（17/0 真实场景验证）；**Ask/Understand 与自动修（需 LLM）未做** |
 | P10 | Session | **PASS**：不可变会话模型（id/绑定项目/消息/工具调用/补丁/验证，四类都有上限）+ 持久化到**用户目录**（按项目分文件，不进项目）+ 项目切换自动切会话 + 关项目结束上下文；**修掉真缺陷**：渲染侧原来用**全局** localStorage 键存会话 id → 换项目会串；`test-session` **68/0**、`verify-session` **25/0**（两个真实项目来回切） |
-| P11 | 项目级 Agent Memory | TODO |
+| P11 | 项目级记忆 | **PASS**：`.moonbit-work/`（project.md / agent-rules.md / context.json / history）—— **只做"项目知识"，不做 MemoryOS**；规则**未经确认不可修改**（判定提到写盘层，堵住 review 抓到的 `fs:write` 绕过）；经验只收 `verified`、相关度检索、压缩（**原条目归档**，不丢）；`test-project-memory` **101/0**、`verify-project-memory` **38/0** |
 | P12 | AI Provider Center | **PASS**：核心层（44/0）+ 存储/面板/真实探测（23/0）+ **激活并写入 opencode 配置（38/0，含「原有 provider 一个不丢」与「配置原样还原」）**；端到端「真跑一次模型」未验（需 Key/额度） |
 | P19 | 测试体系 | **进行中（2.1 第一批完成 5 项）**：修 25 处假通过断言 + 30 脚本异常假绿 + 4 个长期红灯；新增 `verify-harness` + 元测试 36 项；**新增扫描器 `check-local-chk`（基线 + 只减不增，CI 已挂）**；**chk 已迁 2/16**（剩 14 由基线守住）；**异常 exit!=0 已静态+动态双向证明**；**差：16 个未全迁** |
 | P5A | Agent Context 真接线 | **PASS（第一批）**：AgentRequest/AgentResponse 契约（含四态）+ **ProjectContext/Problems 真实接入**（`verify-agent-request` 19/0，用真实项目与真实问题验证）+ Context Snapshot（含取数四态 absent/empty/ok/error）；**activeFile/selection/lastRun/lastTest 待接** |

@@ -9,7 +9,7 @@ contextBridge.exposeInMainWorld('moonAPI', {
   // 文件系统
   listDir: (dir) => ipcRenderer.invoke('fs:list', dir),
   readFile: (file) => ipcRenderer.invoke('fs:read', file),
-  writeFile: (file, content) => ipcRenderer.invoke('fs:write', { file, content }),
+  writeFile: (file, content, confirmed) => ipcRenderer.invoke('fs:write', { file, content, confirmed }),
   findModule: (dir) => ipcRenderer.invoke('module', dir),
   pickDir: () => ipcRenderer.invoke('pickDir'),
 
@@ -144,6 +144,15 @@ contextBridge.exposeInMainWorld('moonAPI', {
   sessionAppend: (payload) => ipcRenderer.invoke('session:append', payload),
   sessionClear: (projectRoot) => ipcRenderer.invoke('session:clear', { projectRoot }),
   sessionEnd: (projectRoot) => ipcRenderer.invoke('session:end', { projectRoot }),
+  // ---- P11：项目级记忆（.moonbit-work/；规则写入需 confirmed）----
+  memoryEnsure: (projectRoot, projectContext) => ipcRenderer.invoke('memory:ensure', { projectRoot, projectContext }),
+  memoryRules: (projectRoot) => ipcRenderer.invoke('memory:rules', { projectRoot }),
+  memoryWriteRules: (projectRoot, raw, confirmed) => ipcRenderer.invoke('memory:writeRules', { projectRoot, raw, confirmed }),
+  memoryExperiences: (projectRoot) => ipcRenderer.invoke('memory:experiences', { projectRoot }),
+  memoryAdd: (projectRoot, experience) => ipcRenderer.invoke('memory:add', { projectRoot, experience }),
+  memorySearch: (projectRoot, query, limit) => ipcRenderer.invoke('memory:search', { projectRoot, query, limit }),
+  memoryCompress: (projectRoot, threshold) => ipcRenderer.invoke('memory:compress', { projectRoot, threshold }),
+  memoryDelete: (projectRoot, id) => ipcRenderer.invoke('memory:delete', { projectRoot, id }),
 
   // 注：ProjectContext 不在这里过桥 —— 本 preload 是 sandbox:true，
   // require 本地文件会让整个 preload 挂掉（实测踩过）。
