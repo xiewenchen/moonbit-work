@@ -41,3 +41,26 @@
 | 纯 Node 全量 | 38 个脚本全通过 |
 | 门禁 | 空 catch 93 ≤ 95；local-chk 基线 0 |
 | CI | 新增 `node test-office-link.js` |
+
+---
+
+## 接线（同批补齐）
+
+`office-main.js` + 7 个 IPC + `showOfficePanel()`（动态 DOM）：
+
+| 能力 | 面板上的入口 |
+|---|---|
+| P13-04 关联 | 输入文件路径 + 类型 → 「关联到本项目」；列表里每条可「解除」 |
+| P13-05 预览 | 走 `office:preview`（复用 relay 的元信息） |
+| P13-06 送进 Agent | 列表里每条一个「送给 Agent」→ 显示生成的输入片段 |
+| P13-07 结论 → 便签 | 文本框 + 「追加到项目便签」 |
+
+两处存储**各归各位**：关联表存 `~/.moonbit-work/office-links.json`（用户目录），
+而 P13-07 的便签**复用** `workbench-main` 的存储 —— 便签本来就属于项目，不另存一份。
+
+端到端 25 项，含"关联按项目隔离"（A 只看得到 A 的）、"没元信息不装作有"、
+"两条结论都在（追加而非覆盖）"。脚本会写用户目录的两个文件，所以进去前备份、
+任何退出路径都还原（与 P12 改 opencode 配置同样处理）。
+
+回归：`verify-workbench` 23/0（便签存储路径没被改坏）、`verify-session-memory-ui` 17/0、
+`verify-welcome` 通过；纯 Node 全量 38 个全过。

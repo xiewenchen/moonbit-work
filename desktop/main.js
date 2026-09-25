@@ -28,6 +28,9 @@ const { registerAgentRequestIpc } = require('./agent-request-main')
 const { registerSessionIpc } = require('./session-main')
 const { registerMemoryIpc } = require('./memory-main')
 const { registerWorkbenchIpc } = require('./workbench-main')
+const { registerOfficeLinkIpc } = require('./office-main')
+const wbCore = require('./workbench')
+const wbMain = require('./workbench-main')
 const { registerQualityIpc } = require('./quality-main')
 const { registerDbExplorerIpc } = require('./db-explorer-main')
 const { canWriteRules } = require('./project-memory')
@@ -263,6 +266,15 @@ registerMemoryIpc({
 registerWorkbenchIpc({
   ipcMain,
   onLog: (e) => console.log('[wb]', JSON.stringify(e)),
+})
+
+// P13-04～07：办公文件 ↔ 项目联动。
+// 关联表存用户目录（office-links.json）；**便签复用工作台的存储**，不各存一份。
+registerOfficeLinkIpc({
+  ipcMain,
+  onLog: (e) => console.log('[office]', JSON.stringify(e)),
+  readNote: (root) => wbCore.noteFor(wbMain.readStore(), root),
+  writeNote: (root, text) => wbMain.writeStore(wbCore.setNote(wbMain.readStore(), root, text).store),
 })
 
 // P16-10：Quality Center 面板的数据源（聚合已有验证产物，不重跑）

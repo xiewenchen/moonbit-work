@@ -1552,6 +1552,107 @@ async function showMemoryPanel() {
   return true
 }
 
+/**
+ * P13-04～07 面板：办公文件 ↔ 项目联动（动态 DOM）。
+ *
+ * 四件事：把中转站的文件**关联**到当前项目 / 看**已关联的** / 做成 **Agent 输入片段** /
+ * 把 Agent 的结论**追加**到项目便签（不是覆盖）。
+ */
+async function showOfficePanel() {
+  const old = document.getElementById('officePanel')
+  if (old) old.remove()
+  const mk = (tag, props) => { const el = document.createElement(tag); Object.assign(el, props || {}); return el }
+  const btnCss = 'padding:3px 9px;background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:5px;cursor:pointer'
+  const inpCss = 'padding:4px 8px;background:#121212;color:#ddd;border:1px solid #333;border-radius:5px;font-size:12px'
+  const mask = mk('div', { id: 'officePanel' })
+  mask.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999'
+  const card = mk('div')
+  card.style.cssText = 'max-width:820px;width:94%;max-height:86vh;display:flex;flex-direction:column;gap:8px;background:#1e1e1e;color:#ddd;border:1px solid #333;border-radius:8px;padding:14px;font-size:12px'
+  const title = mk('div', { textContent: '办公文件 ↔ 项目' })
+  title.style.cssText = 'font-weight:600;font-size:14px'
+  const hint = mk('div', { id: 'officeHint' })
+  hint.style.cssText = 'color:#888;font-size:11px'
+  const list = mk('div', { id: 'officeList' })
+  list.style.cssText = 'overflow:auto;max-height:26vh;border:1px solid #2a2a2a;border-radius:6px;padding:6px;background:#161616'
+  const fileIn = mk('input', { id: 'officeFile', placeholder: '文件路径（如 C:/Users/…/报告.docx）', style: 'flex:1;' + inpCss })
+  const kindIn = mk('input', { id: 'officeKind', placeholder: '类型（docx/xlsx…，可留空）', style: 'width:150px;' + inpCss })
+  const linkBtn = mk('button', { textContent: '关联到本项目', style: btnCss })
+  const row1 = mk('div')
+  row1.style.cssText = 'display:flex;gap:6px'
+  row1.appendChild(fileIn); row1.appendChild(kindIn); row1.appendChild(linkBtn)
+  const sumIn = mk('textarea', { id: 'officeSummary', placeholder: 'Agent 的结论（会**追加**到本项目便签，不会覆盖原来的）' })
+  sumIn.style.cssText = 'width:100%;box-sizing:border-box;height:70px;' + inpCss + ';resize:vertical'
+  const sumBtn = mk('button', { textContent: '追加到项目便签', style: btnCss })
+  const row2 = mk('div')
+  row2.style.cssText = 'display:flex;gap:6px;align-items:flex-end'
+  row2.appendChild(sumIn); row2.appendChild(sumBtn)
+  const out = mk('pre', { id: 'officeOut' })
+  out.style.cssText = 'display:none;margin:0;padding:8px;background:#121212;border:1px solid #333;border-radius:6px;color:#bbb;max-height:22vh;overflow:auto;white-space:pre-wrap;word-break:break-all'
+  const bar = mk('div')
+  bar.style.cssText = 'display:flex;gap:8px;justify-content:flex-end'
+  const closeBtn = mk('button', { textContent: '关闭', style: btnCss })
+  bar.appendChild(closeBtn)
+  card.appendChild(title); card.appendChild(hint); card.appendChild(list); card.appendChild(row1); card.appendChild(row2); card.appendChild(out); card.appendChild(bar)
+  mask.appendChild(card)
+  document.body.appendChild(mask)
+  closeBtn.onclick = () => mask.remove()
+
+  const ctx = () => {
+    const mbi = window.moonbitIDE || {}
+    return (typeof mbi.getContext === 'function') ? mbi.getContext() : null
+  }
+
+  async function refresh() {
+    const c = ctx()
+    const root = c ? c.rootDir : null
+    if (!root) { hint.textContent = '（未打开项目）'; list.textContent = '先打开一个项目 —— 关联是挂在项目上的。'; return }
+    const r = await window.moonAPI.officeLinks(root)
+    hint.textContent = String((r && r.describe) || '') + '　｜ 当前项目：' + root
+    list.textContent = ''
+    const links = (r && r.links) || []
+    if (!links.length) { list.appendChild(mk('div', { textContent: '（还没有关联任何办公文件）', style: 'color:#666' })); return }
+    for (const l of links) {
+      const row = mk('div')
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;margin:2px 0'
+      const nm = mk('span', { textContent: (l.kind ? '[' + l.kind + '] ' : '') + l.name })
+      nm.style.cssText = 'flex:1'
+      nm.title = l.file
+      const toA = mk('button', { textContent: '送给 Agent', style: btnCss })
+      toA.onclick = async () => {
+        const sn = await window.moonAPI.officeToAgent({ file: l.file, kind: l.kind })
+        out.textContent = (sn && sn.ok) ? sn.snippet : ('失败：' + ((sn && sn.error) || '?'))
+        out.style.display = 'block'
+      }
+      const un = mk('button', { textContent: '解除', style: btnCss })
+      un.onclick = async () => { await window.moonAPI.officeUnlink(l.file); await refresh() }
+      row.appendChild(nm); row.appendChild(toA); row.appendChild(un)
+      list.appendChild(row)
+    }
+  }
+
+  linkBtn.onclick = async () => {
+    const c = ctx()
+    if (!c) return
+    const file = String(fileIn.value || '').trim()
+    if (!file) return
+    const r = await window.moonAPI.officeLink({ file, kind: String(kindIn.value || '').trim() || null, projectRoot: c.rootDir })
+    if (!r || !r.ok) { out.textContent = '关联失败：' + ((r && r.error) || '?'); out.style.display = 'block' }
+    fileIn.value = ''; kindIn.value = ''
+    await refresh()
+  }
+  sumBtn.onclick = async () => {
+    const c = ctx()
+    if (!c) return
+    const r = await window.moonAPI.officeSummaryToNote({ projectRoot: c.rootDir, summary: sumIn.value })
+    out.textContent = (r && r.ok) ? '已追加到本项目便签（原有内容保留）。' : ('失败：' + ((r && r.error) || '?'))
+    out.style.display = 'block'
+    if (r && r.ok) sumIn.value = ''
+  }
+
+  await refresh()
+  return true
+}
+
 window.moonbitIDE = {
   openProject: (dir) => boot(dir),      // 等价于用户「打开文件夹」之后走的那条路
   closeProject,
@@ -1563,6 +1664,17 @@ window.moonbitIDE = {
   commands: {
     list: () => window.moonAPI.commandList(),
     execute: (name, args, opts) => window.moonAPI.commandExecute(name, args, opts),
+  },
+  // P13-04～07：办公文件 ↔ 项目联动
+  office: {
+    show: () => showOfficePanel(),
+    link: (p) => window.moonAPI.officeLink(p),
+    unlink: (file) => window.moonAPI.officeUnlink(file),
+    links: (root) => window.moonAPI.officeLinks(root),
+    projectOf: (file) => window.moonAPI.officeProjectOf(file),
+    preview: (p) => window.moonAPI.officePreview(p),
+    toAgent: (p) => window.moonAPI.officeToAgent(p),
+    summaryToNote: (p) => window.moonAPI.officeSummaryToNote(p),
   },
   // P10/P11：会话与项目记忆（只读展示为主）
   session: {

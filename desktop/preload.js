@@ -174,6 +174,14 @@ contextBridge.exposeInMainWorld('moonAPI', {
   wbRemoveTodo: (projectRoot, id) => ipcRenderer.invoke('workbench:removeTodo', { projectRoot, id }),
   wbSetNote: (projectRoot, text) => ipcRenderer.invoke('workbench:setNote', { projectRoot, text }),
   wbFile: () => ipcRenderer.invoke('workbench:file'),
+  // ---- P13-04～07：办公文件 ↔ 项目联动 ----
+  officeLink: (payload) => ipcRenderer.invoke('office:link', payload || {}),
+  officeUnlink: (file) => ipcRenderer.invoke('office:unlink', { file }),
+  officeLinks: (projectRoot) => ipcRenderer.invoke('office:links', { projectRoot }),
+  officeProjectOf: (file) => ipcRenderer.invoke('office:projectOf', { file }),
+  officePreview: (payload) => ipcRenderer.invoke('office:preview', payload || {}),
+  officeToAgent: (payload) => ipcRenderer.invoke('office:toAgent', payload || {}),
+  officeSummaryToNote: (payload) => ipcRenderer.invoke('office:summaryToNote', payload || {}),
 
   // 注：ProjectContext 不在这里过桥 —— 本 preload 是 sandbox:true，
   // require 本地文件会让整个 preload 挂掉（实测踩过）。
