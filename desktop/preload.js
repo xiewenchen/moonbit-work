@@ -155,6 +155,9 @@ contextBridge.exposeInMainWorld('moonAPI', {
   memorySearch: (projectRoot, query, limit) => ipcRenderer.invoke('memory:search', { projectRoot, query, limit }),
   memoryCompress: (projectRoot, threshold) => ipcRenderer.invoke('memory:compress', { projectRoot, threshold }),
   memoryDelete: (projectRoot, id) => ipcRenderer.invoke('memory:delete', { projectRoot, id }),
+  // ---- P16-10～12：工程状态（Quality Center）----
+  qualitySnapshot: (opts) => ipcRenderer.invoke('quality:snapshot', opts || {}),
+  qualityLog: (file) => ipcRenderer.invoke('quality:log', { file }),
 
   // 注：ProjectContext 不在这里过桥 —— 本 preload 是 sandbox:true，
   // require 本地文件会让整个 preload 挂掉（实测踩过）。

@@ -20,6 +20,7 @@ const { loadSymbols, searchSymbols } = require('./symbols')
 const { detectProject } = require('./project-detect')
 const { createReadOnlyToolRegistry } = require('./agent-tools')
 const { createQualityStore, fromDesktopVerify, overall, canProceed, describeQuality } = require('./quality-result')
+const { snapshotQuality } = require('./quality-main')
 const { createExecuteToolRegistry, API_LIMITS } = require('./agent-exec-tools')
 const http = require('http')
 const https = require('https')
@@ -115,29 +116,9 @@ function registerAgentToolIpc({ ipcMain, getWindow, getRunner, executeCommand, b
     backendStatus: typeof backendStatus === 'function' ? () => backendStatus() : undefined,
 
     // P16-13：工程状态（Quality Center）。
-    // **从已有的验证产物聚合**（desktop/*-result.txt），不重跑任何测试 ——
-    // 所以它能秒回、能离线用。“没跑过”会被如实标成 NOT_RUN。
-    qualitySnapshot: async () => {
-      const st = createQualityStore()
-      let files = []
-      try {
-        files = fs.readdirSync(__dirname).filter((n) => n.endsWith('-result.txt'))
-      } catch (e) {
-        files = []
-      }
-      for (const n of files) {
-        let text = ''
-        try { text = fs.readFileSync(path.join(__dirname, n), 'utf8') } catch (e) { text = '' }
-        st.put(fromDesktopVerify(text, { name: n }))
-      }
-      return {
-        overall: overall(st),
-        canProceed: canProceed(st),
-        stats: st.stats(),
-        failures: st.failures().map((r) => ({ name: r.name, state: r.state, detail: r.detail.slice(0, 200) })),
-        describe: describeQuality(st),
-      }
-    },
+    // **与 quality:snapshot IPC 共用同一个 snapshotQuality()** —— 聚合只写一份，
+    // 否则两处会漂移（P14 那次就是这么出问题的）。它同样**不重跑**任何测试。
+    qualitySnapshot: async () => snapshotQuality(),
   })
 
   ipcMain.handle('agentTools:setWorkspace', (_e, root) => {

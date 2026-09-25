@@ -27,6 +27,7 @@ const { registerAiProviderIpc } = require('./ai-provider-main')
 const { registerAgentRequestIpc } = require('./agent-request-main')
 const { registerSessionIpc } = require('./session-main')
 const { registerMemoryIpc } = require('./memory-main')
+const { registerQualityIpc } = require('./quality-main')
 const { canWriteRules } = require('./project-memory')
 
 // ── 环境准备：必须在任何 spawn 之前 ─────────────────────────────────────
@@ -254,6 +255,12 @@ registerSessionIpc({
 registerMemoryIpc({
   ipcMain,
   onLog: (e) => console.log('[memory]', JSON.stringify(e)),
+})
+
+// P16-10：Quality Center 面板的数据源（聚合已有验证产物，不重跑）
+registerQualityIpc({
+  ipcMain,
+  onLog: (e) => console.log('[quality]', JSON.stringify(e)),
 })
 
 // LSP 客户端（接官方 moon-lsp）—— 见 lsp-manager.js

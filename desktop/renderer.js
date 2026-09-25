@@ -1062,6 +1062,104 @@ async function understandTask(message, opts = {}) {
   })
 }
 
+/**
+ * P16-10：Quality Center 面板（动态 DOM，不改 index.html —— 那是转译产物）。
+ *
+ * 数据来自 `quality:snapshot`（**聚合已有验证产物，不重跑测试**），所以它是秒开的。
+ * P16-11 / P16-12：点失败项可以看**日志原文**、看**那个文件**。
+ */
+async function showQualityPanel() {
+  const old = document.getElementById('qualityPanel')
+  if (old) old.remove()
+  const mk = (tag, props) => { const el = document.createElement(tag); Object.assign(el, props || {}); return el }
+  const mask = mk('div', { id: 'qualityPanel' })
+  mask.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999'
+  const card = mk('div')
+  card.style.cssText = 'max-width:860px;width:94%;max-height:86vh;display:flex;flex-direction:column;gap:8px;background:#1e1e1e;color:#ddd;border:1px solid #333;border-radius:8px;padding:14px;font-size:12px'
+  const title = mk('div', { textContent: '工程状态（Quality）' })
+  title.style.cssText = 'font-weight:600;font-size:14px'
+  const hint = mk('div')
+  hint.style.cssText = 'color:#888;font-size:11px'
+  const listBox = mk('div')
+  listBox.id = 'qualityList'
+  listBox.style.cssText = 'overflow:auto;max-height:44vh;display:flex;flex-direction:column;gap:6px'
+  const detail = mk('pre')
+  detail.id = 'qualityDetail'
+  detail.style.cssText = 'display:none;margin:0;padding:8px;background:#121212;border:1px solid #333;border-radius:6px;color:#bbb;max-height:26vh;overflow:auto;white-space:pre-wrap;word-break:break-all'
+  const bar = mk('div')
+  bar.style.cssText = 'display:flex;gap:8px;justify-content:flex-end'
+  const refresh = mk('button', { textContent: '刷新' })
+  refresh.style.cssText = 'padding:5px 12px;background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:5px;cursor:pointer'
+  const close = mk('button', { textContent: '关闭' })
+  close.style.cssText = refresh.style.cssText
+  bar.appendChild(refresh); bar.appendChild(close)
+  card.appendChild(title); card.appendChild(hint); card.appendChild(listBox); card.appendChild(detail); card.appendChild(bar)
+  mask.appendChild(card)
+  document.body.appendChild(mask)
+  close.onclick = () => mask.remove()
+
+  const colorOf = (s) => ({ PASS: '#68d391', FAIL: '#fc8181', WARN: '#f6ad55', SKIP: '#a0aec0', NOT_RUN: '#666' })[s] || '#888'
+
+  async function refreshPanel() {
+    listBox.innerHTML = ''
+    detail.style.display = 'none'
+    const r = await window.moonAPI.qualitySnapshot()
+    const snap = (r && r.snapshot) || {}
+    hint.textContent = String(snap.describe || '（无数据）') + '　｜ 扫描 ' + (snap.scannedFiles || 0) + ' 份验证产物'
+    const can = snap.canProceed || {}
+    const verdict = mk('div')
+    verdict.textContent = (can.ok ? '✓ 可以继续：' : '✗ 先别继续：') + String(can.reason || '')
+    verdict.style.cssText = 'color:' + (can.ok ? '#68d391' : '#fc8181')
+    listBox.appendChild(verdict)
+
+    for (const it of (snap.all || [])) {
+      const row = mk('div')
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;background:#161616;border:1px solid #2a2a2a;border-radius:6px;padding:5px 8px'
+      const nm = mk('span', { textContent: it.name })
+      nm.style.cssText = 'flex:1'
+      const st = mk('span', { textContent: it.state })
+      st.style.cssText = 'color:' + colorOf(it.state) + ';min-width:64px;text-align:right'
+      row.appendChild(nm); row.appendChild(st)
+      // P16-11：看日志原文 / P16-12：看那个文件
+      if (it.state === 'FAIL' || it.state === 'WARN' || it.file) {
+        const logBtn = mk('button', { textContent: '看日志' })
+        logBtn.style.cssText = 'padding:2px 8px;background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:4px;cursor:pointer'
+        logBtn.onclick = async () => {
+          const lg = await window.moonAPI.qualityLog(it.file)
+          detail.textContent = lg && lg.ok ? String(lg.text) : ('读不到日志：' + ((lg && lg.error) || '?'))
+          detail.style.display = 'block'
+        }
+        row.appendChild(logBtn)
+      }
+      listBox.appendChild(row)
+    }
+    if (!(snap.all || []).length) {
+      const empty = mk('div', { textContent: '还没有任何验证产物（跑一次 npm run verify:demo 之类就会有）' })
+      empty.style.cssText = 'color:#888'
+      listBox.appendChild(empty)
+    }
+    for (const f of (snap.failures || [])) {
+      const row = mk('div')
+      const btn = mk('button', { textContent: '跳到 ' + (f.file || f.name) })
+      btn.style.cssText = 'padding:2px 8px;background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:4px;cursor:pointer'
+      btn.onclick = async () => {
+        const lg = await window.moonAPI.qualityLog(f.file)
+        detail.textContent = (lg && lg.ok) ? String(lg.text) : ('读不到：' + ((lg && lg.error) || '?'))
+        detail.style.display = 'block'
+      }
+      const d = mk('div', { textContent: f.name + '：' + String(f.detail || '').slice(0, 160) })
+      d.style.cssText = 'flex:1;color:#fc8181'
+      row.style.cssText = 'display:flex;align-items:center;gap:8px'
+      row.appendChild(d); row.appendChild(btn)
+      listBox.appendChild(row)
+    }
+  }
+
+  refresh.onclick = refreshPanel
+  await refreshPanel()
+  return true
+}
+
 window.moonbitIDE = {
   openProject: (dir) => boot(dir),      // 等价于用户「打开文件夹」之后走的那条路
   closeProject,
@@ -1073,6 +1171,12 @@ window.moonbitIDE = {
   commands: {
     list: () => window.moonAPI.commandList(),
     execute: (name, args, opts) => window.moonAPI.commandExecute(name, args, opts),
+  },
+  // P16-10～12：工程状态（Quality Center）
+  quality: {
+    show: () => showQualityPanel(),
+    snapshot: (opts) => window.moonAPI.qualitySnapshot(opts),
+    log: (file) => window.moonAPI.qualityLog(file),
   },
   // P5A：Agent 请求（渲染侧收集真实状态 → 主进程校验/组装/快照）
   agentRequest: {

@@ -2,7 +2,7 @@
 
 - 日期：2026-09-25
 - 分支：`phase2-engineering-workspace`
-- 状态：**P16-01～09 + P16-13/14 DONE**；**P16-10～12（UI）未做**（如实标注）
+- 状态：**P16-01～14 全部 DONE**（P16-10～12 的 UI 已在同批补齐）
 - `test-quality-result` **69/0**、`verify-agent-tools` **36/0**
 
 ## 定位
@@ -48,13 +48,18 @@ PASS / FAIL / WARN / SKIP / NOT_RUN
 - `canProceed`（P16-14）**拦住**三种情况：有 FAIL、全 SKIP（等于没验）、什么都没跑。
   WARN 允许继续，但说明"有需要人看的警告"。
 
-## 未做（P16-10～12）
+## P16-10～12：UI（本批补齐）
 
-- **Quality UI 面板**没有做；
-- 因此 **P16-11 点击失败项跳日志 / P16-12 跳文件**也没有做（数据层已经准备好了：
-  每条 `QualityResult` 都带 `file` / `line` / `detail`，UI 接上就能跳）。
+- **Quality 面板**：动态 DOM（不改 `index.html`），打开即显示总体状态、`canProceed` 的一句话结论、
+  各项清单（按状态着色）与失败项；
+- **P16-11 看日志**：点"看日志"→ 显示该验证产物的原文；
+- **P16-12 跳到产物**：失败项列出"跳到 xxx"按钮 → 定位到那份产物；
+- **日志读取有边界**：`quality:log` 只允许读 `desktop/*-result.txt`（文件名白名单 + 路径越界检查），
+  拒绝了 `C:/Windows/.../hosts` 与 `../../etc/passwd` 两类尝试（有断言）。
 
-诚实说明：这三项是**没做**，不是"做完了没提"。
+顺带把聚合**收成唯一实现**：`quality-main.js` 的 `snapshotQuality()` 同时供 IPC 与 Agent 的
+`qualityStatus` 工具使用 —— 上一批 `agent-tools-main.js` 里那份重复聚合已删掉
+（P14 就是因为两处各写一遍而漂移过）。
 
 ## 验证
 
