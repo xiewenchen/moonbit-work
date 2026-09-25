@@ -1,5 +1,6 @@
 // 主题验证：日间/夜间切换 + 用 WCAG 2.1 公式实测对比度 + 护眼指标
 require('./main.js')
+const { createHarness } = require('./verify-harness')
 const { app, BrowserWindow } = require('electron')
 const fs = require('fs')
 const path = require('path')
@@ -29,12 +30,8 @@ app.whenReady().then(async () => {
   const SHOT = path.join(__dirname, 'e2e-shots', 'theme')
   fs.mkdirSync(SHOT, { recursive: true })
 
-  let pass = 0, fail = 0
-  // P19：类型防护 —— 传非布尔（数组/对象）说明用错了函数，必须当场失败
-  const chk = (n, ok, d) => {
-    if (typeof ok !== 'boolean') { fail++; console.log(`  [FAIL] ${n}   chk 只接受布尔（数组/对象比较请用 eq）：${JSON.stringify(ok)}`); return }
-    if (ok) { pass++; console.log(`  [PASS] ${n}`) } else { fail++; console.log(`  [FAIL] ${n}  ${d || ''}`) }
-  }
+  const H = createHarness()
+  const chk = H.chk
   // capturePage 偶发 UnknownVizError（窗口重绘竞争），失败不应中断整个验证
   const safeShot = async (name) => {
     try { fs.writeFileSync(path.join(SHOT, name), (await win.webContents.capturePage()).toPNG()); console.log('  截图 ' + name) }
@@ -160,8 +157,8 @@ app.whenReady().then(async () => {
   const saved = await js(`localStorage.getItem('moonbit-theme')`)
   chk('选择被持久化（最后一次点完是 dark）', saved === modes[modes.length - 1], `saved=${saved} last=${modes[modes.length - 1]}`)
 
-  console.log(`\n结果：${pass} 通过, ${fail} 失败 / 共 ${pass + fail} 项`)
+  console.log('\n' + H.summary())
   console.log('截图: e2e-shots/theme/')
   app.quit()
-  setTimeout(() => process.exit(0), 1500)
+  setTimeout(() => process.exit(H.exitCode()), 1500)
 }).catch((e) => { log('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })
