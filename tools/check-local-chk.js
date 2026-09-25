@@ -28,7 +28,22 @@ const MODE = process.argv.includes('--freeze') ? 'freeze'
   : process.argv.includes('--ci') ? 'ci' : 'plain'
 
 /** 判定一个文件是否"自带局部 chk 定义" */
+/**
+ * 相等语义的 chk 也是合规的。
+ *
+ * `test-*.js` 里那种 `const chk = (n, got, want) => { … JSON.stringify(got) === JSON.stringify(want) … }`
+ * 在**结构上不会假通过**（只有两个参数还传错时才会失败，而那是显式写错不是静默通过）。
+ * 所以它不该被当成"局部 chk 定义"来报 —— 报了就是误报，而误报会让人忽略报告。
+ */
+function isEqualityChk(src) {
+  // 两种写法都认：`const chk = (n, got, want) => …` 与 `function chk(name, got, want) { … }`
+  if (/JSON\.stringify\(\s*got\s*\)\s*===\s*JSON\.stringify\(\s*want\s*\)/.test(src)) return true
+  return /function\s+chk\s*\(\s*\w+\s*,\s*got\s*,\s*want\s*\)/.test(src)
+}
+
 function hasLocalChk(src) {
+  if (isEqualityChk(src)) return false      // 相等语义 → 合规，不算"自带局部 chk"
+
   // 覆盖几种写法：const chk = (...)、let chk、function chk(...)
   // ⚠️ 但要排除迁移后的别名写法 `const chk = H.chk` —— 那不是局部定义，
   //    它就是公共 harness 的引用（第一版扫描器没排除，把已迁移的文件也计进去了）。
