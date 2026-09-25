@@ -68,13 +68,28 @@ function auditPreload() {
 
 // ── ② 危险入口：接受任意路径 / 任意命令（收窄的重点）─────────────────────────
 const RISKY_PATTERNS = [
-  { re: /ipcMain\.handle\(\s*['"]fs:write['"]/, why: 'fs:write 接受任意绝对路径（渲染侧可写任意文件）', level: 'HIGH' },
   { re: /ipcMain\.handle\(\s*['"]fs:unlink['"]/, why: 'fs:unlink 可删任意文件', level: 'HIGH' },
   { re: /execSync\(|exec\([^)]*shell\s*:\s*true|shell\s*:\s*true/, why: 'shell 执行：参数拼接时容易变成命令注入', level: 'MEDIUM' },
   { re: /spawn\([^)]*shell\s*:\s*true/, why: 'spawn(shell:true)：Windows 上还会留孤儿进程', level: 'MEDIUM' },
   { re: /eval\s*\(/, why: 'eval：桌面端不该出现', level: 'HIGH' },
   { re: /new\s+Function\s*\(/, why: 'new Function：等价于 eval', level: 'HIGH' },
 ]
+
+/**
+ * `fs:write` 单独查：关键在于**它有没有限定目录**，而不是“有没有这个 handler”。
+ * （P17-02 之后它已经走 `guardWritePath` 限定在工作区 —— 只匹配 handler 名会永远报高危，
+ *   而一条永远红的规则等于没有规则。）
+ */
+function auditWriteGuard() {
+  const src = readIfExists(path.join(DESKTOP, 'main.js')) || ''
+  const at = src.indexOf("ipcMain.handle('fs:write'")
+  if (at < 0) return { level: null, note: '没有 fs:write' }
+  const body = src.slice(at, at + 1600)
+  const guarded = /guardWritePath|path\.relative\(ws/.test(body)
+  return guarded
+    ? { level: null, note: 'fs:write 已限定在工作区内（guardWritePath）' }
+    : { level: 'HIGH', file: 'desktop/main.js', line: src.slice(0, at).split('\n').length, why: 'fs:write 接受任意绝对路径（渲染侧可写任意文件）', code: "ipcMain.handle('fs:write', …)" }
+}
 
 function auditRisky() {
   const hits = []
@@ -154,6 +169,8 @@ function auditDeps() {
 // ── 报告 ────────────────────────────────────────────────────────────────────
 const preload = auditPreload()
 const risky = auditRisky()
+const writeGuard = auditWriteGuard()
+if (writeGuard.level === 'HIGH') risky.push(writeGuard)
 const renderer = auditRenderer()
 const electron = auditElectronConfig()
 const deps = auditDeps()
@@ -211,6 +228,7 @@ for (const risk of ['WRITE', 'AGENT', 'EXTERNAL', 'STORAGE']) {
   console.log('   [' + risk + '] ' + list.map((e) => e.api + ' → ' + e.channel).join('、'))
 }
 console.log('\n[② 危险入口] 高危 ' + highRisky.length + ' 项，中危 ' + medRisky.length + ' 项')
+console.log('   fs:write 守卫：' + writeGuard.note)
 for (const h of highRisky) console.log('   [HIGH] ' + h.file + ':' + h.line + '  ' + h.why + '\n          ' + h.code)
 for (const h of medRisky.slice(0, 8)) console.log('   [MED ] ' + h.file + ':' + h.line + '  ' + h.why)
 console.log('\n[③ 渲染侧] ' + renderer.length + ' 处需要留意')

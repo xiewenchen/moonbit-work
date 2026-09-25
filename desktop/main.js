@@ -503,9 +503,32 @@ function guardProtectedWrite(file, opts = {}) {
   return { ok: true }
 }
 
+/**
+ * P17-02：`fs:write` 的收窄。
+ *
+ * 它原来接受**任意绝对路径**（审计 P17 列为高危）。查了实际用途：渲染侧只有一处调用
+ * —— `renderer.js` 保存编辑器里的文件。所以可以安全地限制成：
+ *   ① 受保护文件（agent-rules.md）仍然先过关（P11）；
+ *   ② **只能写当前工作区内**的文件（没打开项目就不允许写）。
+ *
+ * 注意这**不影响** Agent 改文件：那条路径走 `agent-patch`（自己注入 writeFile、另有危险表）。
+ */
+function guardWritePath(file, opts = {}) {
+  const gate = guardProtectedWrite(file, opts)
+  if (gate.ok !== true) return gate
+  const ws = agentTools && typeof agentTools.getWorkspace === 'function' ? agentTools.getWorkspace() : ''
+  if (!ws) return { ok: false, error: '未打开项目 —— 拒绝写入（避免“没打开项目也能改磁盘上的文件”）' }
+  const abs = path.resolve(String(file || ''))
+  const rel = path.relative(ws, abs)
+  if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) {
+    return { ok: false, error: '拒绝写入工作区之外：' + abs + '（工作区：' + ws + '）' }
+  }
+  return { ok: true }
+}
+
 ipcMain.handle('fs:write', (_e, { file, content, confirmed } = {}) => {
   // ★ 受保护文件先过关（agent-rules.md 未经确认不可写）
-  const gate = guardProtectedWrite(file, { confirmed })
+  const gate = guardWritePath(file, { confirmed })
   if (gate.ok !== true) return gate
   try {
     return { ok: true, ...fsops.writeTextFile(file, content) }

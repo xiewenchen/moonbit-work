@@ -1,8 +1,6 @@
 {
   "note": "桌面安全审计的高危项基线。新增高危项时，请修掉或在代码里说明为何可接受。",
-  "high": [
-    "desktop/main.js:506 fs:write 接受任意绝对路径（渲染侧可写任意文件）"
-  ],
+  "high": [],
   "electron": {
     "contextIsolation": "true",
     "nodeIntegration": "false",
@@ -11,12 +9,5 @@
     "cspInMain": false,
     "cspInHtml": true
   },
-  "floatingDeps": [
-    "@xterm/addon-fit@^0.10.0",
-    "@xterm/xterm@^5.5.0",
-    "node-pty@^1.0.0",
-    "electron@^44.4.2",
-    "electron-builder@^26.15.3",
-    "monaco-editor@^0.56.0"
-  ]
+  "floatingDeps": []
 }

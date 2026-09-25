@@ -110,7 +110,7 @@
 | P14 | Backend Integration | **PASS**：`BackendProjectContext`（backendLike/port+来源/health/database/redis）+ 新增 `backend:health`（含 PG/Redis 依赖）+ 一键 Build/Run/Stop 沿用命令表；**Agent 新增只读工具 `backendStatus`**（第 8 个）；端口与健康**只采事实不猜**；`test-backend-context` **41/0**、`verify-agent-tools` **31/0**；**UI 侧的 backendHealth 调用点待接** |
 | P15 | 数据库工作台 | **PASS**：安全闸（SQL 只放 SELECT / Redis 只放只读）+ Agent 只读工具 `queryDatabase` + 构造层与执行层（表/列/分页/搜索/Redis Keys/Value；标识符与字面量都转义，生成结果再过一遍闸；执行走 psql/redis-cli，**没装客户端如实报 NO_CLIENT 而不是空结果**）+ **面板**（动态 DOM：表列表/列/分页/搜索/Redis；连不上如实显示）；`test-sql-guard` **67/0**、`test-db-explorer` **58/0**、`verify-agent-tools` **41/0**、`verify-db-explorer` **14/0**、`verify-db-ui` **12/0** |
 | P16 | Quality Center | **PASS**：`QualityResult` 5 态（**SKIP 与 NOT_RUN 分开**）+ 7 个 Adapter（从已有产物归一、**不重跑**）+ 统一 Store + `overall`/`canProceed` + **UI 面板**（动态 DOM，含"能不能继续"判断）+ **点失败项看日志 / 跳到产物**（日志读取限定在验证产物，拒绕越）；Agent 侧只读工具 `qualityStatus`（第 9 个）与 UI **共用唯一聚合实现**；`test-quality-result` **69/0**、`verify-agent-tools` **36/0**、`verify-quality-ui` **20/0** |
-| P17 | 安全第二轮 | **部分 PASS（审计部分）**：新增 `tools/audit-desktop-security.js`（preload IPC 清单 123 个按风险分类 / 高危入口扫描 / 渲染侧 / Electron 开关与 CSP / 浮动依赖），带基线并挂 CI；**结论**：Electron 四项开关与 CSP 本就达标、高危仅 1 项（`fs:write` 任意路径，已有 agent-rules 守门）、3 处非空 `innerHTML` 经核实不含用户输入、6 个依赖全浮动；**未做**：收窄 `run_capture` / 命令枚举化 / 依赖锁定 |
+| P17 | 安全第二轮 | **PASS（审计 + 两项修复）**：`tools/audit-desktop-security.js`（IPC 清单/高危入口/Electron 开关与 CSP/浮动依赖，带基线进 CI）；**已修**：`fs:write` 从任意绝对路径收窄为**只能写工作区**（高危 1→0）、6 个依赖从 `^` 钉成**实际安装版本**（浮动 6→0）；`verify-write-guard` **13/0**；**未修**：`spawn-util` 的 `shell:true` 注入面（4 项 MEDIUM） |
 | P18 | 技术债（-79 / --deny-warn / 空 catch） | TODO |
 | P20 | 产品化 | TODO |
 | P21 | 最终产品 Demo | TODO |
