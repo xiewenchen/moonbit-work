@@ -27,8 +27,26 @@
   let lastErrAt = 0
   // ★ 多轮：记住当前会话 id —— 有它就续接，没有就是新会话
   //   opencode 的会话存在它自己那边，我们只要记 id 就行。
-  let currentSession = ''
-  try { currentSession = localStorage.getItem('moonbit-agent-session') || '' } catch (_) {}
+  // P10-11：会话必须**按项目**存。
+  // 旧实现用的是一个全局 key（`moonbit-agent-session`）—— 换项目后会继续复用同一个
+  // 会话，A 项目的上下文就漏给了 B。现在 key 里带上项目根，并且**每次发送都重读**，
+  // 所以切项目会自然切到各自的话。
+  function sessionKey() {
+    const mbi = window.moonbitIDE || {}
+    const ctx = (typeof mbi.getContext === 'function') ? mbi.getContext() : null
+    return 'moonbit-agent-session:' + ((ctx && ctx.rootDir) || '(no-project)')
+  }
+  function readSession() {
+    try { return localStorage.getItem(sessionKey()) || '' } catch (_) { return '' }
+  }
+  function writeSession(v) {
+    try { localStorage.setItem(sessionKey(), v || '') } catch (e) {
+      if (typeof console !== 'undefined' && console.warn) console.warn('保存会话 id 失败：', e && e.message)
+    }
+  }
+  // 只读调试口：让验证脚本能断言"键是按项目分的"（而不是在脚本里自己拼一个键自证）
+  try { if (typeof window !== 'undefined') window.moonbitAgentSessionKey = sessionKey } catch (_) {}
+  let currentSession = readSession()
 
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e }
 
@@ -36,7 +54,9 @@
   function newChat() {
     if (busy) { addErr('正在运行中，先点「停止」再开新对话'); return }
     currentSession = ''
-    try { localStorage.removeItem('moonbit-agent-session') } catch (_) {}
+    // ⚠️ 必须删**当前项目**那个键。删旧的全键（'moonbit-agent-session'）是无效的：
+    // send() 每次会 readSession() 重读，旧 id 会被读回来 →“新对话”实际不起作用。
+    try { localStorage.removeItem(sessionKey()) } catch (_) {}
     bubble = null
     logEl.textContent = ''
     showEmpty()
@@ -191,6 +211,8 @@
     if (busy) return
     const prompt = String(inputEl.value || '').trim()
     if (!prompt) return
+    // P10-11：每次发送都按**当前项目**重读会话 id（切项目就换了会话，不会串）
+    currentSession = readSession()
     addUser(prompt)
     inputEl.value = ''
 
@@ -236,7 +258,7 @@
     // 记下会话 id（opencode 在事件里回的）—— 下一轮带上它就能续上文
     if (d && d.sessionId) {
       currentSession = d.sessionId
-      try { localStorage.setItem('moonbit-agent-session', currentSession) } catch (_) {}
+      writeSession(currentSession)
     }
     setBusy(false)
     if (d && d.ok === false && bubble && !bubble.textContent) {

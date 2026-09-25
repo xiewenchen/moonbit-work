@@ -138,6 +138,12 @@ contextBridge.exposeInMainWorld('moonAPI', {
   // ---- P9A：可验证的任务理解（Ask/Understand）----
   agentUnderstand: (payload) => ipcRenderer.invoke('agent:understand', payload),
   agentLastUnderstanding: () => ipcRenderer.invoke('agent:lastUnderstanding'),
+  // ---- P10：会话（按项目绑定；存用户目录）----
+  sessionResume: (payload) => ipcRenderer.invoke('session:resume', payload),
+  sessionSave: (session) => ipcRenderer.invoke('session:save', { session }),
+  sessionAppend: (payload) => ipcRenderer.invoke('session:append', payload),
+  sessionClear: (projectRoot) => ipcRenderer.invoke('session:clear', { projectRoot }),
+  sessionEnd: (projectRoot) => ipcRenderer.invoke('session:end', { projectRoot }),
 
   // 注：ProjectContext 不在这里过桥 —— 本 preload 是 sandbox:true，
   // require 本地文件会让整个 preload 挂掉（实测踩过）。

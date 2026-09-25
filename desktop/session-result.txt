@@ -1,0 +1,40 @@
+
+=== ① 打开 A 项目，恢复/新建会话，并记两条 ===
+  [PASS] sessionResume 成功
+  [PASS] 会话绑的是 A 项目
+   A 的会话：sess=sess-mugiss2o-1 ｜ 项目=moonbit@C:\Users\33567\AppData\Roaming\reasonix\global-workspace\moonbit-platform ｜ active ｜ 消息=0 工具=0 补丁=0 验证=0
+  [PASS] 往 A 追加了一条消息
+
+=== ② 切到 B 项目 → 应当是另一条会话（P10-09）===
+  [PASS] B 也拿到了会话
+  [PASS] B 的会话绑的是 B 项目
+  [PASS] ★ B 的会话 id 与 A **不同**（没复用）
+  [PASS] ★ B 看不到 A 的消息（跨项目污染检查）
+  [PASS] B 的消息还是空的
+
+=== ③ 切回 A → 恢复原会话与内容（P10-08）===
+  [PASS] ★ 回到 A 的会话（同一条 id）
+  [PASS] ★ A 的消息被恢复（1 条）
+  [PASS] ★ 恢复的内容里就是 A 那句
+  [PASS] ★ 恢复的会话里**没有** B 的消息
+  [PASS] restored 标记为真（是从磁盘恢复的）
+
+=== ④ 渲染侧的会话键真的按项目分 ===
+  [PASS] aiagent 暴露了只读的会话键函数
+  [PASS] ★ 当前（A 项目）的会话键含项目根
+  [PASS] ★ 切到 B 后键也跟着变
+  [PASS] ★ 两个键不同（旧实现是同一个全局键 → 会串项目）
+  [PASS]   旧的全局键从未被写入
+  [PASS]   aiagent 不再引旧全局键（源码里只在注释中提到）
+  [PASS] 切回 A 后键又变回来
+
+=== ⑤ 关闭项目 → 结束会话上下文（P10-10）===
+  [PASS] 会话已结束
+  [PASS] 无项目时拿到的是不绑定项目的会话
+  [PASS] ★ 无项目会话与 A/B 都不是同一条
+
+=== ⑥ 已结束的会话不会被复活 ===
+  [PASS] ★ 拿到的是新会话（不是已 ended 的那条）
+  [PASS]   新会话绑的还是 A
+
+结果：25 通过 / 0 失败 / 共 25 项

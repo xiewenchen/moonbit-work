@@ -25,6 +25,7 @@ const { registerAgentPatchIpc } = require('./agent-patch-main')
 const { registerAgentVerifyIpc } = require('./agent-verify-main')
 const { registerAiProviderIpc } = require('./ai-provider-main')
 const { registerAgentRequestIpc } = require('./agent-request-main')
+const { registerSessionIpc } = require('./session-main')
 
 // ── 环境准备：必须在任何 spawn 之前 ─────────────────────────────────────
 // 从桌面快捷方式启动时，进程 PATH 是 Windows 默认值，**不含** ~/.moon/bin
@@ -232,6 +233,12 @@ registerAgentRequestIpc({
   ipcMain,
   onLog: (e) => console.log('[agent]', JSON.stringify(e)),
   getWorkspace: () => agentTools.getWorkspace(),
+})
+
+// P10：会话（按项目绑定；存用户目录，不进项目）
+registerSessionIpc({
+  ipcMain,
+  onLog: (e) => console.log('[session]', JSON.stringify(e)),
 })
 
 // LSP 客户端（接官方 moon-lsp）—— 见 lsp-manager.js
