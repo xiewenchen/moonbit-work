@@ -27,6 +27,7 @@ const { registerAiProviderIpc } = require('./ai-provider-main')
 const { registerAgentRequestIpc } = require('./agent-request-main')
 const { registerSessionIpc } = require('./session-main')
 const { registerMemoryIpc } = require('./memory-main')
+const { registerWorkbenchIpc } = require('./workbench-main')
 const { registerQualityIpc } = require('./quality-main')
 const { registerDbExplorerIpc } = require('./db-explorer-main')
 const { canWriteRules } = require('./project-memory')
@@ -256,6 +257,12 @@ registerSessionIpc({
 registerMemoryIpc({
   ipcMain,
   onLog: (e) => console.log('[memory]', JSON.stringify(e)),
+})
+
+// P13：工作台（最近项目 / 待办 / 便签）—— 存用户目录；只收工作台自己的键（P13-08）
+registerWorkbenchIpc({
+  ipcMain,
+  onLog: (e) => console.log('[wb]', JSON.stringify(e)),
 })
 
 // P16-10：Quality Center 面板的数据源（聚合已有验证产物，不重跑）

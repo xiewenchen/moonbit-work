@@ -165,6 +165,15 @@ contextBridge.exposeInMainWorld('moonAPI', {
   dbRaw: (sql) => ipcRenderer.invoke('db:raw', { sql }),
   dbRedisKeys: (pattern, cursor, count) => ipcRenderer.invoke('db:redisKeys', { pattern, cursor, count }),
   dbRedisValue: (key, type) => ipcRenderer.invoke('db:redisValue', { key, type }),
+  // ---- P13：工作台（最近项目 / 待办 / 便签；存用户目录）----
+  wbLoad: (projectRoot) => ipcRenderer.invoke('workbench:load', { projectRoot }),
+  wbTouchRecent: (projectContext) => ipcRenderer.invoke('workbench:touchRecent', { projectContext }),
+  wbForgetRecent: (projectRoot) => ipcRenderer.invoke('workbench:forgetRecent', { projectRoot }),
+  wbAddTodo: (projectRoot, text) => ipcRenderer.invoke('workbench:addTodo', { projectRoot, text }),
+  wbToggleTodo: (projectRoot, id, done) => ipcRenderer.invoke('workbench:toggleTodo', { projectRoot, id, done }),
+  wbRemoveTodo: (projectRoot, id) => ipcRenderer.invoke('workbench:removeTodo', { projectRoot, id }),
+  wbSetNote: (projectRoot, text) => ipcRenderer.invoke('workbench:setNote', { projectRoot, text }),
+  wbFile: () => ipcRenderer.invoke('workbench:file'),
 
   // 注：ProjectContext 不在这里过桥 —— 本 preload 是 sandbox:true，
   // require 本地文件会让整个 preload 挂掉（实测踩过）。

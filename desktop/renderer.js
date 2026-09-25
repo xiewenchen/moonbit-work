@@ -818,6 +818,15 @@ async function boot(dir) {
   } catch (e) {
     // 设不上不影响打开项目（工具侧会退回启动目录）
   }
+  // P13-01：记一笔"最近打开"。只把项目信息喂给工作台 —— 这是**读**方向，
+  // 工作台拿不到也改不了 IDE 状态（P13-08）。
+  try {
+    if (target && window.moonAPI.wbTouchRecent) {
+      await window.moonAPI.wbTouchRecent(Object.assign({}, projectCtx || {}, { rootDir: target }))
+    }
+  } catch (e) {
+    // 记不上不影响打开项目
+  }
   const res = await window.moonAPI.findModule(target)
   if (res.ok && res.module) {
     $('stModule').textContent = `模块：${res.module.name || '—'}@${res.module.version}`
@@ -1292,6 +1301,123 @@ async function showDatabasePanel() {
   return true
 }
 
+/**
+ * P13 面板：工作台（最近项目 / 当前项目的待办 / 便签）。
+ *
+ * ⚠️ P13-08：这个面板**只读**当前项目用于展示，从不写 IDE 状态 ——
+ * 它调的每一个 IPC 都只动工作台自己的数据（recent / todos / notes）。
+ */
+async function showWorkbenchPanel() {
+  const old = document.getElementById('wbPanel')
+  if (old) old.remove()
+  const mk = (tag, props) => { const el = document.createElement(tag); Object.assign(el, props || {}); return el }
+  const btnCss = 'padding:3px 9px;background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:5px;cursor:pointer'
+  const mask = mk('div', { id: 'wbPanel' })
+  mask.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999'
+  const card = mk('div')
+  card.style.cssText = 'max-width:860px;width:94%;max-height:86vh;display:flex;flex-direction:column;gap:8px;background:#1e1e1e;color:#ddd;border:1px solid #333;border-radius:8px;padding:14px;font-size:12px'
+  const title = mk('div', { textContent: '工作台' })
+  title.style.cssText = 'font-weight:600;font-size:14px'
+  const hint = mk('div', { id: 'wbHint' })
+  hint.style.cssText = 'color:#888;font-size:11px'
+  const cols = mk('div')
+  cols.style.cssText = 'display:flex;gap:10px;min-height:260px'
+  const left = mk('div', { id: 'wbRecent' })
+  left.style.cssText = 'width:260px;overflow:auto;max-height:50vh;border:1px solid #2a2a2a;border-radius:6px;padding:6px;background:#161616'
+  const right = mk('div')
+  right.style.cssText = 'flex:1;display:flex;flex-direction:column;gap:8px;overflow:auto;max-height:50vh'
+  const todoBox = mk('div', { id: 'wbTodos' })
+  todoBox.style.cssText = 'border:1px solid #2a2a2a;border-radius:6px;padding:6px;background:#161616'
+  const noteIn = mk('textarea', { id: 'wbNote', placeholder: '这个项目的便签…' })
+  noteIn.style.cssText = 'width:100%;box-sizing:border-box;height:90px;padding:6px;background:#121212;color:#ddd;border:1px solid #333;border-radius:6px;font-size:12px;resize:vertical'
+  const addIn = mk('input', { id: 'wbNewTodo', placeholder: '新待办…', style: 'flex:1;padding:4px 8px;background:#121212;color:#ddd;border:1px solid #333;border-radius:5px;font-size:12px' })
+  const addBtn = mk('button', { textContent: '加待办', style: btnCss })
+  const saveNoteBtn = mk('button', { textContent: '存便签', style: btnCss })
+  const addRow = mk('div')
+  addRow.style.cssText = 'display:flex;gap:6px;margin-bottom:6px'
+  addRow.appendChild(addIn); addRow.appendChild(addBtn)
+  right.appendChild(todoBox); right.appendChild(noteIn); right.appendChild(saveNoteBtn)
+  cols.appendChild(left); cols.appendChild(right)
+  const bar = mk('div')
+  bar.style.cssText = 'display:flex;gap:8px;justify-content:flex-end'
+  const closeBtn = mk('button', { textContent: '关闭', style: btnCss })
+  bar.appendChild(closeBtn)
+  card.appendChild(title); card.appendChild(hint); card.appendChild(cols); card.appendChild(bar)
+  mask.appendChild(card)
+  document.body.appendChild(mask)
+  closeBtn.onclick = () => mask.remove()
+
+  const ctx = () => {
+    const mbi = window.moonbitIDE || {}
+    return (typeof mbi.getContext === 'function') ? mbi.getContext() : null
+  }
+
+  async function refresh() {
+    const c = ctx()
+    const root = c ? c.rootDir : null
+    const d = await window.moonAPI.wbLoad(root || undefined)
+    const r = (d && d.ok) ? d : { recent: [], todos: [], note: '' }
+    hint.textContent = String(r.describe || '') + '　｜ 当前项目：' + (root ? (c.projectType || '?') + '@' + root : '（未打开）')
+
+    left.textContent = ''
+    const rl = mk('div', { textContent: '最近项目' })
+    rl.style.cssText = 'color:#888;margin-bottom:4px'
+    left.appendChild(rl)
+    if (!(r.recent || []).length) {
+      left.appendChild(mk('div', { textContent: '（还没有）', style: 'color:#666' }))
+    }
+    for (const it of (r.recent || [])) {
+      const b = mk('button', { textContent: (it.label || it.root) })
+      b.style.cssText = 'display:block;width:100%;text-align:left;margin:2px 0;' + btnCss
+      b.title = it.root
+      b.onclick = async () => { await window.moonbitIDE.openProject(it.root); await refresh() }
+      left.appendChild(b)
+    }
+
+    todoBox.textContent = ''
+    const tl = mk('div', { textContent: '本项目待办' + (root ? '' : '（先打开项目）') })
+    tl.style.cssText = 'color:#888;margin-bottom:4px'
+    todoBox.appendChild(tl)
+    if (root) todoBox.appendChild(addRow)
+    if (root && !(r.todos || []).length) todoBox.appendChild(mk('div', { textContent: '（没有待办）', style: 'color:#666' }))
+    for (const t of (r.todos || [])) {
+      const row = mk('div')
+      row.style.cssText = 'display:flex;align-items:center;gap:6px;margin:2px 0'
+      const cb = mk('input', { type: 'checkbox' })
+      cb.checked = t.done === true
+      cb.onchange = async () => { await window.moonAPI.wbToggleTodo(root, t.id, cb.checked); await refresh() }
+      const tx = mk('span', { textContent: t.text })
+      tx.style.cssText = 'flex:1;' + (t.done ? 'text-decoration:line-through;color:#666' : '')
+      const del = mk('button', { textContent: '×', style: btnCss })
+      del.onclick = async () => { await window.moonAPI.wbRemoveTodo(root, t.id); await refresh() }
+      row.appendChild(cb); row.appendChild(tx); row.appendChild(del)
+      todoBox.appendChild(row)
+    }
+
+    noteIn.value = r.note || ''
+    noteIn.disabled = !root
+  }
+
+  addBtn.onclick = async () => {
+    const c = ctx()
+    if (!c) return
+    const text = String(addIn.value || '').trim()
+    if (!text) return
+    await window.moonAPI.wbAddTodo(c.rootDir, text)
+    addIn.value = ''
+    await refresh()
+  }
+  saveNoteBtn.onclick = async () => {
+    const c = ctx()
+    if (!c) return
+    await window.moonAPI.wbSetNote(c.rootDir, noteIn.value)
+    await refresh()
+  }
+
+  await refresh()
+  return true
+}
+
 window.moonbitIDE = {
   openProject: (dir) => boot(dir),      // 等价于用户「打开文件夹」之后走的那条路
   closeProject,
@@ -1303,6 +1429,14 @@ window.moonbitIDE = {
   commands: {
     list: () => window.moonAPI.commandList(),
     execute: (name, args, opts) => window.moonAPI.commandExecute(name, args, opts),
+  },
+  // P13：工作台（最近项目 / 待办 / 便签）
+  workbench: {
+    show: () => showWorkbenchPanel(),
+    load: (root) => window.moonAPI.wbLoad(root),
+    addTodo: (root, text) => window.moonAPI.wbAddTodo(root, text),
+    setNote: (root, text) => window.moonAPI.wbSetNote(root, text),
+    file: () => window.moonAPI.wbFile(),
   },
   // P15：数据库工作台（只读；每句都过 SQL/Redis 安全闸）
   database: {
