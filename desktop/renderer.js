@@ -1775,8 +1775,41 @@ async function showPanelMenu() {
   return true
 }
 
-window.moonbitIDE = {
-  openProject: (dir) => boot(dir),      // 等价于用户「打开文件夹」之后走的那条路
+/**
+ * P20-04：把「面板」入口挂到顶栏标签里。
+ *
+ * 为什么是**动态注入**而不是改 index.html：`index.html` 是 `translate-strapi.js` 的产物，
+ * 直接改它下次转译就没了。
+ *
+ * 做法：找 `a[data-view="tools"]` 所在的 `<li>`，**克隆它**（这样 svg/span 的样式自动一致），
+ * 在它后面插入。两个要点：
+ *   ① 克隆后**去掉 `data-view`** —— 否则切视图的逻辑会把它当成第 6 个视图；
+ *   ② 不依赖那些 `sc-xxxx` 类名（styled-components 生成的，随时会变）。
+ */
+function injectPanelButton() {
+  if (document.getElementById('navPanels')) return true
+  const tools = document.querySelector('a[data-view="tools"]')
+  if (!tools) return false
+  const li = tools.closest('li')
+  if (!li || !li.parentNode) return false
+  const mine = li.cloneNode(true)
+  const link = mine.querySelector('a')
+  if (!link) return false
+  link.id = 'navPanels'
+  link.removeAttribute('data-view')           // ★ 别被当成第 6 个视图
+  link.setAttribute('aria-label', '面板')
+  link.setAttribute('href', '#')
+  const sp = link.querySelector('span')
+  if (sp) sp.textContent = '面板'
+  link.addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation()
+    try { showPanelMenu() } catch (err) { console.error('打开面板失败：' + String((err && err.message) || err)) }
+  })
+  li.parentNode.insertBefore(mine, li.nextSibling)
+  return true
+}
+
+window.moonbitIDE = {  openProject: (dir) => boot(dir),      // 等价于用户「打开文件夹」之后走的那条路
   closeProject,
   getContext: () => projectCtx,         // 冻结对象，只读
   hasProject: () => window.moonbitProjectContext.hasProject(projectCtx),
@@ -1788,7 +1821,7 @@ window.moonbitIDE = {
     execute: (name, args, opts) => window.moonAPI.commandExecute(name, args, opts),
   },
   // P20：启动恢复 + 环境诊断 + 面板统一入口
-  panels: { menu: () => showPanelMenu() },
+  panels: { menu: () => showPanelMenu(), inject: () => injectPanelButton() },
   env: { show: () => showEnvironmentPanel(), check: () => window.moonAPI.envCheck() },
   startup: {
     plan: () => window.moonAPI.startupPlan(),
@@ -3302,6 +3335,8 @@ function initCore() {
 
   step('installErrorReporting（前端错误兜底）', () => installErrorReporting())
   step('活动栏（5 个主标签）', () => initActivityBar())
+  // P20-04：面板入口要在活动栏建好之后注入（它克隆的是活动栏里的那个 <li>）
+  step('面板入口（P20-04）', () => injectPanelButton())
   step('LSP 诊断 → Monaco 标记', () => {
     // LSP 会在文件打开/修改后主动推送 publishDiagnostics —— 这是「边写边报」。
     // 与手动的 moon check 是互补关系：LSP 管实时，check 管一次性完整检查。
