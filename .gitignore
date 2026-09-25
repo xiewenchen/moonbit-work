@@ -23,3 +23,6 @@ desktop/agent-e2e-result.txt
 
 # 验证脚本的输出（每次跑都会变）
 desktop/*-result.txt
+
+# 项目知识里的机器生成文件（每次刷新时间戳都变，不必进仓库）
+.moonbit-work/context.json
