@@ -105,6 +105,7 @@
 | P5A | Agent Context 真接线 | **PASS（第一批）**：AgentRequest/AgentResponse 契约（含四态）+ **ProjectContext/Problems 真实接入**（`verify-agent-request` 19/0，用真实项目与真实问题验证）+ Context Snapshot（含取数四态 absent/empty/ok/error）；**activeFile/selection/lastRun/lastTest 待接** |
 | P9A | Ask / Understand | **PASS（第二批）**：`TaskUnderstanding`（6 栏全部**可核对来源**，不做思维链）+ 规则化 `proposedActions`（每条带 rule）+ `applyLlmPlan` 只许覆盖计划、事实不许改；理解卡（开始执行/取消）+ Auto-start 开关（卡上可见可写，且不解除 P8）；`test-task-understanding` 53/0、`verify-agent-request` **41/0**（含真切界面与"越界路径被拒"） |
 | P9B | AI Adapter + MockLLM | **PASS**：`agent-adapter.js`（generate/stream/toolCall + 最小工具循环）+ `mock-llm.js`（与 adapter **同接口**，可真正替换，`isMock` 可断言没连真网）；**解耦做成文本口径**（源码无厂商名、不 require provider）；`test-agent-adapter` **69/0**（含无限规划被预算截断、未经确认不写盘、错误六路径、**apiKey 脱敏**）；**未接入生产路径**（留给 P9C） |
+| P9C | Agent E2E | **PASS（链路完整）**：专用靶项目（独立零依赖）+ **三态对照**（干净 check=0 / 注入≠0 / 修好=0）；14 步全走（Ask→Understand→Read→Patch→Confirm→Apply→闭环→报告）；`verify-agent-e2e` **39/0**；**修 3 个真缺陷**（runTest 缺 root、startRun 认知错、主进程用了渲染侧变量）；**test 因 R12 失败、run/health 因失败即停未跑 —— 结论如实为 VERIFY_FAILED**（不伪装通关） |
 | P13 | Workbench | TODO |
 | P14 | MoonBit Backend Integration | TODO |
 | P15 | 数据库工作台 | TODO |

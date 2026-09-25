@@ -30,6 +30,7 @@
     "verify:agent-verify": "electron verify-agent-verify.js",
     "verify:ai-provider": "electron verify-ai-provider.js",
     "verify:agent-request": "electron verify-agent-request.js",
+    "verify:agent-e2e": "electron verify-agent-e2e.js",
     "check:local-chk": "node ../tools/check-local-chk.js --ci"
   },
   "devDependencies": {

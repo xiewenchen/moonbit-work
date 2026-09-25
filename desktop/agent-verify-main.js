@@ -19,7 +19,7 @@
 const { createVerifyLoop, buildVerifyReport, renderVerifyReport } = require('./agent-verify')
 const { fromCompilerOutput } = require('./problem-model')
 
-function registerAgentVerifyIpc({ ipcMain, getWindow, getRunner, runCommand, executeCommand, getWorkspace, request }) {
+function registerAgentVerifyIpc({ ipcMain, getWindow, getRunner, runCommand, executeCommand, getWorkspace, request, getProjectType, getRunnerSpec }) {
   let lastSession = null
   let lastReport = null
 
@@ -41,15 +41,30 @@ function registerAgentVerifyIpc({ ipcMain, getWindow, getRunner, runCommand, exe
     }
   }
 
-  async function runTest() {
+  // ⚠️ project.test 的 handler 要求 args.ctx 或 args.root（见 commands.js:263）——
+  // 原来传 {} 会直接报“未打开项目”。
+  // 另外必须带上 projectType：不给的话 kind 缺失，project.test 会默认跑
+  // `moon test --target native` —— 打开 node/go/rust 项目时就会跑错。
+  async function runTest(root, projectType) {
     if (typeof executeCommand !== 'function') return { ok: false, error: '命令表未就绪' }
-    const r = await executeCommand('project.test', {}, {})
+    const r = await executeCommand('project.test', { root, projectType: projectType || null }, {})
     return { ok: r && r.ok === true, error: r && r.error ? r.error : null, output: (r && r.stdout) || '', name: 'project.test' }
   }
 
-  async function startRun() {
+  /**
+   * ⚠️ 与 check/test 不同，`project.run` **不读 root** —— 它要的是 `args.spec.bin`
+   * （可运行入口，见 commands.js:219 起）。闭环手里默认没有这个信息，
+   * 所以这里**如实失败**，而不是假装“传个 root 就能跑”。
+   *
+   * 【注】这不是“已修好”：真实产品路径里的 run 由用户在界面上点（那时有选中的入口）；
+   * 闭环要自动 run，必须把入口一起传进来 —— 列入后续，不在这里假绿。
+   */
+  async function startRun(root, spec) {
     if (typeof executeCommand !== 'function') return { ok: false, error: '命令表未就绪' }
-    const r = await executeCommand('project.run', {}, {})
+    if (!spec || !spec.bin) {
+      return { ok: false, error: '闭环没有“可运行入口”信息（args.spec.bin）—— run 这一步在此路径下不可用', name: 'project.run' }
+    }
+    const r = await executeCommand('project.run', { root, spec }, {})
     return { ok: r && r.ok === true, error: r && r.error ? r.error : null, detail: r && r.data ? r.data : null }
   }
 
@@ -76,8 +91,8 @@ function registerAgentVerifyIpc({ ipcMain, getWindow, getRunner, runCommand, exe
       deps: {
         applyPatch: async () => ({ ok: true, file: file || null }),
         check: () => runCheck(root),
-        test: () => runTest(),
-        run: () => startRun(),
+        test: () => runTest(root, typeof getProjectType === 'function' ? getProjectType() : null),
+        run: () => startRun(root, typeof getRunnerSpec === 'function' ? getRunnerSpec() : null),
         health: () => healthCheck(),
         onProgress: (p) => send('agentVerify:progress', p),
       },

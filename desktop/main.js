@@ -12,7 +12,7 @@ const path = require('node:path')
 const fsops = require('./fsops')
 const { registerBackendIpc } = require('./backend')
 const { registerApiDebugIpc } = require('./api-debug')
-const { registerProjectIpc } = require('./project-detect')
+const { registerProjectIpc, detectProject } = require('./project-detect')
 const { registerRelayIpc } = require('./relay-main')
 const { registerRunnerIpc, makeRunnerHandlers } = require('./runners')
 const { registerAgentIpc } = require('./agent')
@@ -204,6 +204,18 @@ registerAgentVerifyIpc({
   executeCommand: (name, args, opts) => registry.execute(name, args, opts),
   getWorkspace: () => agentTools.getWorkspace(),
   request: simpleRequest,
+  // 闭环里 test 需要 projectType（否则默认按 moon 跑，打开 node/go 项目就跑错）。
+  // 注意：主进程**没有**渲染侧的 projectCtx —— 所以这里按当前 workspace 现场识别。
+  getProjectType: () => {
+    const ws = agentTools.getWorkspace()
+    if (!ws) return null
+    try {
+      const info = detectProject(ws)
+      return (info && (info.kind || info.projectType)) || null
+    } catch (e) {
+      return null          // 识别不了就不硬塞一个类型
+    }
+  },
 })
 
 // P12 接线：AI Provider（本地存储 + 连通性检查）。
