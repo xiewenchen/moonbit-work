@@ -104,6 +104,7 @@ jobs:
           node test-sql-guard.js        # P15：SQL/Redis 安全闸（只放 SELECT；多语句/注释绕过/写操作全拒）
           node test-db-explorer.js      # P15：数据库构造层（标识符/字面量转义，注入用例）
           node test-workbench.js        # P13：工作台（最近项目/待办/便签；按项目隔离 + 不反向污染）
+          node test-office-link.js      # P13：办公文件↔项目联动（关联隔离 / 预览如实 / 便签追加）
           node test-commands.js          # Command Registry（注册/执行/超时/日志 + 6 个项目命令）
           node test-problem-model.js     # 问题模型（五类来源统一/去重/生命周期/Store）
           node test-renderer-globals.js # 渲染进程同作用域加载（防 const 重名这类"浏览器才暴露"的问题）
