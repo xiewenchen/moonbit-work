@@ -26,3 +26,6 @@ desktop/*-result.txt
 
 # 项目知识里的机器生成文件（每次刷新时间戳都变，不必进仓库）
 .moonbit-work/context.json
+
+# 测试跑靶项目时会生成的项目知识（靶子保持最小）
+testdata/*/.moonbit-work/
