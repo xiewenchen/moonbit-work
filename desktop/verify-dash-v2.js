@@ -1,4 +1,5 @@
 // 验证本轮三个需求：① 日历(翻月/今日高亮/节假日标红) ② 可编辑交互(点选/右键新建日程/笔记日程可编辑) ③ 顶部横幅(可关闭/不新开窗口而跳转)
+const { createHarness } = require('./verify-harness')
 require('./main.js')
 const { app, BrowserWindow } = require('electron')
 const fs = require('fs')
@@ -14,15 +15,21 @@ app.whenReady().then(async () => {
   const SHOT = path.join(__dirname, 'e2e-shots', 'dash')
   fs.mkdirSync(SHOT, { recursive: true })
 
-  let pass = 0, fail = 0
-  // P19：类型防护 —— 传非布尔（数组/对象）说明用错了函数，必须当场失败
-  const chk = (n, ok, d) => {
-    if (typeof ok !== 'boolean') { fail++; console.log(`  [FAIL] ${n}   chk 只接受布尔（数组/对象比较请用 eq）：${JSON.stringify(ok)}`); return }
-    if (ok) { pass++; console.log(`  [PASS] ${n}`) } else { fail++; console.log(`  [FAIL] ${n}  ${d || ''}`) }
+  const H = createHarness()
+  const chk = H.chk
+  // capturePage 偶发 UnknownVizError（窗口重绘竞争），失败不应中断整个验证 ——
+  // verify-theme.js 里有同样的处理，这里原来漏了，导致 27 项全过之后在截图那一步崩掉。
+  const safeShot = async (name) => {
+    try { fs.writeFileSync(path.join(SHOT, name), (await win.webContents.capturePage()).toPNG()); console.log('  截图 ' + name) }
+    catch (e) { console.log('  截图失败（不影响结论）: ' + name) }
   }
 
   // 清掉上次的横幅隐藏记录，保证能测到横幅
   await js(`localStorage.removeItem('moonbit-banner-hidden')`)
+  // ★ 测试污染：日程存的是 { "2026-10-01": [...] }，脚本每次跑都往同一天追加，
+  //   于是断言"只有 1 条"从第二次起必然失败（数组会越来越长）。所以先清掉再验。
+  await js(`localStorage.removeItem('moonbit-dash-events')`)
+  await js(`localStorage.removeItem('moonbit-dash-notes')`)
   await win.webContents.reload()
   await sleep(8000)
   await js(`(() => { const a = document.querySelector('a[data-view="home"]'); if (a) a.click() })()`)
@@ -97,7 +104,12 @@ app.whenReady().then(async () => {
 
   // 翻月到 10 月，应看到国庆 7 天
   const oct = JSON.parse(await js(`(async () => {
-    const next = document.querySelectorAll('.cal-bar button')[2]
+    // ⚠️ 不能按下标取按钮！.cal-bar 里依次是 [0]上个月 [1]下个月 [2]回到今天 ——
+    // 原来写 [2] 点的是「回到今天」，月份压根没翻，于是后面一串断言（10 月 / 国庆 7 天 /
+    // 2026-10-01 的格子 / getBoundingClientRect）全都跟着错，看着像"UI 过时"，其实是点错了按钮。
+    // 按 title 取最稳，也不怕以后再加按钮。
+    const next = Array.from(document.querySelectorAll('.cal-bar button')).find(b => b.title === '下个月')
+    if (!next) throw new Error('找不到「下个月」按钮（.cal-bar 里没有 title=下个月 的 button）')
     next.click()
     await new Promise(r => setTimeout(r, 500))
     return JSON.stringify({
@@ -180,10 +192,9 @@ app.whenReady().then(async () => {
   console.log('\n=== 截图 ===')
   await js(`(() => { const a = document.querySelector('a[data-view="home"]'); if (a) a.click() })()`)
   await sleep(1200)
-  fs.writeFileSync(path.join(SHOT, 'v2-calendar-interaction.png'), (await win.webContents.capturePage()).toPNG())
-  console.log('  v2-calendar-interaction.png')
+  await safeShot('v2-calendar-interaction.png')
 
-  console.log(`\n结果：${pass} 通过, ${fail} 失败 / 共 ${pass + fail} 项`)
+  console.log('\n' + H.summary())
   app.quit()
-  setTimeout(() => process.exit(0), 1500)
+  setTimeout(() => process.exit(H.exitCode()), 1500)
 }).catch((e) => { console.error('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); process.exit(1) })
