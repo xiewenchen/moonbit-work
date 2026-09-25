@@ -115,9 +115,9 @@
 | P17 | 安全第二轮 | **PASS**：`tools/audit-desktop-security.js`（IPC 清单/高危入口/Electron 开关与 CSP/浮动依赖，带基线进 CI）；**已修**：`fs:write` 收窄为只能写工作区、6 个依赖钉成实际版本、**`spawn-util` 的参数拼接面**（控制字符直拒 + `%`/`!` 纳入引号条件，同时保留必需的 `shell:true`）；审计 **高危 0 / 中危 0**；`verify-write-guard` **13/0**、`test-spawn-util` **27/0** |
 | P18 | 技术债 | **部分 PASS（扫描类）**：**修正数字** —— `warnings = "-79"` 实际只在 **3 个包**（http/pg/redis，注释写明是为**跨版本兼容**：新工具链把 `implicit_impl_as_method` 当 error）；实测去掉后本机 48 warnings/**0 errors**（因本机 moonc 较旧根本不报）→ **删它会坏 CI、改代码又在本机验证不了**，故未动；`--deny-warn` **暂不开**（33 warnings）；空 catch 分类完成（368 catch：A 完全空 **93** / B 只注释 23 / C 有代码 252）；**逐包迁移与 A 类清理未做** |
 | P20 | 产品化 | **部分 PASS**：**P20-07/08 启动恢复**（正常退出→完整恢复；**异常退出→降级只恢复项目**并说明原因）+ **P20-09/10 环境检查与诊断面板**（"没装"与"探测报错"分开）+ **P20-04 面板入口**（7 个面板 + **顶栏按钮**；动态注入不碰转译产物，且**不被当成第 6 个视图**）；`test-startup-state` **47/0**、`verify-startup-ui` **25/0**、`verify-panel-entry` **14/0**；**P20-01～03/05/06 的启动页重排与 Settings/About 未做** |
-| P21 | 最终产品 Demo | TODO |
-| P22 | 最终回归 | TODO |
-| P23 | 版本发布（0.2.0-alpha / beta / 0.2.0） | TODO |
+| P21 | 产品演示 | **未做**（如实标注）：清单要求"真实 MoonBit 项目 + HTTP/PG/Redis + 故意错误 → 打开→报错→Agent 查看/Explain/Read/Patch→Preview→Apply→Check/Test/Run→Browser→API→Database→Quality→总结"。其中 **Browser/API/Database 需要真起服务**，而本机 **R12**（native 工具链坏）挡住；可跑的那部分已由 `verify-agent-e2e`（39/0，MockLLM 驱动整条链 + 三态对照）覆盖 |
+| P22 | 最终回归 | **PASS（本机）**：报告见 `docs/REGRESSION-P22.md` —— MoonBit `check --target native` **0 errors**（33 warnings）、wasm-gc 通过；**桌面纯 Node 39 个脚本失败 0**；**抽检 7 个 Electron 脚本全部 exit=0**（5/5、5/5、41/0、41/0、23/0、14/0、27/0）；门禁三项通过；规模 142 commits / 156 js / 39 测试 / 47 verify / 149 IPC。**测试与构建以 CI 为准**（本机 R12 跑不了 test/build） |
+| P23 | 版本发布 | **PASS（到第一档）**：`desktop/package.json` → **`0.2.0-alpha`**，说明见 `docs/RELEASE.md`；对照清单三档，当前只到「IDE Core + Agent Read」（Execute/Patch/Verify 的能力与 MockLLM E2E 就绪，但"真实 LLM 修好真实项目"未验 → 按 RULE-01 不标 beta）；**git tag 未打**（对外宣布版本的动作，等确认） |
 
 ---
 
