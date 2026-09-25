@@ -11,10 +11,11 @@
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const { createHarness } = require('./verify-harness')
 const { findRunners, kindOf, rootOfInput } = require('./runners')
 
-let pass = 0, fail = 0
-const chk = (n, ok, d) => { if (ok) { pass++; console.log('  [PASS] ' + n) } else { fail++; console.log('  [FAIL] ' + n + '  ' + (d || '')) } }
+const H = createHarness()
+const chk = H.chk
 
 // 造一个临时项目目录
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-detect-'))
@@ -106,5 +107,5 @@ console.log('\n=== 项目类型识别（输入 → 输出）===')
 
 fs.rmSync(TMP, { recursive: true, force: true })
 
-console.log(`\n结果：${pass} 通过, ${fail} 失败 / 共 ${pass + fail} 项`)
-process.exit(fail === 0 ? 0 : 1)
+console.log('\n' + H.summary())
+process.exit(H.exitCode())

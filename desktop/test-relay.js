@@ -1,5 +1,6 @@
 // 文件中转站核心逻辑测试：Office 元信息解析 / 备份去重 / 版本 / 还原
 // 运行：node test-relay.js
+const { createHarness } = require('./verify-harness')
 const R = require('./relay-main.js')
 const fs = require('fs')
 const path = require('path')
@@ -9,8 +10,8 @@ const DOC = path.join(D, '季度报告.docx')
 const XLS = path.join(D, '预算表.xlsx')
 const TXT = path.join(D, '备注.txt')
 
-let pass = 0, fail = 0
-const chk = (n, ok, d) => { if (ok) { pass++; console.log(`  [PASS] ${n}`) } else { fail++; console.log(`  [FAIL] ${n}  ${d || ''}`) } }
+const H = createHarness()
+const chk = H.chk
 const cleanupBackups = (p) => {
   try {
     const dir = path.join(R.BACKUP_ROOT, require('crypto').createHash('sha1').update(path.resolve(p)).digest('hex').slice(0, 16))
@@ -83,6 +84,7 @@ chk('删除单个版本', del.ok === true && del.count === 2, JSON.stringify(del
 chk('备份不存在的文件 → 友好报错', R.backupFile(path.join(D, '不存在.docx')).ok === false)
 chk('还原不存在的版本 → 友好报错', R.restoreVersion(DOC, 'nope').ok === false)
 
-console.log(`\n结果：${pass} 通过, ${fail} 失败 / 共 ${pass + fail} 项`)
+console.log('\n' + H.summary())
+process.exit(H.exitCode())
 for (const p of [DOC, XLS]) cleanupBackups(p)
 console.log('（已清理测试产生的备份目录）')
