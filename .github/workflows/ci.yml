@@ -77,6 +77,10 @@ jobs:
 
       # P19-18：verify 脚本必须用公共 verify-harness，不许再自带局部 chk 定义
       # （历史上 16 份局部定义里有 25 处因"数组恒为真"而永远通过）
+      # P17：桌面安全审计（IPC 清单 / 高危入口 / Electron 开关 / 浮动依赖），高危项只减不增
+      - name: Desktop security audit
+        run: node tools/audit-desktop-security.js --ci
+
       - name: No new local chk
         run: node tools/check-local-chk.js --ci
 
