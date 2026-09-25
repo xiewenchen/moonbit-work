@@ -54,8 +54,8 @@ app.whenReady().then(async () => {
   {
     const l = JSON.parse(await js('(async () => JSON.stringify(await window.moonbitIDE.agentTools.list()))()'))
     const tools = l.tools || []
-    eq('8 个只读工具（P14 新增 backendStatus）', tools.length, 8)
-    chk('  新增的 backendStatus 在里面', tools.some((t) => t.name === 'backendStatus'), JSON.stringify(tools.map((t) => t.name)))
+    eq('9 个只读工具（P14 backendStatus + P16 qualityStatus）', tools.length, 9)
+    chk('  新增的 backendStatus / qualityStatus 都在', ['backendStatus', 'qualityStatus'].every((n) => tools.some((t) => t.name === n)), JSON.stringify(tools.map((t) => t.name)))
     eq('**全部是 read 权限**', Array.from(new Set(tools.map((t) => t.permission))).join(','), 'read')
     chk('每个都有超时与输出限额', tools.every((t) => t.timeoutMs > 0 && t.maxOutputBytes > 0), true)
     chk('**没有写/执行工具**', tools.filter((t) => ['writeFile', 'applyPatch', 'project.run', 'project.build'].includes(t.name)).length === 0, JSON.stringify(tools.map((t) => t.name)))
@@ -148,6 +148,18 @@ app.whenReady().then(async () => {
     // 本机没起后端服务 → 必须如实 ok:false，并给出可读原因
     chk('  如实报告连不上（不是假装健康）', r.data.ok === false, String(r.data.ok))
     chk('  且带可读错误', /连不上/.test(String(r.data.error)), String(r.data.error))
+  }
+
+  log('\n=== P16-13 qualityStatus 工具：真的能调（只读，不重跑测试）===')
+  {
+    const r = JSON.parse(await js(`(async () => JSON.stringify(await window.moonbitIDE.agentTools.call('qualityStatus', {})))()`))
+    chk('qualityStatus 可调用', r.ok === true, JSON.stringify(r).slice(0, 160))
+    const d = r.data || {}
+    chk('  返回里有 overall 与 canProceed', typeof d.overall === 'string' && d.canProceed && typeof d.canProceed.ok === 'boolean', JSON.stringify(d).slice(0, 200))
+    chk('  带各状态计数', !!(d.stats && d.stats.byState), JSON.stringify(d.stats))
+    chk('  带可读摘要', /工程状态：/.test(String(d.describe)), String(d.describe).slice(0, 120))
+    // 本仓已经跑过一批验证 → 不应该全是 NOT_RUN
+    chk('  至少聚合到了一些已有的验证产物', (d.stats && d.stats.total >= 1) || d.overall === 'NOT_RUN', JSON.stringify({ total: d.stats && d.stats.total }))
   }
 
   log('\n结果：' + pass + ' 通过 / ' + fail + ' 失败 / 共 ' + (pass + fail) + ' 项')

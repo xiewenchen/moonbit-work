@@ -96,6 +96,7 @@ jobs:
           node test-session.js          # P10：会话与项目绑定（含禁止跨项目污染）
           node test-project-memory.js   # P11：项目级记忆（规则写保护 / 检索只给相关的 / 压缩）
           node test-backend-context.js  # P14：BackendProjectContext（端口只从能指着说的来源推）
+          node test-quality-result.js    # P16：Quality Center（5 态 / 各类 Adapter / 能不能继续）
           node test-commands.js          # Command Registry（注册/执行/超时/日志 + 6 个项目命令）
           node test-problem-model.js     # 问题模型（五类来源统一/去重/生命周期/Store）
           node test-renderer-globals.js # 渲染进程同作用域加载（防 const 重名这类"浏览器才暴露"的问题）

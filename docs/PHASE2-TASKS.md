@@ -109,7 +109,7 @@
 | P13 | Workbench | TODO |
 | P14 | Backend Integration | **PASS**：`BackendProjectContext`（backendLike/port+来源/health/database/redis）+ 新增 `backend:health`（含 PG/Redis 依赖）+ 一键 Build/Run/Stop 沿用命令表；**Agent 新增只读工具 `backendStatus`**（第 8 个）；端口与健康**只采事实不猜**；`test-backend-context` **41/0**、`verify-agent-tools` **31/0**；**UI 侧的 backendHealth 调用点待接** |
 | P15 | 数据库工作台 | TODO |
-| P16 | Quality Center | TODO |
+| P16 | Quality Center | **部分 PASS**：`QualityResult` 5 态（**SKIP 与 NOT_RUN 分开**）+ 7 个 Adapter（构建/native/wasm/靶场/RealWorld/性能/桌面验证，**从已有产物归一、不重跑**）+ 统一 Store + `overall`/`canProceed`；**Agent 新增只读工具 `qualityStatus`**（第 9 个）；`test-quality-result` **69/0**、`verify-agent-tools` **36/0**；**P16-10～12（Quality UI + 点击跳日志/跳文件）未做** |
 | P17 | 安全技术债收口（U1–U10） | TODO |
 | P18 | 技术债（-79 / --deny-warn / 空 catch） | TODO |
 | P20 | 产品化 | TODO |

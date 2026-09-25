@@ -36,6 +36,8 @@ const READ_TOOL_SPECS = Object.freeze([
   { name: 'getProjectInfo', permission: PERMISSION.READ, timeoutMs: 2000, maxOutputBytes: 16384, workspaceOnly: false, description: '读单一工程上下文（P2）' },
   // P14-12：读后端状态（健康/端口/PG/Redis）—— **只读**，不启动、不构建
   { name: 'backendStatus', permission: PERMISSION.READ, timeoutMs: 8000, maxOutputBytes: 32768, workspaceOnly: false, description: '当前项目的后端状态（健康/端口/PG/Redis）' },
+  // P16-13：读“工程状态”（Quality Center 聚合）—— **只读**，不重跑测试
+  { name: 'qualityStatus', permission: PERMISSION.READ, timeoutMs: 8000, maxOutputBytes: 32768, workspaceOnly: false, description: '工程状态（构建/测试/安全/桌面验证的聚合结论）' },
 ])
 
 /**
@@ -171,6 +173,17 @@ function createReadOnlyToolRegistry(deps = {}) {
     const info = await deps.projectInfo()
     const c = ctx.clip(JSON.stringify(info))
     return toolResult({ ok: true, data: info, truncated: c.truncated })
+  })
+
+  // ── P16-13 qualityStatus ────────────────────────────────────────
+  // 读“工程状态”的聚合结论（含 overall 与 canProceed）。
+  // 它**不重跑**任何测试 —— 否则 Agent 每次问“现在能不能继续”都要跑一遍全量套件。
+  register(READ_TOOL_SPECS[8], async (_args, ctx) => {
+    if (typeof deps.qualitySnapshot !== 'function') return toolResult({ ok: false, error: 'qualitySnapshot 能力未注入' })
+    let st = null
+    try { st = await deps.qualitySnapshot() } catch (e) { return toolResult({ ok: false, error: String((e && e.message) || e) }) }
+    const c = ctx.clip(JSON.stringify(st))
+    return toolResult({ ok: true, data: st, truncated: c.truncated })
   })
 
   // ── P14-12 backendStatus ────────────────────────────────────────────────────

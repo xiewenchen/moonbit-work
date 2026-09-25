@@ -13,11 +13,13 @@
  */
 
 const fs = require('fs')
+const path = require('path')
 const fsops = require('./fsops')
 const { searchInDir } = require('./search')
 const { loadSymbols, searchSymbols } = require('./symbols')
 const { detectProject } = require('./project-detect')
 const { createReadOnlyToolRegistry } = require('./agent-tools')
+const { createQualityStore, fromDesktopVerify, overall, canProceed, describeQuality } = require('./quality-result')
 const { createExecuteToolRegistry, API_LIMITS } = require('./agent-exec-tools')
 const http = require('http')
 const https = require('https')
@@ -111,6 +113,31 @@ function registerAgentToolIpc({ ipcMain, getWindow, getRunner, executeCommand, b
 
     // P14-12：后端状态（健康/端口/PG/Redis）—— 只读；未注入时该工具会直接报“能力未注入”
     backendStatus: typeof backendStatus === 'function' ? () => backendStatus() : undefined,
+
+    // P16-13：工程状态（Quality Center）。
+    // **从已有的验证产物聚合**（desktop/*-result.txt），不重跑任何测试 ——
+    // 所以它能秒回、能离线用。“没跑过”会被如实标成 NOT_RUN。
+    qualitySnapshot: async () => {
+      const st = createQualityStore()
+      let files = []
+      try {
+        files = fs.readdirSync(__dirname).filter((n) => n.endsWith('-result.txt'))
+      } catch (e) {
+        files = []
+      }
+      for (const n of files) {
+        let text = ''
+        try { text = fs.readFileSync(path.join(__dirname, n), 'utf8') } catch (e) { text = '' }
+        st.put(fromDesktopVerify(text, { name: n }))
+      }
+      return {
+        overall: overall(st),
+        canProceed: canProceed(st),
+        stats: st.stats(),
+        failures: st.failures().map((r) => ({ name: r.name, state: r.state, detail: r.detail.slice(0, 200) })),
+        describe: describeQuality(st),
+      }
+    },
   })
 
   ipcMain.handle('agentTools:setWorkspace', (_e, root) => {
