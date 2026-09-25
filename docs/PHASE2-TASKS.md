@@ -111,7 +111,7 @@
 | P15 | 数据库工作台 | **PASS**：安全闸（SQL 只放 SELECT / Redis 只放只读）+ Agent 只读工具 `queryDatabase` + 构造层与执行层（表/列/分页/搜索/Redis Keys/Value；标识符与字面量都转义，生成结果再过一遍闸；执行走 psql/redis-cli，**没装客户端如实报 NO_CLIENT 而不是空结果**）+ **面板**（动态 DOM：表列表/列/分页/搜索/Redis；连不上如实显示）；`test-sql-guard` **67/0**、`test-db-explorer` **58/0**、`verify-agent-tools` **41/0**、`verify-db-explorer` **14/0**、`verify-db-ui` **12/0** |
 | P16 | Quality Center | **PASS**：`QualityResult` 5 态（**SKIP 与 NOT_RUN 分开**）+ 7 个 Adapter（从已有产物归一、**不重跑**）+ 统一 Store + `overall`/`canProceed` + **UI 面板**（动态 DOM，含"能不能继续"判断）+ **点失败项看日志 / 跳到产物**（日志读取限定在验证产物，拒绕越）；Agent 侧只读工具 `qualityStatus`（第 9 个）与 UI **共用唯一聚合实现**；`test-quality-result` **69/0**、`verify-agent-tools` **36/0**、`verify-quality-ui` **20/0** |
 | P17 | 安全第二轮 | **PASS**：`tools/audit-desktop-security.js`（IPC 清单/高危入口/Electron 开关与 CSP/浮动依赖，带基线进 CI）；**已修**：`fs:write` 收窄为只能写工作区、6 个依赖钉成实际版本、**`spawn-util` 的参数拼接面**（控制字符直拒 + `%`/`!` 纳入引号条件，同时保留必需的 `shell:true`）；审计 **高危 0 / 中危 0**；`verify-write-guard` **13/0**、`test-spawn-util` **27/0** |
-| P18 | 技术债（-79 / --deny-warn / 空 catch） | TODO |
+| P18 | 技术债 | **部分 PASS（扫描类）**：**修正数字** —— `warnings = "-79"` 实际只在 **3 个包**（http/pg/redis，注释写明是为**跨版本兼容**：新工具链把 `implicit_impl_as_method` 当 error）；实测去掉后本机 48 warnings/**0 errors**（因本机 moonc 较旧根本不报）→ **删它会坏 CI、改代码又在本机验证不了**，故未动；`--deny-warn` **暂不开**（33 warnings）；空 catch 分类完成（368 catch：A 完全空 **93** / B 只注释 23 / C 有代码 252）；**逐包迁移与 A 类清理未做** |
 | P20 | 产品化 | TODO |
 | P21 | 最终产品 Demo | TODO |
 | P22 | 最终回归 | TODO |
