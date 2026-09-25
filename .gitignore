@@ -20,3 +20,6 @@ desktop/multiproject-result.txt
 desktop/ai-provider-result.txt
 desktop/agent-request-result.txt
 desktop/agent-e2e-result.txt
+
+# 验证脚本的输出（每次跑都会变）
+desktop/*-result.txt
