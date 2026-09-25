@@ -108,7 +108,7 @@
 | P9C | Agent E2E | **PASS（链路完整）**：专用靶项目（独立零依赖）+ **三态对照**（干净 check=0 / 注入≠0 / 修好=0）；14 步全走（Ask→Understand→Read→Patch→Confirm→Apply→闭环→报告）；`verify-agent-e2e` **39/0**；**修 3 个真缺陷**（runTest 缺 root、startRun 认知错、主进程用了渲染侧变量）；**test 因 R12 失败、run/health 因失败即停未跑 —— 结论如实为 VERIFY_FAILED**（不伪装通关） |
 | P13 | Workbench | TODO |
 | P14 | Backend Integration | **PASS**：`BackendProjectContext`（backendLike/port+来源/health/database/redis）+ 新增 `backend:health`（含 PG/Redis 依赖）+ 一键 Build/Run/Stop 沿用命令表；**Agent 新增只读工具 `backendStatus`**（第 8 个）；端口与健康**只采事实不猜**；`test-backend-context` **41/0**、`verify-agent-tools` **31/0**；**UI 侧的 backendHealth 调用点待接** |
-| P15 | 数据库工作台 | TODO |
+| P15 | 数据库工作台 | **部分 PASS**：**P15-08 安全闸**（SQL 只放 SELECT，拒多语句/注释绕过/CTE 藏写/危险函数/超长；Redis 只放只读命令）+ **P15-07 Agent 只读工具 `queryDatabase`**（第 10 个，先过闸再执行）；`test-sql-guard` **67/0**、`verify-agent-tools` **41/0**；**P15-01～06（PG 表/列/分页/搜索 + Redis Keys/Value + 面板）未做** |
 | P16 | Quality Center | **PASS**：`QualityResult` 5 态（**SKIP 与 NOT_RUN 分开**）+ 7 个 Adapter（从已有产物归一、**不重跑**）+ 统一 Store + `overall`/`canProceed` + **UI 面板**（动态 DOM，含"能不能继续"判断）+ **点失败项看日志 / 跳到产物**（日志读取限定在验证产物，拒绕越）；Agent 侧只读工具 `qualityStatus`（第 9 个）与 UI **共用唯一聚合实现**；`test-quality-result` **69/0**、`verify-agent-tools` **36/0**、`verify-quality-ui` **20/0** |
 | P17 | 安全技术债收口（U1–U10） | TODO |
 | P18 | 技术债（-79 / --deny-warn / 空 catch） | TODO |

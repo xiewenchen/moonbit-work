@@ -14,6 +14,7 @@
  */
 
 const { PERMISSION, createToolManifest, resolveInsideWorkspace } = require('./agent-sandbox')
+const { analyzeSql } = require('./sql-guard')
 
 /** P6-08 统一的工具结果形状 */
 function toolResult(input = {}) {
@@ -38,6 +39,8 @@ const READ_TOOL_SPECS = Object.freeze([
   { name: 'backendStatus', permission: PERMISSION.READ, timeoutMs: 8000, maxOutputBytes: 32768, workspaceOnly: false, description: '当前项目的后端状态（健康/端口/PG/Redis）' },
   // P16-13：读“工程状态”（Quality Center 聚合）—— **只读**，不重跑测试
   { name: 'qualityStatus', permission: PERMISSION.READ, timeoutMs: 8000, maxOutputBytes: 32768, workspaceOnly: false, description: '工程状态（构建/测试/安全/桌面验证的聚合结论）' },
+  // P15-07：只读查询数据库 —— 先过 SQL 安全闸（只放 SELECT），再交给注入的查询能力
+  { name: 'queryDatabase', permission: PERMISSION.READ, timeoutMs: 15000, maxOutputBytes: 32768, workspaceOnly: false, description: '只读查询（只允许 SELECT；危险 SQL 一律拒）' },
 ])
 
 /**
@@ -173,6 +176,26 @@ function createReadOnlyToolRegistry(deps = {}) {
     const info = await deps.projectInfo()
     const c = ctx.clip(JSON.stringify(info))
     return toolResult({ ok: true, data: info, truncated: c.truncated })
+  })
+
+  // ── P15-07 queryDatabase（只读查询）──────────────────────────
+  // 两道关：① 先过 SQL 安全闸（只放 SELECT，拒多语句/注释绕过/写操作/危险函数）；
+  //         ② 真正执行的能力由外部注入 —— 本模块不自己连数据库。
+  // 这样“能不能查”与“怎么连”分开了：前者纯逻辑可测，后者由环境决定。
+  register(READ_TOOL_SPECS[9], async (args, ctx) => {
+    const sql = args && args.sql
+    if (!sql) return toolResult({ ok: false, error: '缺少 sql' })
+    const gate = analyzeSql(sql)
+    if (gate.ok !== true) {
+      return toolResult({ ok: false, error: 'SQL 被拒绝（' + gate.code + '）：' + gate.reason })
+    }
+    if (typeof deps.queryDatabase !== 'function') return toolResult({ ok: false, error: 'queryDatabase 能力未注入' })
+    let rows = null
+    try { rows = await deps.queryDatabase(gate.normalized) } catch (e) {
+      return toolResult({ ok: false, error: String((e && e.message) || e) })
+    }
+    const c = ctx.clip(JSON.stringify(rows))
+    return toolResult({ ok: true, data: { sql: gate.normalized, rows }, truncated: c.truncated })
   })
 
   // ── P16-13 qualityStatus ────────────────────────────────────────

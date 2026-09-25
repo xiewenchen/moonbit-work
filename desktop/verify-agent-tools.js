@@ -54,8 +54,8 @@ app.whenReady().then(async () => {
   {
     const l = JSON.parse(await js('(async () => JSON.stringify(await window.moonbitIDE.agentTools.list()))()'))
     const tools = l.tools || []
-    eq('9 个只读工具（P14 backendStatus + P16 qualityStatus）', tools.length, 9)
-    chk('  新增的 backendStatus / qualityStatus 都在', ['backendStatus', 'qualityStatus'].every((n) => tools.some((t) => t.name === n)), JSON.stringify(tools.map((t) => t.name)))
+    eq('10 个只读工具（P14 backendStatus + P16 qualityStatus + P15 queryDatabase）', tools.length, 10)
+    chk('  新增的三个都在', ['backendStatus', 'qualityStatus', 'queryDatabase'].every((n) => tools.some((t) => t.name === n)), JSON.stringify(tools.map((t) => t.name)))
     eq('**全部是 read 权限**', Array.from(new Set(tools.map((t) => t.permission))).join(','), 'read')
     chk('每个都有超时与输出限额', tools.every((t) => t.timeoutMs > 0 && t.maxOutputBytes > 0), true)
     chk('**没有写/执行工具**', tools.filter((t) => ['writeFile', 'applyPatch', 'project.run', 'project.build'].includes(t.name)).length === 0, JSON.stringify(tools.map((t) => t.name)))
@@ -160,6 +160,24 @@ app.whenReady().then(async () => {
     chk('  带可读摘要', /工程状态：/.test(String(d.describe)), String(d.describe).slice(0, 120))
     // 本仓已经跑过一批验证 → 不应该全是 NOT_RUN
     chk('  至少聚合到了一些已有的验证产物', (d.stats && d.stats.total >= 1) || d.overall === 'NOT_RUN', JSON.stringify({ total: d.stats && d.stats.total }))
+  }
+
+  log('\n=== P15-07/08 queryDatabase：危险 SQL 真的被拦在工具层 ===')
+  {
+    const bad = JSON.parse(await js(`(async () => JSON.stringify(await window.moonbitIDE.agentTools.call('queryDatabase', { sql: 'SELECT 1; DROP TABLE users' })))()`))
+    chk('★ 多语句被拒（不是交给数据库）', bad.ok === false, JSON.stringify(bad).slice(0, 160))
+    chk('  错误里说明了原因码', /被拒绝（MULTI_STATEMENT）/.test(String(bad.error)), String(bad.error))
+
+    const del = JSON.parse(await js(`(async () => JSON.stringify(await window.moonbitIDE.agentTools.call('queryDatabase', { sql: 'DELETE FROM users' })))()`))
+    chk('★ 写操作被拒', del.ok === false && /只允许 SELECT/.test(String(del.error)), String(del.error))
+
+    const notSelect = JSON.parse(await js(`(async () => JSON.stringify(await window.moonbitIDE.agentTools.call('queryDatabase', { sql: 'SHOW TABLES' })))()`))
+    chk('非 SELECT 开头被拒', notSelect.ok === false, String(notSelect.error))
+
+    // 合法 SELECT 会过闸；本机没有注入真查询能力 → 如实报“能力未注入”
+    const good = JSON.parse(await js(`(async () => JSON.stringify(await window.moonbitIDE.agentTools.call('queryDatabase', { sql: 'SELECT 1' })))()`))
+    chk('合法 SELECT 过了闸（失败也是因为“能力未注入”，不是被误拦）',
+      /能力未注入/.test(String(good.error)) || good.ok === true, String(good.error).slice(0, 120))
   }
 
   log('\n结果：' + pass + ' 通过 / ' + fail + ' 失败 / 共 ' + (pass + fail) + ' 项')
