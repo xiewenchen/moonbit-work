@@ -20,16 +20,30 @@
 const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 
+// P17-06 加固（改前分析，免得搞反了）：
+//   · `%VAR%` 在**命令行**里**不展开**（只有 .bat 里才展开），所以现有实现没爆；
+//     但判据里没包含 `%` `!`，一旦将来改成走 .bat 就会出事 —— 所以一并纳入引号条件。
+//   · `^` 是 cmd 的转义符，**引号里不生效**，所以包起来就安全（已在原判据里）。
+//   · **换行 / 回车**是真正要挡的：裸传时它在 cmd 里就是**命令分隔符**。
+//     合法参数不可能含控制字符，所以直接拒，而不是“包个引号试试”。
 function quoteForCmd(s) {
   const str = String(s)
-  if (/[\s"&|<>^()]/.test(str)) return '"' + str.replace(/"/g, '""') + '"'
+  if (/[\r\n\u0000]/.test(str)) throw new Error('参数里不允许控制字符（换行/回车/NUL）：' + JSON.stringify(str.slice(0, 40)))
+  // 多纳入 % 与 !：命令行场景下它们不展开，但包上引号没有任何坏处
+  if (/[\s"&|<>^()%!]/.test(str)) return '"' + str.replace(/"/g, '""') + '"'
   return str
 }
 
 function resolveSpawn(bin, args) {
   const list = Array.isArray(args) ? args : []
-  if (process.platform !== 'win32') return { bin, args: list, shell: false }
   const s = String(bin)
+  // ★ 先验参：控制字符一律拒（不管是哪个平台、走不走 shell）
+  for (const a of list) {
+    if (/[\r\n\u0000]/.test(String(a))) {
+      throw new Error('参数里不允许控制字符（换行/回车/NUL）：' + JSON.stringify(String(a).slice(0, 40)))
+    }
+  }
+  if (process.platform !== 'win32') return { bin: s, args: list, shell: false }
   // Windows 上交给 shell 的两种：
   //   ① .cmd / .bat（npm、npm 全局装的 CLI）—— Node 不能直接 spawn
   //   ② 不带扩展名的命令名（'npm' / 'npx' / 'cargo'…）—— 让 shell 去 PATH 里解析出 .cmd
