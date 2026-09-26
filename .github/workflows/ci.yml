@@ -96,6 +96,7 @@ jobs:
           node test-project-context.js   # 单一工程上下文（类型归一/命令推导/无项目态/多项目判定）
           node test-verify-harness.js    # 元测试：验证「验证器本身」能抓到错（防断言假通过复发）
           node test-opencode-transport.js # PH3-AI-03：opencode transport（事件解析/续接 id/--format json）
+          node test-agent-task.js      # PH3-TASK：任务状态机 / 预算 / 崩溃恢复（只标记不自动继续）
           node test-agent-request.js     # P5A：AgentRequest 契约 + 真实取数（ProjectContext/Problems）+ 快照
           node test-task-understanding.js # P9A：可验证的任务理解（结构/规则/applyLlmPlan 只覆盖计划）
           node test-agent-adapter.js    # P9B：AI Adapter + MockLLM（不依赖真实 API 额度）

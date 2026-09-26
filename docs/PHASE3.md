@@ -222,5 +222,35 @@ adapter.generate([{ role: 'user', content: prompt }], { onEvent })
 **结论：PH3-AI-03 = PASS。** 唯一出口成立：`UI → adapter → transport → 模型`，
 opencode 只是 transport 的一种实现。
 
+---
+
+## 9. PH3-TASK：Agent Task Runtime（2026-09-26）
+
+新建 `desktop/agent-task.js` + `test-agent-task.js`（**91/0**，已挂 CI）。
+纯逻辑、全依赖注入 —— 因此**不需要真实模型**即可完整验证。
+
+| 任务 | 状态 | 落点 |
+|---|---|---|
+| TASK-01 定义 AgentTask | PASS | `createTask()` → `id/sessionId/goal/status/startedAt/finishedAt` + `budget` + `usage`，**冻结** |
+| TASK-02 定义 Task 状态 | PASS | 9 个状态 **+ INTERRUPTED**（崩溃恢复用） |
+| TASK-03 创建 Task | PASS | `createTask()` |
+| TASK-04/05/06 Understanding→Plan→Tool | **部分** | 状态跃迁已就位；Plan 的 `action/source/reason` 待接（依赖真实模型） |
+| TASK-07 记录 ToolCall | PASS | `createToolCall()` → `tool/args/startedAt/endedAt/result` |
+| TASK-08/09/10 用户等待点 | PASS | `needsUser()`（patch / 危险命令）+ `WAITING_USER` 进出边 |
+| TASK-11/12/13 预算 | PASS | `DEFAULT_BUDGET` + **执行前** `checkBudget()` → `TASK_BUDGET_EXCEEDED` |
+| TASK-14 Resume / TASK-15 Cancel | PASS | 任何非终态 → CANCELLED；INTERRUPTED → EXECUTING（需用户明确要求） |
+| TASK-16 Recovery | PASS | `recoverInterrupted()` **只标记，不自动继续**；幂等 |
+
+### ★ 写这批时，测试抓到我自己的 2 个真 bug
+
+1. **`recoverInterrupted(null)` 抛 `tasks is not iterable`** —— 默认参数 `tasks = []` 对 **`null` 不生效**
+   （只有 `undefined` 才触发默认值）。改为 `Array.isArray(tasks) ? tasks : []`。
+2. **时间预算永远拦不住** —— 写成 `task.startedAt || at`，而 `startedAt` 可以是 `0`（合法时间戳），
+   `0` 是 falsy → 被当成「没有开始时间」→ `elapsed` 恒为 0。
+   改为 `Number.isFinite(task.startedAt) ? task.startedAt : at`。
+
+> 两个都是**边界输入**才暴露的：前者要传 `null`，后者要传 `0`。这就是 RULE-3-03
+> 「验证器必须测异常输入」的实际价值 —— 正常输入下这两个 bug 都看不出来。
+
 让 `agent-adapter.js` 使用这个 transport，使 **adapter 成为唯一出口**，UI 与 Agent Runtime 只认 adapter。
 当前 adapter 仍只走 HTTP，与 transport 尚未汇合 —— 所以 **AI-03 整体仍未 PASS**。
