@@ -51,6 +51,32 @@ jobs:
       - name: moon version
         run: moon version
 
+      # PH3-MB-05：在 CI 里**记录**本版工具链能否看到 `-79`。
+      # ⚠️ 这一步**只报告、不判定**（`|| true`）：`-79` 是跨版本兼容措施，
+      #    "本版看不看得到"是工具链差异，不是代码问题 —— 所以不能让它阻断 CI。
+      #    但它每次都会把实测结果留下来，于是"能不能收窄"有了可追溯的依据
+      #    （见 docs/MOON-VERSION-MATRIX.md）。
+      - name: Moon version matrix probe (-79 visibility)
+        run: |
+          echo "== 本版 moon 是否能看到 -79 =="
+          moon version | head -1
+          echo "-- 含 -79 屏蔽的包："
+          grep -rl '\-79' --include=moon.pkg . | grep -v _build || echo "  （无）"
+          echo "-- 对照实验：去掉一个包的 -79，看告警数是否变化"
+          cp conduit/moon.pkg /tmp/moon.pkg.bak
+          before=$(moon check --target native 2>&1 | grep -oE '[0-9]+ warnings' | head -1)
+          sed -i 's/-29-79/-29/' conduit/moon.pkg
+          after=$(moon check --target native 2>&1 | grep -oE '[0-9]+ warnings' | head -1)
+          cp /tmp/moon.pkg.bak conduit/moon.pkg
+          echo "  去掉前：${before:-?}　去掉后：${after:-?}"
+          if [ "$before" = "$after" ]; then
+            echo "  → 本版**看不到** -79（去掉它告警数不变）⇒ 本版不足以证明收窄安全"
+          else
+            echo "  → 本版**能看到** -79（去掉它告警数变了）⇒ 这一版的结论才可用来判断收窄"
+          fi
+        continue-on-error: true
+
+
       # 用 `moon check` 而**不是** `moon check --deny-warn`。
       # 原因（踩过）：CI 装的是 latest、开发机可能是另一个版本，而新版会不断新增警告
       # （0079 derive 隐式提升、0025 测试代码风格…）—— 那些是**工具链的版本差异**，
