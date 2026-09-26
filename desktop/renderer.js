@@ -1153,7 +1153,7 @@ async function showQualityPanel() {
   async function refreshPanel() {
     listBox.innerHTML = ''
     detail.style.display = 'none'
-    const r = await window.moonAPI.qualitySnapshot()
+    const r = await window.moonAPI.qualitySnapshot({ sources: agentVerifySources() })
     const snap = (r && r.snapshot) || {}
     hint.textContent = String(snap.describe || '（无数据）') + '　｜ 扫描 ' + (snap.scannedFiles || 0) + ' 份验证产物'
     const can = snap.canProceed || {}
@@ -2319,7 +2319,9 @@ window.moonbitIDE = {  openProject: (dir) => boot(dir),      // 等价于用户�
   // P16-10～12：工程状态（Quality Center）
   quality: {
     show: () => showQualityPanel(),
-    snapshot: (opts) => window.moonAPI.qualitySnapshot(opts),
+    // PH3-IDE-08：默认把"最近一次 Agent 验证"也喂进去 —— 这样任何调用方
+    //（面板、Agent 工具、验证脚本）拿到的工程状态都包含 Agent 的验证结果。
+    snapshot: (opts) => window.moonAPI.qualitySnapshot(Object.assign({ sources: agentVerifySources() }, opts || {})),
     log: (file) => window.moonAPI.qualityLog(file),
   },
 /**
@@ -2538,7 +2540,28 @@ window.moonAPI.onAgentVerifyDone((p) => {
     window.moonbitIDE.problems.add(ps)
     logLine('（已把 ' + ps.length + ' 条问题写入问题面板）\n', 'err')
   }
+  // PH3-IDE-08：还要进 **Quality**。
+  // 方式与已有产物一致 —— 把这次验证当成一条“来源”交给 Quality 聚合
+  //（quality:snapshot 的 opts.sources 本来就支持“显式喂入”，不另开机制）。
+  window.__lastAgentVerify = {
+    name: 'agent-verify（最近一次）',   // ⚠️ 名字要独特：磁盘上还有个 agent-verify-result.txt，用 'agent-verify' 会与它混淆（测试撞过）
+    text: String(p.text || ''),
+    ok: p.ok === true,
+    at: Date.now(),
+  }
+  logLine('（这次验证结果也会出现在「工程状态」里）\n', 'ok')
 })
+
+/**
+ * 把最近一次 Agent 验证结果转成 Quality 的 source。
+ * ⚠️ 只给**最近一次**（不累积）—— 否则反复验证会往 Quality 里堆重复项，
+ *    而 Quality 该回答的是“现在怎么样”，不是“历史上跑过几次”。
+ */
+function agentVerifySources() {
+  const v = window.__lastAgentVerify
+  if (!v || !v.text) return []
+  return [{ name: v.name, text: v.text, file: null }]
+}
 
 // 顶栏按钮的中文名（给提示语用）
 const CMD_CN = { check: '检查代码', build: '编译', test: '跑测试', fmt: '格式化', run: '运行项目' }

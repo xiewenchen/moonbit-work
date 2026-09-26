@@ -97,6 +97,34 @@ app.whenReady().then(async () => {
   await sleep(400)
   eq('关闭后面板消失', await js(`!document.getElementById('qualityPanel')`), true)
 
+  log('\n=== ⑦ PH3-IDE-08：Agent 验证结果也进 Quality ===')
+  {
+    // 模拟主进程推来一次"验证失败"的结果（走的是真实的收件代码路径：置 __lastAgentVerify）
+    await js(`(() => {
+      window.__lastAgentVerify = { name: 'agent-verify（最近一次）', text: '检查：失败\\n结果：12 通过 / 3 失败', ok: false, at: Date.now() }
+      return true
+    })()`)
+    const snap = JSON.parse(await js(`(async () => JSON.stringify(await window.moonbitIDE.quality.snapshot()))()`))
+    chk('quality.snapshot 成功', snap.ok === true, JSON.stringify(snap).slice(0, 120))
+    const s = snap.snapshot || {}
+    const hit = (s.all || []).find((x) => String(x.name).indexOf('最近一次') >= 0)
+    chk('★ Agent 的验证结果出现在工程状态里', !!hit, JSON.stringify((s.all || []).map((x) => x.name).slice(0, 8)))
+    chk('★ 而且是 FAIL（3 个失败不美化）', !!hit && hit.state === 'FAIL', hit ? hit.state : 'missing')
+    chk('  带上了通过/失败计数', !!hit && hit.passed === 12 && hit.failed === 3, hit ? (hit.passed + '/' + hit.failed) : '')
+
+    // 通过的情况也要如实标 PASS
+    await js(`(() => { window.__lastAgentVerify = { name: 'agent-verify（最近一次）', text: '结果：20 通过 / 0 失败', ok: true, at: Date.now() }; return true })()`)
+    const snap2 = JSON.parse(await js(`(async () => JSON.stringify(await window.moonbitIDE.quality.snapshot()))()`))
+    const hit2 = (snap2.snapshot.all || []).find((x) => String(x.name).indexOf('最近一次') >= 0)
+    chk('★ 全通过时标 PASS', !!hit2 && hit2.state === 'PASS', hit2 ? hit2.state : 'missing')
+
+    // 没跑过验证时不能凭空多出一条
+    await js(`(() => { delete window.__lastAgentVerify; return true })()`)
+    const snap3 = JSON.parse(await js(`(async () => JSON.stringify(await window.moonbitIDE.quality.snapshot()))()`))
+    const hit3 = (snap3.snapshot.all || []).find((x) => String(x.name).indexOf('最近一次') >= 0)
+    eq('★ 没跑过验证时不会凭空出现一条', hit3, undefined)
+  }
+
   log('\n' + H.summary())
   dump(H.exitCode())
 }).catch((e) => { console.error('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); process.exit(1) })

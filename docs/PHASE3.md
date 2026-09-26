@@ -283,6 +283,73 @@ opencode 只是 transport 的一种实现。
 
 ---
 
+## 12. PH3-IDE-09/10：任务时间线 + 状态栏（2026-09-26）
+
+`window.moonbitIDE.taskUI`：`begin(goal)` / `step(name, ok, detail)` / `status(s)` /
+`finish(ok, reason)` / `snapshot()` / `fromVerifyProgress(ev)`。
+
+两条刻意的边界：
+- **渲染层不握状态机** —— 状态是否合法仍归 `agent-task.js`；这里只负责**如实显示**
+  （失败就是失败，不美化成"部分成功"）。
+- **数据来自已有事件流**（`onAgentData` / `onAgentVerifyProgress`），不新开通道，
+  也不重放"思维链"——只显示**做了什么、结果如何**。
+
+### ★ 验证抓到我的 2 个真 bug
+
+1. **`begin()` 没调 `renderTaskTimeline()`** —— 容器的创建挂在渲染函数里，不渲染就什么都没有。
+2. **`step()` 里写了 `if (!active) active = true`** —— `finish()` 把 `active` 置 false 之后，
+   它自己末尾记的那一步又把 `active` 设回 true → **任务"复活"**，`snapshot().active` 永远是 `true`。
+
+> 第 2 个正好落在"**终态必须是真的终态**"上 —— 与 `agent-task.js` 里"终态没有出边"
+> 是同一条原则，只是镜像到了渲染层。**同一类错误会在不同层重复出现。**
+
+### 第三次踩同一个坑（这次换个方法）
+
+把 `const` / `function` 插进了 `window.moonbitIDE = { … }` 对象字面量内部 → 语法错。
+前两次靠"改写成对象属性"绕过，这次改用 **`sed` 按行号整体搬移到对象之前**，
+并先 `node --check` 确认边界。
+
+> 结论：**往这个文件插代码前，必须先确认插入点在对象外** —— 我已经在这个文件上栽了三次。
+
+**验证**：`verify-agent-timeline` **22/0**（真建时间线、七步都上页面、失败行显示 ✗、
+`finish(false)` 后状态栏是"Agent: 失败"而不是"已完成"、切标签后快照仍在）。
+回归 `verify-patch-diff` 17/0、`verify-agent-request` 55/0、`verify-panels-smoke` 25/0、
+`verify-agent-config` 9/0；纯 Node 41 个。
+
+---
+
+## 13. PH3-IDE-08：验证结果进 Problems / Quality（2026-09-26）
+
+**先核对才发现大部分早就有**：P9 接线时 `onAgentVerifyProgress` 进了输出面板、
+`onAgentVerifyDone` 已经 `problems.add(ps)` 写进**统一问题模型**。
+所以清单里的 "→ Problems / Output" **当时就通了**。
+
+**缺的是 "→ Quality" 那一路**。做法**不新开机制**：
+- `quality:snapshot` 本来就支持 `opts.sources`（"显式传入的来源优先"）；
+- 所以 `onAgentVerifyDone` 里把这次结果记成 `window.__lastAgentVerify`，
+  由 `quality.snapshot()` **默认带上**（`Object.assign({ sources: agentVerifySources() }, opts)`）。
+
+> 只保留**最近一次**，不累积 —— 否则反复验证会往 Quality 里堆重复项，
+> 而 Quality 该回答的是"**现在怎么样**"，不是"历史上跑过几次"。
+
+### ★ 又踩一次"名字撞车"
+
+我最初把这条 source 命名为 `agent-verify`，而磁盘上**已经存在** `agent-verify-result.txt`
+（别的验证脚本写的），Quality 扫描时把它读了进来。我的断言用 `indexOf('agent-verify')`
+模糊匹配，**匹配到了那个文件** —— 于是"3 个失败"那条断言读到的是 `17/0`。
+
+> 这与之前 `chk`/`eq` 语义撞车、`dash` 按钮顺序撞车是**同一类**：
+> **一个名字/顺序承载了两种含义**。修法不是改断言，而是**把名字改独特**
+>（`agent-verify（最近一次）`），并让断言精确匹配。
+
+**验证**：`verify-quality-ui` 20 → **26/0**（+6）：Agent 验证结果出现在工程状态里、
+失败标 FAIL（3 个失败不美化）、带 passed/failed 计数、全通过标 PASS、
+**没跑过验证时不会凭空多出一条**。
+回归 `verify-agent-timeline` 22/0、`verify-patch-diff` 17/0、`verify-panels-smoke` 25/0、
+`verify-problems` 14/0；纯 Node 41 个。
+
+---
+
 ## 9. PH3-TASK：Agent Task Runtime（2026-09-26）
 
 新建 `desktop/agent-task.js` + `test-agent-task.js`（**91/0**，已挂 CI）。
