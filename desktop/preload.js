@@ -149,6 +149,9 @@ contextBridge.exposeInMainWorld('moonAPI', {
   sessionAppend: (payload) => ipcRenderer.invoke('session:append', payload),
   sessionClear: (projectRoot) => ipcRenderer.invoke('session:clear', { projectRoot }),
   sessionEnd: (projectRoot) => ipcRenderer.invoke('session:end', { projectRoot }),
+  // PH3-SESSION-VIEW：导出 / 回放（此前从未接到界面）
+  sessionExport: (payload) => ipcRenderer.invoke('session:export', payload || {}),
+  sessionReplay: (payload) => ipcRenderer.invoke('session:replay', payload || {}),
   // ---- P11：项目级记忆（.moonbit-work/；规则写入需 confirmed）----
   memoryEnsure: (projectRoot, projectContext) => ipcRenderer.invoke('memory:ensure', { projectRoot, projectContext }),
   memoryRules: (projectRoot) => ipcRenderer.invoke('memory:rules', { projectRoot }),

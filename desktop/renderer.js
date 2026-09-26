@@ -1539,12 +1539,47 @@ async function showSessionPanel() {
   body.style.cssText = 'margin:0;padding:8px;background:#121212;border:1px solid #333;border-radius:6px;color:#bbb;overflow:auto;flex:1;max-height:56vh;white-space:pre-wrap;word-break:break-all'
   const bar = mk('div')
   bar.style.cssText = 'display:flex;gap:8px;justify-content:flex-end'
+  // PH3-SESSION-VIEW：把会话导出成 Markdown —— 方便贴进 issue / 存档 / 交接。
+  // ⚠️ 走 replaySession 的白名单取字段（不是把 session JSON 化），
+  //    这样以后新增的内部字段默认不会漏进导出。
+  const exportBtn = mk('button', { textContent: '导出 Markdown', style: btnCss })
+  exportBtn.id = 'sessionExportBtn'
   const closeBtn = mk('button', { textContent: '关闭', style: btnCss })
-  bar.appendChild(closeBtn)
+  bar.appendChild(exportBtn); bar.appendChild(closeBtn)
   card.appendChild(title); card.appendChild(hint); card.appendChild(body); card.appendChild(bar)
   mask.appendChild(card)
   document.body.appendChild(mask)
   closeBtn.onclick = () => mask.remove()
+
+  exportBtn.onclick = async () => {
+    const c2 = (typeof (window.moonbitIDE || {}).getContext === 'function') ? window.moonbitIDE.getContext() : null
+    if (!c2 || !c2.rootDir) { hint.textContent = '先打开一个项目'; return }
+    exportBtn.disabled = true
+    exportBtn.textContent = '导出中…'
+    try {
+      const ex = await window.moonAPI.sessionExport({ projectRoot: c2.rootDir, format: 'md' })
+      if (!ex || ex.ok !== true) {
+        hint.textContent = '导出失败：' + String((ex && ex.error) || '未知原因')
+      } else {
+        // 用一个临时 <a download> 触发保存（不引入新依赖）
+        const blob = new Blob([ex.text], { type: 'text/markdown;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'session-' + String(c2.rootDir).replace(/[\\/:*?"<>|]/g, '_').slice(-40) + '.md'
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        setTimeout(() => URL.revokeObjectURL(url), 4000)
+        hint.textContent = '已导出 ' + String(ex.text).length + ' 字符 → ' + a.download
+      }
+    } catch (e) {
+      // 导出失败要如实说，不能装作成功了
+      hint.textContent = '导出失败：' + String((e && e.message) || e)
+    }
+    exportBtn.disabled = false
+    exportBtn.textContent = '导出 Markdown'
+  }
 
   const mbi = window.moonbitIDE || {}
   const c = (typeof mbi.getContext === 'function') ? mbi.getContext() : null

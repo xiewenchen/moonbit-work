@@ -38,3 +38,4 @@ desktop/verify-memory-noise.txt
 .moonbit-work/*.bak
 quality-baseline-result.txt
 env-fixups-result.txt
+session-export-result.txt
