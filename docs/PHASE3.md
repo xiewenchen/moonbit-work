@@ -513,3 +513,32 @@ cd conduit && sed -i 's/-29-79/-29/' moon.pkg && moon check --target native
 - `d17.js` `d18.js` `holidays.js` `icons.js` `moonbit-lang.js` —— dash 的静态资源，改动风险低；
 - `fsops.js` `lsp-manager.js` —— 由 `verify-*` 间接覆盖；
 - `aiagent.js` —— UI 交互层（由 `verify-agent-config` / `verify-p20-ui` 等覆盖）。
+
+---
+
+## 19. P22 全量回归 + P23 发布（2026-09-26）· Phase 3 收口
+
+### P22 全量回归
+
+```
+纯 Node 测试      55 个   失败 0
+Electron verify   55 个   初跑失败 9 → 修 6 → 剩 3（均已解释）
+静态门禁           7 个   全部 EXIT=0
+```
+
+报告：**`docs/REGRESSION-P22-PHASE3.md`**（9 个红灯逐条给根因与处理）。
+
+**其中最值得记的一条**：`verify-project-memory.js` 因为 P17 把 `fs:write` 收窄成
+"**必须已打开项目**才能写"而**静默地不再验证它想验证的东西** —— 它一直只用 `ROOT` 当参数、
+从没 `openProject`。这条**读代码看不出来**，只有全量跑才暴露。
+
+另一个真实缺口也写进了报告：**55 个 Electron verify 平时不在任何人手里跑**
+（CI 是 Linux 无显示环境，只跑纯 Node + 静态门禁；Electron 靠发布前手动全量）。
+
+### P23 发布：`0.2.0-alpha`
+
+发布记录：**`docs/RELEASE-0.2.0-alpha-PHASE3.md`**。
+
+**为什么不升 beta**：Gate G1 要求"至少一条完整的真实路径"（真实 Provider + Ask + Read +
+Patch + Verify）。机制全就位、Mock 端到端全通，但**真实模型那一条从未跑过** ——
+按 RULE-01 它就是 **NOT_RUN**，不能标 beta。
