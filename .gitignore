@@ -31,3 +31,4 @@ desktop/*-result.txt
 testdata/*/.moonbit-work/
 desktop/patch-diff-result.txt
 desktop/agent-timeline-result.txt
+desktop/workspace-result.txt

@@ -60,7 +60,7 @@ const linksM = cur.match(/(<link rel="stylesheet" href="\.\/node_modules\/@xterm
 must(linksM, '找到 IDE 的资源引入（xterm + monaco + renderer）')
 // 主菜单的办公组件（dash.js）；SortableJS 是 UMD，**必须在 loader.js 之前**，
 // 否则会和 xterm 一样被 Monaco 的 define.amd 截胡、window.Sortable 永远不存在
-const myAssets = '<script src="./vendor/sortable.min.js"></script>\n    ' + linksM[1] + '\n    <script src="./project-context.js"></script>\n    <script src="./lsp-parse.js"></script>\n    <script src="./problem-model.js"></script>\n    <script src="./icons.js"></script>\n    <script src="./holidays.js"></script>\n    <script src="./theme.js"></script>\n    <script src="./dash.js"></script>\n    <script src="./relay.js"></script>'
+const myAssets = '<script src="./vendor/sortable.min.js"></script>\n    ' + linksM[1] + '\n    <script src="./project-context.js"></script>\n    <script src="./workspace.js"></script>\n    <script src="./lsp-parse.js"></script>\n    <script src="./problem-model.js"></script>\n    <script src="./icons.js"></script>\n    <script src="./holidays.js"></script>\n    <script src="./theme.js"></script>\n    <script src="./dash.js"></script>\n    <script src="./relay.js"></script>'
 
 // ── ② 从 Strapi 源码切出「外壳」───────────────────────────────────────
 console.log('\n=== ② 从 Strapi 源码提取外壳 ===')

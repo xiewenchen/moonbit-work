@@ -2407,6 +2407,28 @@ window.moonbitIDE = {  openProject: (dir) => boot(dir),      // 等价于用户�
     return { ok: true, file: p.file, diff: true, host: 'patchDiffHost', mask: 'patchDiffMask' }
   },
 
+  // PH3-WS-03～10：工作空间（身份 / 一致性自检 / 元数据位置）
+  // ⚠️ 这里**只读**各子系统的真实存储，不写、不改键 —— 已有数据是用 projectRoot/root 存的，
+  //    改键等于让用户丢数据。一致性靠“读时规范化”来保证。
+  // ⚠️ 实现来自 <script src="./workspace.js"> 注入的 window.moonbitWorkspace
+  //（renderer 不能 require 本地文件）。没注入时如实报错，不静默失败。
+  workspace: (() => {
+    const W = () => {
+      const w = window.moonbitWorkspace
+      if (!w) throw new Error('workspace.js 未注入（检查 translate-strapi.js 的注入列表）')
+      return w
+    }
+    return {
+      id: (root) => W().workspaceIdOf(root),
+      same: (a, b) => W().isSameWorkspace(a, b),
+      describe: (root, given) => W().describeWorkspace(root, given),
+      bindings: (data) => W().bindingsFrom(data),
+      check: (root, given) => W().checkBinding(root, given),
+      metadata: (root, userDir) => W().metadataPaths(root, userDir),
+      deletePlan: (root, userDir) => W().deletePlan(root, userDir),
+      subsystems: () => W().SUBSYSTEMS,
+    }
+  })(),
   // PH3-IDE-09/10：Agent 任务时间线 + 状态栏（由已有事件流驱动）
   taskUI,
   // PH3-IDE-01/02：IDE 侧上下文（当前文件 / 选区）的只读视图。

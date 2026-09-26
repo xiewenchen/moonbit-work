@@ -34,7 +34,8 @@
     "check:local-chk": "node ../tools/check-local-chk.js --ci",
     "verify:panels-smoke": "electron verify-panels-smoke.js",
     "verify:patch-diff": "electron verify-patch-diff.js",
-    "verify:agent-timeline": "electron verify-agent-timeline.js"
+    "verify:agent-timeline": "electron verify-agent-timeline.js",
+    "verify:workspace": "electron verify-workspace.js"
   },
   "devDependencies": {
     "@xterm/addon-fit": "0.10.0",

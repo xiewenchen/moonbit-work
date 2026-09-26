@@ -4,7 +4,7 @@
 const { createHarness } = require('./verify-harness')
 const {
   SUBSYSTEMS, normalizeRoot, workspaceIdOf, isSameWorkspace,
-  checkBinding, metadataPaths, deletePlan, describeWorkspace,
+  checkBinding, bindingsFrom, metadataPaths, deletePlan, describeWorkspace,
 } = require('./workspace')
 
 const H = createHarness()
@@ -51,8 +51,10 @@ console.log('=== ① PH3-WS-01 规范化：同一目录不能算出两个身份 
 console.log('\n=== ② PH3-WS-02 各子系统绑定表 ===')
 {
   chk('列出了子系统', SUBSYSTEMS.length >= 6, String(SUBSYSTEMS.length))
-  chk('  每个都标了它用的键名', SUBSYSTEMS.every((s) => s.key && s.name))
-  chk('  workbench 用的是 projectRoot（现状）', SUBSYSTEMS.find((s) => /workbench/.test(s.name)).key === 'projectRoot')
+  chk('  每个都标了键名、读取路径与范围', SUBSYSTEMS.every((s) => s.key && s.name && s.path && s.scope))
+  // ⚠️ 键名是**从真实存储核过的**，不是猜的：workbench.json 用的就是 `root`
+  eq('★ workbench 的键是 root（不是 projectRoot —— 我建这层时先写错了）', SUBSYSTEMS.find((s) => /workbench/.test(s.name)).key, 'root')
+  eq('  session 用 projectRoot', SUBSYSTEMS.find((s) => /session/.test(s.name)).key, 'projectRoot')
 }
 
 console.log('\n=== ③ 一致性检查：谁没绑在同一个工作空间上 ===')
@@ -89,6 +91,32 @@ console.log('\n=== ③ 一致性检查：谁没绑在同一个工作空间上 ==
   const relay = checkBinding(root, { 'file-relay': 'C:/some/file.docx' }, WIN)
   eq('★ file-relay 不当成不一致', relay.mismatched.length, 0)
   chk('  但也如实标注它是按文件记的', relay.ok.some((o) => /按文件/.test(o.note || '')), JSON.stringify(relay.ok))
+}
+
+console.log('\n=== ③bis 从**真实存储数据**抽出绑定（WS-03～10 的桥）===')
+{
+  // 真实形状：workbench.json 的 recent[0].root / session.projectRoot / office.projectRoot
+  const b = bindingsFrom({
+    workbench: { recent: [{ root: 'C:/proj', at: 1 }, { root: 'C:/old', at: 0 }] },
+    session: { id: 's1', projectRoot: 'C:/proj' },
+    office: { projectRoot: 'C:/proj' },
+  })
+  eq('★ 从 workbench.recent[0].root 抽出（真实字段名）', b['workbench(todo/notes)'], 'C:/proj')
+  eq('  从 session.projectRoot 抽出', b['agent-session'], 'C:/proj')
+  eq('  从 office.projectRoot 抽出', b['office-links'], 'C:/proj')
+
+  // 抽出来的绑定去查一致性：写法不同也算一致（两边都规范化过）
+  const c = checkBinding('C:\\proj\\', bindingsFrom({ workbench: { recent: [{ root: 'c:/proj' }] } }), WIN)
+  eq('★ 写法不同（大小写/斜杠）也算一致', c.mismatched.length, 0)
+
+  // 真实分歧：工作台还挂在旧项目上
+  const c2 = checkBinding('C:/proj', bindingsFrom({ workbench: { recent: [{ root: 'C:/old' }] } }), WIN)
+  eq('★★ 能报出“工作台还挂在旧项目上”', c2.consistent, false)
+  chk('  且点出是哪个子系统', /workbench/.test(c2.summary), c2.summary)
+
+  chk('空数据不炸', Object.keys(bindingsFrom({})).length === 0)
+  chk('null 不炸', Object.keys(bindingsFrom(null)).length === 0)
+  chk('recent 为空不炸', bindingsFrom({ workbench: { recent: [] } })['workbench(todo/notes)'] === undefined)
 }
 
 console.log('\n=== ④ PH3-WS-11 删除计划：只删元数据（最关键的一条）===')

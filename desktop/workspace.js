@@ -1,3 +1,8 @@
+// ⚠️ 整个文件包在 IIFE 里：本文件会被 index.html 用 <script> 当**全局脚本**加载，
+//    顶层的 const（SUBSYSTEMS / normalizeRoot / joinPath …）会污染全局作用域，
+//    与 renderer.js 等其它脚本撞名就会**静默改变行为**（当年 project-context.js 就是这样才改成 IIFE 的）。
+//    所以：对外只留 window.moonbitWorkspace（浏览器）与 module.exports（Node）。
+(function () {
 // PH3-WS：项目工作空间 —— 让 IDE / Agent / Session / Memory / Backend / Database / Quality
 // 围绕**同一个** Workspace 运作（Gate G2）。
 //
@@ -9,7 +14,14 @@
 //
 // 纯逻辑、全依赖注入 —— 可进 CI。
 
-const path = require('path')
+// ⚠️ 双环境：Node（主进程/测试）与浏览器（renderer 走 <script> 注入）。
+// renderer 不能 require 本地文件，所以导出必须挂到 window（与 project-context.js 同法）。
+// 也**不能 require('path')** —— 浏览器里没有它，所以下面手写一个 join。
+const joinPath = (a, b) => {
+  const x = String(a == null ? '' : a).replace(/[\\/]+$/, '')
+  const y = String(b == null ? '' : b).replace(/^[\\/]+/, '')
+  return x ? (x + '/' + y) : y
+}
 
 /**
  * PH3-WS-01：工作空间的稳定身份。
@@ -25,8 +37,19 @@ function normalizeRoot(root, opts = {}) {
   if (!s) return ''
   let p = s.replace(/\\/g, '/').replace(/\/+$/, '')
   // Windows 盘符统一成小写
+  // ★ 大小写：Windows 不敏感（`C:\Users\me\Proj` 与 `c:\users\me\proj` **是同一个目录**），
+  //   Linux/Mac 敏感。所以整条路径是否小写要**按平台**定 ——
+  //   一刀切会要么在 Windows 上算成两个身份、要么在 Linux 上把两个真不同的目录当成一个。
+  //
+  // ⚠️ 也**不能直接读 `process.platform`**：renderer 是浏览器环境，没有 process
+  //   （与"不能直接写 module.exports"是同一类宿主对象问题）。
+  //   ★ 更严重的是：如果浏览器里 fallback 到"大小写敏感"，**同一台机器上主进程与 renderer
+  //     会给同一个目录算出两个身份** —— 那"按项目隔离"就彻底失效了。所以必须把平台推出来：
+  //     先看 process，再看 navigator（浏览器里它一定在）。
   const isWin = opts.caseInsensitive === undefined
-    ? process.platform === 'win32'
+    ? (typeof process !== 'undefined'
+        ? process.platform === 'win32'
+        : /Windows|Win32|Win64/i.test(String((typeof navigator !== 'undefined' && (navigator.userAgent || navigator.platform)) || '')))
     : opts.caseInsensitive === true
   if (/^[A-Za-z]:/.test(p)) p = p[0].toLowerCase() + p.slice(1)
   // ★ 大小写：Windows 不敏感（`C:\Users\me\Proj` 与 `c:\users\me\proj` **是同一个目录**），
@@ -54,18 +77,47 @@ function isSameWorkspace(a, b, opts) {
 }
 
 /**
- * PH3-WS-02：各子系统的绑定表 —— 它们**应该**都挂在同一个 workspace 上。
- * 这里的 `key` 就是各子系统实际使用的字段名（现状，不是理想）。
+ * PH3-WS-02/03～10：各子系统的绑定表 —— 它们**应该**都挂在同一个 workspace 上。
+ *
+ * ⚠️ `key` 是**各子系统实际使用的字段名**（从真实存储里核过，不是猜的）：
+ *    建这一层时我先按印象写了 projectRoot，实际 `workbench.json` 用的是 **`root`** ——
+ *    键名写错会让一致性检查永远报 missing，等于没检查。
+ *    `path` 是读取该字段的点号路径；`scope` 说明它存在哪里。
  */
 const SUBSYSTEMS = Object.freeze([
-  { name: 'workbench(todo/notes)', key: 'projectRoot', scope: 'user-dir' },
-  { name: 'agent-session', key: 'projectRoot', scope: 'user-dir' },
-  { name: 'project-memory', key: 'projectRoot', scope: 'in-project' },
-  { name: 'backend', key: 'root', scope: 'runtime' },
-  { name: 'database', key: 'root', scope: 'runtime' },
-  { name: 'quality', key: 'project', scope: 'derived' },
-  { name: 'file-relay', key: 'src', scope: 'per-file' },
+  // workbench.json: { recent:[{root}], todos:{[root]:[]}, notes:{[root]:''} }
+  { name: 'workbench(todo/notes)', key: 'root', path: 'workbench.recent', scope: 'user-dir' },
+  // sessions: { id, projectRoot, ... }
+  { name: 'agent-session', key: 'projectRoot', path: 'session.projectRoot', scope: 'user-dir' },
+  // 项目内的 .moonbit-work/（存在项目里，与上面几个相反）
+  { name: 'project-memory', key: '.moonbit-work', path: 'memory.layout', scope: 'in-project' },
+  // office-links.json: { [projectRoot]: [...] }
+  { name: 'office-links', key: 'projectRoot', path: 'office.projectRoot', scope: 'user-dir' },
+  // 以下三者是**运行时**的（不持久化“属于哪个项目”，而是从当前 root 推出）
+  { name: 'backend', key: 'root', path: '(runtime)', scope: 'runtime' },
+  { name: 'database', key: 'root', path: '(runtime)', scope: 'runtime' },
+  { name: 'quality', key: 'project', path: '(derived)', scope: 'derived' },
+  { name: 'file-relay', key: 'src', path: '(per-file)', scope: 'per-file' },
 ])
+
+/**
+ * 从**真实存储数据**里抽出各子系统绑的项目。
+ *
+ * 用途：一致性自检不能只看“有没有传参”，要看**磁盘上真的记了什么**。
+ * ⚠️ 每个子系统只取一个代表（如最近项目 / 最近会话），因为“哪个是当前”本来就由调用方决定。
+ */
+function bindingsFrom(data = {}) {
+  const d = data || {}
+  const out = {}
+  const wb = d.workbench
+  if (wb && Array.isArray(wb.recent) && wb.recent.length) out['workbench(todo/notes)'] = wb.recent[0].root || wb.recent[0].projectRoot || null
+  const se = d.session
+  if (se && (se.projectRoot || se.root)) out['agent-session'] = se.projectRoot || se.root
+  const of = d.office
+  if (of && of.projectRoot) out['office-links'] = of.projectRoot
+  // memory / backend / database / quality 是“从 root 推”的，不单独记源
+  return out
+}
 
 /**
  * PH3-WS：一致性检查 —— 把"各子系统给的键"与"当前工作空间"比一遍。
@@ -104,11 +156,11 @@ function metadataPaths(root, userDir) {
   const proj = String(root || '')
   const home = String(userDir || '')
   return [
-    { p: path.join(proj, '.moonbit-work'), kind: 'in-project', what: '项目记忆 / Agent 规则 / 上下文' },
-    { p: path.join(home, 'workbench.json'), kind: 'user-dir', what: '最近项目 / 待办 / 便签' },
-    { p: path.join(home, 'startup.json'), kind: 'user-dir', what: '启动快照' },
-    { p: path.join(home, 'office-links.json'), kind: 'user-dir', what: '办公文件关联' },
-    { p: path.join(home, 'providers.json'), kind: 'user-dir', what: 'Provider（含 Key）' },
+    { p: joinPath(proj, '.moonbit-work'), kind: 'in-project', what: '项目记忆 / Agent 规则 / 上下文' },
+    { p: joinPath(home, 'workbench.json'), kind: 'user-dir', what: '最近项目 / 待办 / 便签' },
+    { p: joinPath(home, 'startup.json'), kind: 'user-dir', what: '启动快照' },
+    { p: joinPath(home, 'office-links.json'), kind: 'user-dir', what: '办公文件关联' },
+    { p: joinPath(home, 'providers.json'), kind: 'user-dir', what: 'Provider（含 Key）' },
   ]
 }
 
@@ -153,7 +205,21 @@ function describeWorkspace(root, given, opts) {
   return '工作空间 ' + id + '　｜ ' + (c.consistent ? '各子系统一致' : c.summary)
 }
 
-module.exports = {
-  SUBSYSTEMS, normalizeRoot, workspaceIdOf, isSameWorkspace,
-  checkBinding, metadataPaths, deletePlan, describeWorkspace,
+// ⚠️ 双环境导出必须**条件化**：浏览器里没有 `module`，直接写 `module.exports = {…}`
+// 会抛 "module is not defined"，**整个文件加载失败**（于是 window.moonbitWorkspace 是 undefined）。
+// project-context.js 当年也是栽在这里才改成 IIFE/条件导出的。
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    SUBSYSTEMS, normalizeRoot, workspaceIdOf, isSameWorkspace,
+    checkBinding, bindingsFrom, metadataPaths, deletePlan, describeWorkspace,
+  }
 }
+
+// 浏览器：挂全局（renderer 用 <script src="./workspace.js"> 注入，拿 window.moonbitWorkspace）
+if (typeof window !== 'undefined') {
+  window.moonbitWorkspace = {
+    SUBSYSTEMS, normalizeRoot, workspaceIdOf, isSameWorkspace,
+    checkBinding, bindingsFrom, metadataPaths, deletePlan, describeWorkspace,
+  }
+}
+})()
