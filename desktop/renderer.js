@@ -1140,15 +1140,51 @@ async function showQualityPanel() {
   detail.style.cssText = 'display:none;margin:0;padding:8px;background:#121212;border:1px solid #333;border-radius:6px;color:#bbb;max-height:26vh;overflow:auto;white-space:pre-wrap;word-break:break-all'
   const bar = mk('div')
   bar.style.cssText = 'display:flex;gap:8px;justify-content:flex-end'
+  // PH3-Q-10/11：把「记为基线」做成**界面入口**。
+  // ⚠️ 光是后端有 saveBaseline 而用户点不到，等于没做（"做了但点不到"是假完成）。
+  // 二次确认是必要的：它会**改变以后所有退化比较的基准**。
+  // 退化提示行由 refreshPanel() 创建（id=qualityRegression）—— 这里不重复建，
+  // 只做「记为基线」按钮。⚠️ 同 id 建两个会让 getElementById 取到错的那个（刚才就犯了）。
+  const setBase = mk('button', { textContent: '记为基线' })
+  setBase.id = 'qualitySetBaseline'
+  setBase.style.cssText = 'padding:5px 12px;background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:5px;cursor:pointer'
+  setBase.title = '把当前这次结果记为比较基准 —— 之后每次刷新都会与它比，报告哪些项退化了'
   const refresh = mk('button', { textContent: '刷新' })
   refresh.style.cssText = 'padding:5px 12px;background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:5px;cursor:pointer'
   const close = mk('button', { textContent: '关闭' })
   close.style.cssText = refresh.style.cssText
-  bar.appendChild(refresh); bar.appendChild(close)
-  card.appendChild(title); card.appendChild(hint); card.appendChild(listBox); card.appendChild(detail); card.appendChild(bar)
+  bar.appendChild(setBase); bar.appendChild(refresh); bar.appendChild(close)
+  card.appendChild(title); card.appendChild(hint)
+  card.appendChild(listBox); card.appendChild(detail); card.appendChild(bar)
   mask.appendChild(card)
   document.body.appendChild(mask)
   close.onclick = () => mask.remove()
+  setBase.onclick = async () => {
+    if (!window.confirm('把当前这次结果记为基线？\\n\\n之后每次刷新都会与它比较，报告哪些项退化了。\\n（这不会修改任何被测代码，只写一条记录到用户目录）')) return
+    setBase.disabled = true
+    setBase.textContent = '记录中…'
+    try {
+      const r = await window.moonAPI.qualitySnapshot({ sources: agentVerifySources(), saveBaseline: true })
+      // ⚠️ 返回结构是 { ok, snapshot: { regression } } —— 不是 r.regression。
+      //    写错层次会让“**真的保存了却报失败**”，比“没保存”更糟（用户会反复点）。
+      const regEl = document.getElementById('qualityRegression')
+      const reg = (r && r.snapshot && r.snapshot.regression) || {}
+      if (reg.saved === true) {
+        if (regEl) {
+          regEl.textContent = '✓ 已记为基线（' + new Date().toLocaleString() + '）—— 以后的刷新会与它比较'
+          regEl.style.color = '#68d391'
+        }
+      } else {
+        const why = reg.saveError || (r && r.error) || '（未知原因）'
+        if (regEl) { regEl.textContent = '✗ 没能记为基线：' + why; regEl.style.color = '#fc8181' }
+      }
+    } catch (e) {
+      const regEl = document.getElementById('qualityRegression')
+      if (regEl) { regEl.textContent = '✗ 没能记为基线：' + String((e && e.message) || e); regEl.style.color = '#fc8181' }
+    }
+    setBase.disabled = false
+    setBase.textContent = '记为基线'
+  }
 
   const colorOf = (s) => ({ PASS: '#68d391', FAIL: '#fc8181', WARN: '#f6ad55', SKIP: '#a0aec0', NOT_RUN: '#666' })[s] || '#888'
 

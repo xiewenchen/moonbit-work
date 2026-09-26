@@ -209,6 +209,10 @@ function registerQualityIpc({ ipcMain, onLog }) {
   const log = typeof onLog === 'function' ? onLog : () => {}
 
   ipcMain.handle('quality:snapshot', (_e, opts = {}) => {
+    // 在 IPC 边界把名字收成一致：界面传 saveBaseline，内部用 save。
+    // ⚠️ 一开始就是这里不匹配（renderer 传 saveBaseline、snapshotQuality 读 opts.save）——
+    //    点上按钮不会报错，只会默默不保存（这类静默失败最难发现）。
+    if (opts && opts.saveBaseline === true && opts.save === undefined) opts.save = true
     const snap = snapshotQuality(opts)
     log({ at: 'quality.snapshot', overall: snap.overall, files: snap.scannedFiles, failures: snap.failures.length })
     return { ok: true, snapshot: snap }
