@@ -1594,6 +1594,61 @@ async function showOfficePanel() {
   bar.style.cssText = 'display:flex;gap:8px;justify-content:flex-end'
   const closeBtn = mk('button', { textContent: '关闭', style: btnCss })
   bar.appendChild(closeBtn)
+  // ── P13-04 补：从中转站选文件（不必手填路径）──
+  // 数据来自 relay 已有的 listAll()（被备份过的文档），不另做一份文件索引。
+  const relayBox = mk('div', { id: 'officeRelay' })
+  relayBox.style.cssText = 'border:1px solid #2a2a2a;border-radius:6px;padding:6px;background:#161616;max-height:20vh;overflow:auto'
+  const relayHead = mk('div', { textContent: '从中转站选（已备份过的文档）' })
+  relayHead.style.cssText = 'color:#888;margin-bottom:4px'
+
+  async function refreshRelay() {
+    const c = ctx()
+    const root = c ? c.rootDir : null
+    relayBox.textContent = ''
+    relayBox.appendChild(relayHead)
+    let files = []
+    try {
+      files = (await window.moonAPI.relayList()) || []
+    } catch (e) {
+      relayBox.appendChild(mk('div', { textContent: '读中转站失败：' + String((e && e.message) || e), style: 'color:#fc8181' }))
+      return
+    }
+    if (!files.length) {
+      relayBox.appendChild(mk('div', { textContent: '（还没有被备份过的文档 —— 往「文件中转站」里放一个 Office 文件试试）', style: 'color:#666' }))
+      return
+    }
+    for (const f of files.slice(0, 12)) {
+      const row = mk('div')
+      row.style.cssText = 'display:flex;align-items:center;gap:6px;margin:2px 0'
+      const nm = mk('span', { textContent: (f.name || f.src) + '（' + (f.count || 0) + ' 个版本' + (f.exists ? '' : '，原文件已不在') + '）' })
+      nm.style.cssText = 'flex:1;' + (f.exists ? '' : 'color:#f6ad55')
+      nm.title = f.src
+      const metaBtn = mk('button', { textContent: '看元信息', style: btnCss })
+      metaBtn.onclick = async () => {
+        // 直接把 relay 解析出的元信息喂给 P13-05 的预览（不重新解析 docx/xlsx）
+        let meta = null
+        try { meta = await window.moonAPI.relayMeta(f.src) } catch (e) { meta = null }
+        const pv = await window.moonAPI.officePreview({ meta, file: f.src, kind: (String(f.name).split('.').pop() || null) })
+        const v = (pv && pv.preview) || {}
+        out.textContent = v.hasMeta
+          ? ('【' + f.name + '】\n' + v.rows.map(([k, x]) => '  ' + k + '：' + x).join('\n') + '\n\n' + v.note)
+          : ('【' + f.name + '】\n' + (v.note || '（没有可读的内置属性）'))
+        out.style.display = 'block'
+      }
+      const linkBtn2 = mk('button', { textContent: '关联到本项目', style: btnCss })
+      linkBtn2.disabled = !root
+      linkBtn2.onclick = async () => {
+        if (!root) return
+        const r = await window.moonAPI.officeLink({ file: f.src, name: f.name, kind: (String(f.name).split('.').pop() || null), projectRoot: root })
+        if (!r || !r.ok) { out.textContent = '关联失败：' + ((r && r.error) || '?'); out.style.display = 'block' }
+        await refresh()
+      }
+      row.appendChild(nm); row.appendChild(metaBtn); row.appendChild(linkBtn2)
+      relayBox.appendChild(row)
+    }
+  }
+
+  card.appendChild(relayBox)
   card.appendChild(title); card.appendChild(hint); card.appendChild(list); card.appendChild(row1); card.appendChild(row2); card.appendChild(out); card.appendChild(bar)
   mask.appendChild(card)
   document.body.appendChild(mask)
@@ -1603,6 +1658,14 @@ async function showOfficePanel() {
     const mbi = window.moonbitIDE || {}
     return (typeof mbi.getContext === 'function') ? mbi.getContext() : null
   }
+
+  // ⚠️ 这两行原先漏了：面板挂上去却从没调 refresh() → 打开时永远是空的（本文件其余面板都有）。
+  // 并且**必须放在 ctx 定义之后** —— refresh / refreshRelay 都要用 ctx，
+  // 而 ctx 是 const（TDZ），放前面会抛 "Cannot access 'ctx' before initialization"。
+  refresh().catch((e) => { hint.textContent = '读取失败：' + String((e && e.message) || e) })
+  // 中转站列表独立刷新：不挂在 refresh() 里 —— 它有两处提前 return
+  //（未打开项目 / 本项目还没关联时），而那种情况下中转站恰恰是最该显示的。
+  refreshRelay().catch((e) => { relayBox.appendChild(mk('div', { textContent: '读中转站失败：' + String((e && e.message) || e), style: 'color:#fc8181' })) })
 
   async function refresh() {
     const c = ctx()

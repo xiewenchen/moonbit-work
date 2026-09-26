@@ -121,6 +121,51 @@ app.whenReady().then(async () => {
   restore()
   chk('用户文件已还原', true)
 
+  log('\n=== ⑦ P13-04 补：从「中转站」选文件（不再手填路径）===')
+  {
+    // 造一个真的 Office 文件并备份，让它出现在中转站列表里
+    const probeFile = path.join(A, 'relay-probe.docx')
+    fs.writeFileSync(probeFile, 'PK\u0003\u0004not-a-real-docx', 'utf8')
+    const bk = await P(`await window.moonAPI.relayBackup(${JSON.stringify(probeFile)}, 'verify-office 造')`)
+    chk('造了一个中转站条目（relayBackup）', bk && bk.ok !== false, JSON.stringify(bk).slice(0, 120))
+
+    // 重开面板（refresh 里会拉 relay 列表）
+    await js('window.moonbitIDE.office.show()')
+    await sleep(1000)
+    chk('★ 面板里出现了「从中转站选」区', await js(`!!document.getElementById('officeRelay')`), true)
+    const box = await js(`(document.getElementById('officeRelay') || {}).textContent || ''`)
+    chk('★ 列表里含刚备份的那个文件（说明数据真的来自 relay）', String(box).indexOf('relay-probe.docx') >= 0, String(box).slice(0, 200))
+
+    // 点"看元信息" → 元信息直接喂给预览
+    await js(`(() => {
+      const rows = Array.from(document.querySelectorAll('#officeRelay > div'))
+      const r = rows.find((x) => x.textContent.indexOf('relay-probe.docx') >= 0)
+      const b = r && Array.from(r.querySelectorAll('button')).find((x) => x.textContent === '看元信息')
+      if (b) b.click()
+    })()`)
+    await sleep(800)
+    const metaOut = await js(`(() => { const o = document.getElementById('officeOut'); return o && o.style.display !== 'none' ? o.textContent : '' })()`)
+    chk('★ 点「看元信息」后显示了内容', String(metaOut).length > 0, String(metaOut).slice(0, 140))
+    chk('  且写明了没有内置属性（假 docx 不该假装读出元信息）', /没有可读的内置属性|出处|内置/.test(String(metaOut)), String(metaOut).slice(0, 120))
+
+    // 点"关联到本项目" → 关联成功（这一步以前要手填路径）
+    const beforeLinks = (await P(`await window.moonbitIDE.office.links(${JSON.stringify(A)})`)).links.length
+    await js(`(() => {
+      const rows = Array.from(document.querySelectorAll('#officeRelay > div'))
+      const r = rows.find((x) => x.textContent.indexOf('relay-probe.docx') >= 0)
+      const b = r && Array.from(r.querySelectorAll('button')).find((x) => x.textContent === '关联到本项目')
+      if (b) b.click()
+    })()`)
+    await sleep(1200)
+    const after = await P(`await window.moonbitIDE.office.links(${JSON.stringify(A)})`)
+    chk('★ 一键关联成功（不用手填路径）', after.links.length > beforeLinks, beforeLinks + '→' + after.links.length)
+    chk('  关联到的就是那个文件', (after.links || []).some((l) => String(l.file).indexOf('relay-probe.docx') >= 0), JSON.stringify(after.links).slice(0, 160))
+
+    // 收尾：解关联 + 删探针
+    await P(`await window.moonbitIDE.office.unlink(${JSON.stringify(probeFile)})`)
+    try { fs.unlinkSync(probeFile) } catch (e) { log('  （探针文件删除失败，忽略：' + e.message + '）') }
+  }
+
   log('\n' + H.summary())
   dump(H.exitCode())
 }).catch((e) => { log('\n[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); dump(1) })
