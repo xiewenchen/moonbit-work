@@ -15,6 +15,10 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const { rootOfInput } = require('./project-context')
+// PH3-AI-03：opencode 退化为 adapter 的一个**传输实现** ——
+// 事件解析/续接 id/--format json 这些原先散在本文件里的逻辑，现在住在 opencode-transport.js。
+// 本文件只负责把它接到 IPC 与事件推送上。
+const { runOpencodeOnce } = require('./opencode-transport')
 
 const CFG_DIR = path.join(os.homedir(), '.config', 'opencode')
 // opencode 官方推荐 .jsonc（可写注释），但也支持 .json —— 两个都要找。
@@ -136,65 +140,38 @@ function registerAgentIpc({ getWindow }) {
   // 带 --session 就是**续接同一会话**（多轮上下文）—— 这是它从「一问一答就忘」变成「对话」的关键。
   // 只保留一个并发（同一时刻一个任务），和 runner 的做法一致，避免输出串台。
   ipcMain.handle('agent:run', (_e, { prompt, cwd, model, sessionId }) => {
-    const bin = findOpencode()
-    if (!bin) return { ok: false, error: '未找到 opencode 可执行文件（npm i -g opencode-ai 安装后重启 IDE）' }
     if (current) { try { current.kill() } catch (_) {} current = null }
-    // --format json 是**必须**的：不加它 opencode 输出的是人类可读文本，
-    // 下面的 JSON 事件解析会全部落空 → 界面上只有空气泡（实测踩过）。
-    const args = ['run', String(prompt || ''), '--format', 'json']
-    if (sessionId) args.push('--session', String(sessionId))   // ★ 多轮：续接会话
-    if (model) args.push('--model', model)
-    send('agent:start', { prompt: String(prompt || ''), bin })
-    let child
-    try {
-      // .cmd/.bat（npm 全局装 CLI 在 Windows 上就是这种）不能直接 spawn，
-      // 会抛 EINVAL —— 交给 resolveSpawn 走 cmd.exe。
-      const sp = resolveSpawn(bin, args)
-      // stdin 置 ignore：spawn 默认给子进程一个 stdin 管道，
-      // opencode 这类 CLI 会等它 → 非交互场景下一直不退出（实测 90 秒仍挂着）。
-      child = spawn(sp.bin, sp.args, { cwd: rootOfInput(cwd) || process.cwd(), shell: sp.shell, stdio: ['ignore', 'pipe', 'pipe'] })
-    } catch (e) {
-      send('agent:end', { ok: false, error: '启动失败：' + e.message })
-      return { ok: false, error: e.message }
+    send('agent:start', { prompt: String(prompt || ''), bin: findOpencode() })
+    let sid = sessionId || ''
+    // 行为等价替换：原先这里是内联的"起进程+按行解析 JSON"这一大段，
+    // 现在交给 runOpencodeOnce（可单测）；本函数只把事件转成 IPC 推送。
+    const r = runOpencodeOnce(
+      { spawn, resolveSpawn, findBin: findOpencode },
+      {
+        prompt,
+        cwd: rootOfInput(cwd) || process.cwd(),
+        model,
+        sessionId,
+        onEvent: (ev) => {
+          if (ev.type === 'end') {
+            sid = ev.sessionId || sid
+            send('agent:end', { ok: ev.ok === true, code: ev.code, sessionId: sid })
+            current = null
+            return
+          }
+          if (ev.type === 'error') { send('agent:data', { type: 'error', text: friendlyError(ev.error) }); return }
+          if (ev.sessionId) sid = ev.sessionId
+          if (ev.type === 'session') return          // 只携带 id 的载体，不显示
+          send('agent:data', ev)
+        },
+      },
+    )
+    if (r.ok !== true) {
+      send('agent:end', { ok: false, error: r.error })
+      return { ok: false, error: r.error }
     }
-    current = child
-    let sid = sessionId || ''      // 本次会话 id（事件里会带回来，供下一轮续接）
-    const onData = (buf) => {
-      // opencode --format json 的事件格式（实测样本）：
-      //   {"type":"step_start",...}
-      //   {"type":"text","part":{"type":"text","text":"Hi!"}}          ← 要显示的正文
-      //   {"type":"step_finish","part":{"tokens":{...},"cost":0}}      ← 用量统计
-      //   {"type":"error","error":{"name":"APIError","data":{...}}}    ← 出错（含 429 限流）
-      // 所以不能原样透传 JSON，否则界面上全是花括号 —— 要按 type 提取。
-      for (const line of buf.toString('utf8').split(/\r?\n/)) {
-        if (!line.trim()) continue
-        let ev = null
-        try { ev = JSON.parse(line) } catch (_) {}
-        if (!ev || typeof ev !== 'object') {
-          send('agent:data', { type: 'raw', text: line })
-          continue
-        }
-        if (ev.sessionID && typeof ev.sessionID === 'string') sid = ev.sessionID   // ★ 记住会话 id
-        const part = ev.part || {}
-        if (ev.type === 'text' && typeof part.text === 'string') {
-          send('agent:data', { type: 'text', text: part.text })
-        } else if (ev.type === 'tool' || part.type === 'tool') {
-          // 工具调用也显示出来 —— agent 干了什么应该让用户看见
-          const name = part.tool || (part.state && part.state.name) || 'tool'
-          send('agent:data', { type: 'tool', name: String(name), state: part.state || null })
-        } else if (ev.type === 'step_finish' && part.tokens) {
-          send('agent:data', { type: 'meta', tokens: part.tokens, cost: part.cost })
-        } else if (ev.type === 'error' || ev.error) {
-          send('agent:data', { type: 'error', text: friendlyError(ev.error) })
-        }
-        // step_start 之类的过程事件不发，避免刷屏
-      }
-    }
-    child.stdout.on('data', onData)
-    child.stderr.on('data', onData)
-    child.on('error', (e) => send('agent:end', { ok: false, error: '无法执行 opencode：' + e.message }))
-    child.on('close', (code) => { send('agent:end', { ok: code === 0, code, sessionId: sid }); current = null })
-    return { ok: true, pid: child.pid }
+    current = r.child
+    return { ok: true, pid: r.pid }
   })
 
   ipcMain.handle('agent:stop', () => {
