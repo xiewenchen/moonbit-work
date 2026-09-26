@@ -241,6 +241,27 @@ async function main() {
       redact: (s) => String(s).replace(new RegExp(KEY, 'g'), '[CUSTOM]'),
     })
     chk('可注入自定义 redact', /\[CUSTOM\]/.test(String((await custom.generate([])).error)))
+
+    // ★ AI-05/06：**异常路径**也必须脱敏。
+    //   ⚠️ 分工：createAdapter().generate() 遇 request 抛错是**向上抛**的；
+    //   真正把它兜住并交给上层的是 runToolLoop —— 所以这里测这条路径。
+    const throwKey = 'sk-throw-abcdef123456'
+    const tr = await runToolLoop({
+      llm: { generate: async () => { throw new Error('connect failed: Authorization: Bearer ' + throwKey) } },
+      tools: { call: async () => ({ ok: true }) },
+      messages: [{ role: 'user', content: 'x' }],
+      maxSteps: 2,
+    })
+    chk('★ runToolLoop 异常 message 里的 Key 被脱敏', tr.ok === false && !String(tr.error).includes(throwKey), String(tr.error).slice(0, 120))
+    chk('  且错误本身没被吞（仍可读）', /connect failed|模型调用失败/.test(String(tr.error)), String(tr.error).slice(0, 120))
+
+    // 非 JSON 响应体带 Key（这条走 createAdapter，它是**返回**而非抛）
+    const badJson = createAdapter({
+      provider: { baseUrl: 'https://x.test/v1', model: 'm', apiKey: 'sk-whatever-1234567' },
+      request: async () => ({ status: 200, body: 'not json but has sk-json-abcdef123456 inside' }),
+    })
+    const bj = await badJson.generate([])
+    chk('★ 非 JSON 响应里的 Key 也被脱敏', bj.ok === false && !String(bj.error).includes('sk-json-abcdef123456'), String(bj.error).slice(0, 120))
   }
 
   console.log('\n=== ⑧ P9B-08 无限规划必须被**预算**截断 ===')

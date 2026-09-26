@@ -117,7 +117,7 @@ function createAdapter(deps = {}) {
     }
     let parsed = null
     try { parsed = JSON.parse(String(r.body || '')) } catch (e) {
-      return { ok: false, error: '返回不是合法 JSON：' + String((e && e.message) || e) }
+      return { ok: false, error: '返回不是合法 JSON：' + redact(String((e && e.message) || e)) }
     }
     const n = normalizeResponse(parsed)
     return { ok: true, text: n.text, toolCalls: n.toolCalls, usage: n.usage, model: n.model }
@@ -174,6 +174,9 @@ function createAdapter(deps = {}) {
  */
 async function runToolLoop(deps = {}) {
   const llm = deps.llm
+  // ⚠️ runToolLoop 是**另一个函数**，拿不到 createAdapter 里那个 redact。
+  //    原来这里的 e.message 直接透出（未脱敏）—— 本轮补上，并允许调用方注入。
+  const redact = typeof deps.redact === 'function' ? deps.redact : defaultRedact
   const tools = deps.tools
   const budget = deps.budget || null
   const maxSteps = Number.isFinite(deps.maxSteps) ? deps.maxSteps : 8
@@ -190,7 +193,7 @@ async function runToolLoop(deps = {}) {
     try {
       r = await llm.generate(messages, { tools: deps.toolSpecs })
     } catch (e) {
-      return { ok: false, error: '模型调用失败：' + String((e && e.message) || e), steps, modelCalls, stopped: 'llm-error' }
+      return { ok: false, error: '模型调用失败：' + redact(String((e && e.message) || e)), steps, modelCalls, stopped: 'llm-error' }
     }
     if (!r || r.ok === false) {
       return { ok: false, error: (r && r.error) || '模型返回失败', steps, modelCalls, stopped: 'llm-error' }
@@ -216,7 +219,7 @@ async function runToolLoop(deps = {}) {
       try {
         res = await tools.call(tc.name, tc.args || {})
       } catch (e) {
-        res = { ok: false, error: String((e && e.message) || e) }
+        res = { ok: false, error: redact(String((e && e.message) || e)) }
       }
       steps.push({ name: tc.name, ok: !!(res && res.ok === true), error: (res && res.error) || null })
       batch.push({ tc, res, id: 'c' + steps.length })
