@@ -105,6 +105,7 @@ jobs:
           node test-task-understanding.js # P9A：可验证的任务理解（结构/规则/applyLlmPlan 只覆盖计划）
           node test-agent-adapter.js    # P9B：AI Adapter + MockLLM（不依赖真实 API 额度）
           node test-agent-security.js   # PH3-SEC：命令注入 / 工具超时 / 无限循环 / Cancel
+          node test-agent-security-boundaries.js # PH3-SEC-04~09：边界复核（真路径：沙箱/危险表/规则文件/Provider Key）
           node test-agent-multiround.js # PH3-E2E-07~14：失败/重试/预算/Resume/Cancel/会话恢复/记忆复用/跨项目隔离
           node test-workspace.js       # PH3-WS：工作空间身份（规范化）/ 一致性 / 删除只删元数据
           node test-memory-schema.js  # PH3-MEM：记忆 schema / 候选确认 / 检索不注入无关 / 跨项目隔离
