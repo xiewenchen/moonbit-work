@@ -117,6 +117,7 @@ jobs:
           node test-backend-context.js  # P14：BackendProjectContext（端口只从能指着说的来源推）
           node test-quality-result.js    # P16：Quality Center（5 态 / 各类 Adapter / 能不能继续）
           node test-quality-fact.js     # PH3-Q：事实层（溯源/新鲜度/STALE/退化检测）
+          node test-quality-regression.js # PH3-Q：退化检测（相对上次基线，显式 save 才推进）
           node test-sql-guard.js        # P15：SQL/Redis 安全闸（只放 SELECT；多语句/注释绕过/写操作全拒）
           node test-db-explorer.js      # P15：数据库构造层（标识符/字面量转义，注入用例）
           node test-workbench.js        # P13：工作台（最近项目/待办/便签；按项目隔离 + 不反向污染）

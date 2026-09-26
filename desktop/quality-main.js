@@ -12,6 +12,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const os = require('os')
 const {
   createQualityStore,
   fromDesktopVerify,
@@ -22,7 +23,7 @@ const {
 } = require('./quality-result')
 // PH3-Q：事实层（溯源 / 新鲜度 / STALE / 退化检测）。
 // 渐进：**不改** quality-result.js，而是新层包住旧层 —— 旧字段全部保留。
-const { createFactSnapshot, withProvenance, describeFact, VERIFY_ORIGIN } = require('./quality-fact')
+const { createFactSnapshot, withProvenance, describeFact, VERIFY_ORIGIN, compareQuality } = require('./quality-fact')
 
 /** 从哪里找验证产物（默认本目录 desktop/，与验证脚本输出位置一致）*/
 function defaultDir() { return __dirname }
@@ -57,6 +58,61 @@ function currentEnv() {
   if (p === 'darwin') return 'mac'
   if (p === 'linux') return 'linux'
   return 'unknown'
+}
+
+/** 上次快照的落盘位置。⚠️ 存**用户目录**（不进项目仓库）。 */
+function lastSnapshotFile(userDir) {
+  const home = userDir || path.join(os.homedir(), '.moonbit-work')
+  return path.join(home, 'quality-last.json')
+}
+
+function readLastSnapshot(userDir) {
+  try {
+    const j = JSON.parse(fs.readFileSync(lastSnapshotFile(userDir), 'utf8'))
+    return j && Array.isArray(j.results) ? j : null
+  } catch (_) { return null }
+}
+
+/**
+ * PH3-Q-10/11：把这次结果与**上次**比，找出退化（例如 Test 156 → 154）。
+ *
+ * ⚠️ 两条设计约束（想清楚才写的）：
+ *   ① **默认不推进基线** —— 否则每次调用都比上一次，"退化"就没法复现同一结论；
+ *      推进由调用方**显式**要求（`save: true`）。
+ *   ② **只存可比的最小集合**（name/state/passed/failed），不是整个快照 ——
+ *      存整份会把 detail 全文写进用户目录，既大又可能含源码片段。
+ */
+function compareWithLast(current, opts = {}) {
+  const userDir = opts.userDir
+  const last = readLastSnapshot(userDir)
+  const results = (Array.isArray(current) ? current : []).map((r) => ({
+    name: r && r.name, state: r && r.state, passed: r && r.passed, failed: r && r.failed,
+  }))
+  let regression = null
+  if (!last) {
+    regression = { hasRegression: false, first: true, summary: '没有上次记录（第一次）—— 不判断退化' }
+  } else {
+    const c = compareQuality(last.results, results)
+    regression = {
+      hasRegression: c.hasRegression, first: false,
+      regressions: c.regressions, improvements: c.improvements,
+      added: c.added, removed: c.removed,
+      since: last.at || null, summary: c.summary,
+    }
+  }
+  if (opts.save === true) {
+    try {
+      fs.mkdirSync(path.dirname(lastSnapshotFile(userDir)), { recursive: true })
+      fs.writeFileSync(lastSnapshotFile(userDir),
+        JSON.stringify({ at: Number.isFinite(opts.now) ? opts.now : Date.now(), results }), 'utf8')
+      regression.saved = true
+    } catch (e) {
+      // 存不下来不影响对比结论 —— 但要如实说
+      regression.saved = false
+      regression.saveError = String((e && e.message) || e)
+    }
+  }
+  return regression
 }
 
 /**
@@ -125,6 +181,10 @@ function snapshotQuality(opts = {}) {
     describe: describeQuality(st),
     scannedDir: dir,
     scannedFiles: files.length,
+    // PH3-Q-10/11：与**上次**比的退化结论。
+    // ⚠️ 默认只看不比、不写（否则每次调用都推进基线，结论就没法复现）；
+    //    要把它当成新基线，传 opts.save === true。
+    regression: compareWithLast(st.list(), { userDir: opts.userDir, save: opts.save, now: opts.now }),
     // PH3-Q-01：事实快照（结果 + 环境 + 来源 + 时间 + commit，且已把过期的 PASS 标成 STALE）。
     // 旧字段全部保留 —— 这是"加一层"，不是"换一套"。
     fact: (() => {
@@ -173,4 +233,4 @@ function registerQualityIpc({ ipcMain, onLog }) {
   return { snapshotQuality }
 }
 
-module.exports = { registerQualityIpc, snapshotQuality, QUALITY_STATE }
+module.exports = { registerQualityIpc, snapshotQuality, QUALITY_STATE, compareWithLast, lastSnapshotFile }

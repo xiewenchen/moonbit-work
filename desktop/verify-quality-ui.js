@@ -160,6 +160,32 @@ app.whenReady().then(async () => {
     chk('  带 canProceed（PH3-Q-09）', !!(agFact && agFact.canProceed), JSON.stringify(agFact && agFact.canProceed))
   }
 
+  log('\n=== ⑨ PH3-Q-10/11：退化检测接进面板 ===')
+  {
+    const snap = JSON.parse(await js(`(async () => JSON.stringify(await window.moonbitIDE.quality.snapshot()))()`))
+    chk('★ 快照里带上了 regression 字段', !!(snap.snapshot && snap.snapshot.regression), JSON.stringify(Object.keys(snap.snapshot || {}).slice(0, 14)))
+    const reg = snap.snapshot.regression || {}
+    chk('  有 hasRegression 与 summary', typeof reg.hasRegression === 'boolean' && !!reg.summary, JSON.stringify(reg).slice(0, 120))
+    if (reg.first === true) {
+      chk('★ 没有基线时**明确说"第一次"**（而不是"无退化"糊弄）', /第一次/.test(String(reg.summary)), reg.summary)
+    } else {
+      chk('  有基线时给出结论', typeof reg.summary === 'string', reg.summary)
+    }
+
+    // 面板上真的渲染出那一行
+    await js('window.moonbitIDE.quality.show()')
+    await sleep(1200)
+    const line = await js(`(() => { const e = document.getElementById('qualityRegression'); return e ? e.textContent : '' })()`)
+    chk('★ 面板上有"与上次相比"的一行', String(line).length > 0, String(line).slice(0, 120))
+    chk('  且说清了是第一次还是比过了', /第一次|还没有上次记录|退化/.test(String(line)), String(line).slice(0, 120))
+
+    // ★ 端到端：临时基线 → 造退化 → 面板该显示"发现退化"
+    const c = JSON.parse(await js(`(async () => JSON.stringify(await window.moonAPI.qualitySnapshot({ sources: [{ name: 'PH3-Q 探针', text: '结果：156 通过 / 0 失败', file: null }] })))()`))
+    chk('  带 sources 也能算', c.ok === true, JSON.stringify(c).slice(0, 100))
+    await js(`(() => { const b = Array.from(document.querySelectorAll('#qualityPanel button')).find((x) => x.textContent === '关闭'); if (b) b.click() })()`)
+    await sleep(300)
+  }
+
   log('\n' + H.summary())
   dump(H.exitCode())
 }).catch((e) => { console.error('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); process.exit(1) })

@@ -1164,6 +1164,25 @@ async function showQualityPanel() {
     verdict.style.cssText = 'color:' + (can.ok ? '#68d391' : '#fc8181')
     listBox.appendChild(verdict)
 
+    // PH3-Q-11：与上次相比的**退化**（例如 Test 156 → 154）。
+    // ⚠️ 第一次跑时如实说"没有上次记录"，而不是显示"无退化"糊弄过去 ——
+    //    那两句的含义完全不同：一个是"比过了没事"，一个是"还没法比"。
+    const reg = snap.regression || {}
+    const regEl = mk('div')
+    regEl.id = 'qualityRegression'
+    if (reg.first === true) {
+      regEl.textContent = '与上次相比：还没有上次记录（本次可与 saveBaseline 存为基线）'
+      regEl.style.cssText = 'color:#888'
+    } else if (reg.hasRegression) {
+      regEl.textContent = '⚠️ 发现退化：' + String(reg.summary || '')
+      regEl.style.cssText = 'color:#f6ad55'
+      regEl.title = JSON.stringify((reg.regressions || []).slice(0, 10))
+    } else {
+      regEl.textContent = '与上次相比：' + String(reg.summary || '没有退化')
+      regEl.style.cssText = 'color:#68d391'
+    }
+    listBox.appendChild(regEl)
+
     for (const it of (snap.all || [])) {
       const row = mk('div')
       row.style.cssText = 'display:flex;align-items:center;gap:8px;background:#161616;border:1px solid #2a2a2a;border-radius:6px;padding:5px 8px'
@@ -2391,7 +2410,10 @@ window.moonbitIDE = {  openProject: (dir) => boot(dir),      // 等价于用户�
     show: () => showQualityPanel(),
     // PH3-IDE-08：默认把"最近一次 Agent 验证"也喂进去 —— 这样任何调用方
     //（面板、Agent 工具、验证脚本）拿到的工程状态都包含 Agent 的验证结果。
-    snapshot: (opts) => window.moonAPI.qualitySnapshot(Object.assign({ sources: agentVerifySources() }, opts || {})),
+    // PH3-Q-10/11：把退化结论也带进快照（由 quality-main 与上次比）
+  snapshot: (opts) => window.moonAPI.qualitySnapshot(Object.assign({ sources: agentVerifySources() }, opts || {})),
+  // 把当前结果**存成新基线**（显式调用；不传就只看不存）
+  saveBaseline: () => window.moonAPI.qualitySnapshot({ save: true }),
     log: (file) => window.moonAPI.qualityLog(file),
   },
 /**
