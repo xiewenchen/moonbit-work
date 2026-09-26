@@ -190,6 +190,8 @@ contextBridge.exposeInMainWorld('moonAPI', {
   startupFile: () => ipcRenderer.invoke('startup:file'),
   envCheck: () => ipcRenderer.invoke('env:check', {}),
   envLast: () => ipcRenderer.invoke('env:last'),
+  // P20-06：About（真实版本与环境）
+  appAbout: () => ipcRenderer.invoke('app:about'),
 
   // 注：ProjectContext 不在这里过桥 —— 本 preload 是 sandbox:true，
   // require 本地文件会让整个 preload 挂掉（实测踩过）。

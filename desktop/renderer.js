@@ -673,6 +673,8 @@ function initWelcome() {
   const n = document.getElementById('wsNew')
   if (o) o.onclick = () => chooseFolder()
   if (n) n.onclick = () => createProject()
+  // P20-01：欢迎屏重排（最近项目 / 继续上次 / AI Agent）。是 async 的，但不阻塞初始化。
+  enhanceWelcome().catch((e) => console.log('欢迎页增强失败（不影响打开项目）：' + String((e && e.message) || e)))
 }
 
 async function showWelcome() {
@@ -1809,6 +1811,242 @@ function injectPanelButton() {
   return true
 }
 
+/**
+ * P20-01：欢迎屏重排 —— 突出四个入口：**最近项目 / 新建 / 继续上次 / AI Agent**。
+ *
+ * 用**追加**而不是改 `index.html`（那是 `translate-strapi.js` 的产物）。
+ * 原有的「打开项目 / 新建项目」两个按钮保留 —— 这个函数只在它们上面补一块内容。
+ *
+ * 数据**全部复用已有来源**，不新存一份：
+ *   · 最近项目   ← P13 工作台的 recent
+ *   · 继续上次   ← P20 启动快照（`startup:plan`）
+ *   · 环境提示   ← P20-09 环境检查（只在缺东西时提示一句）
+ */
+async function enhanceWelcome() {
+  const screen = document.getElementById('welcomeScreen')
+  if (!screen) return false
+  // 每次都**重建**（而不是"有了就跳过"）—— 因为打开/关闭项目后最近列表与"继续上次"都会变。
+  const stale = screen.querySelector('.ws-p20')
+  if (stale) stale.remove()
+  const card = screen.querySelector('.ws-card')
+  if (!card) return false
+  const mk = (tag, props) => { const el = document.createElement(tag); Object.assign(el, props || {}); return el }
+  const btnCss = 'padding:4px 10px;background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:5px;cursor:pointer;font-size:12px'
+
+  const box = mk('div', { className: 'ws-p20' })
+  box.style.cssText = 'margin-top:10px;display:flex;flex-direction:column;gap:8px'
+
+  // ① 继续上次（启动快照）
+  try {
+    const sp = await window.moonAPI.startupPlan()
+    const plan = (sp && sp.plan) || {}
+    if (plan.restore && plan.projectRoot) {
+      const row = mk('div')
+      row.style.cssText = 'display:flex;align-items:center;gap:8px'
+      const b = mk('button', { textContent: plan.crashed ? '继续上次（上次异常退出）' : '继续上次' })
+      b.style.cssText = btnCss
+      b.title = plan.projectRoot
+      b.onclick = async () => { await window.moonbitIDE.openProject(plan.projectRoot); await window.moonbitIDE.welcome.enhance() }
+      const p = mk('span', { textContent: plan.projectRoot })
+      p.style.cssText = 'color:#888;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:320px'
+      row.appendChild(b); row.appendChild(p)
+      box.appendChild(row)
+      if (plan.crashed) {
+        const w = mk('div', { textContent: '（上次没有正常退出，所以只恢复了项目，没有恢复打开的标签）' })
+        w.style.cssText = 'color:#f6ad55;font-size:11px'
+        box.appendChild(w)
+      }
+    }
+  } catch (e) {
+    // 没有快照很正常（首次启动），不打扰用户
+  }
+
+  // ② 最近项目（复用工作台的数据）
+  try {
+    const wb = await window.moonAPI.wbLoad()
+    const recent = (wb && wb.recent) || []
+    if (recent.length) {
+      const head = mk('div', { textContent: '最近项目' })
+      head.style.cssText = 'color:#888;font-size:11px;margin-top:2px'
+      box.appendChild(head)
+      for (const r of recent.slice(0, 5)) {
+        const b = mk('button', { textContent: (r.label || r.root) + '　' + (r.projectType ? '[' + r.projectType + ']' : '') })
+        b.style.cssText = 'text-align:left;' + btnCss
+        b.title = r.root
+        b.onclick = async () => { await window.moonbitIDE.openProject(r.root); await window.moonbitIDE.welcome.enhance() }
+        box.appendChild(b)
+      }
+    }
+  } catch (e) {
+    console.log('欢迎页：读最近项目失败（不影响使用）')
+  }
+
+  // ③ AI Agent 一级入口（P20-03）
+  const agentRow = mk('div')
+  agentRow.style.cssText = 'display:flex;gap:6px;margin-top:2px'
+  const agentBtn = mk('button', { textContent: 'AI Agent' })
+  agentBtn.style.cssText = btnCss
+  agentBtn.onclick = () => {
+    const a = document.querySelector('a[data-view="ai"]')
+    if (a) a.click()
+  }
+  const envBtn = mk('button', { textContent: '环境诊断' })
+  envBtn.style.cssText = btnCss
+  envBtn.onclick = () => showEnvironmentPanel()
+  agentRow.appendChild(agentBtn); agentRow.appendChild(envBtn)
+  box.appendChild(agentRow)
+
+  // 插在原有两个按钮**下面**、hint 上面
+  const hint = card.querySelector('.ws-hint')
+  if (hint) { card.insertBefore(box, hint) } else { card.appendChild(box) }
+  return true
+}
+
+/**
+ * P20-05：Settings。
+ *
+ * 这里只放**真有作用**的开关（不是摆设）：
+ *   · Agent 的 Auto-start（P9A 里那个开关，写 `localStorage.ag-autostart`）
+ *   · 主题
+ *   · 各数据的存放位置（点一下就知道东西在哪，也能少一次"我的数据去哪了"）
+ */
+async function showSettingsPanel() {
+  const old = document.getElementById('settingsPanel')
+  if (old) old.remove()
+  const mk = (tag, props) => { const el = document.createElement(tag); Object.assign(el, props || {}); return el }
+  const btnCss = 'padding:3px 9px;background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:5px;cursor:pointer'
+  const mask = mk('div', { id: 'settingsPanel' })
+  mask.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999'
+  const card = mk('div')
+  card.style.cssText = 'max-width:600px;width:92%;display:flex;flex-direction:column;gap:10px;background:#1e1e1e;color:#ddd;border:1px solid #333;border-radius:8px;padding:14px;font-size:12px'
+  const title = mk('div', { textContent: '设置' })
+  title.style.cssText = 'font-weight:600;font-size:14px'
+  card.appendChild(title)
+
+  const row = (label, el, note) => {
+    const r = mk('div')
+    r.style.cssText = 'display:flex;align-items:center;gap:8px'
+    const l = mk('span', { textContent: label })
+    l.style.cssText = 'min-width:120px;color:#aaa'
+    r.appendChild(l); r.appendChild(el)
+    if (note) {
+      const n = mk('span', { textContent: note })
+      n.style.cssText = 'color:#888;font-size:11px'
+      r.appendChild(n)
+    }
+    card.appendChild(r)
+    return r
+  }
+
+  // ① Agent Auto-start（真有作用：控制 aiagent 是否先出理解卡）
+  const cb = mk('input', { type: 'checkbox' })
+  let auto = false
+  try { auto = localStorage.getItem('ag-autostart') === '1' } catch (e) { auto = false }
+  cb.checked = auto
+  cb.onchange = () => {
+    try { localStorage.setItem('ag-autostart', cb.checked ? '1' : '0') } catch (e) {
+      console.error('保存 Auto-start 失败：' + String((e && e.message) || e))
+    }
+  }
+  row('Agent 直接执行', cb, '勾上＝跳过理解确认；不影响「改文件前必须确认」')
+
+  // ② 主题
+  const themeSel = mk('select')
+  themeSel.style.cssText = 'padding:3px 6px;background:#121212;color:#ddd;border:1px solid #333;border-radius:5px'
+  for (const [v, t] of [['auto', '跟随时间'], ['light', '日间'], ['dark', '夜间']]) {
+    const o = mk('option', { value: v, textContent: t })
+    themeSel.appendChild(o)
+  }
+  try { themeSel.value = localStorage.getItem('theme-mode') || 'auto' } catch (e) { themeSel.value = 'auto' }
+  themeSel.onchange = () => {
+    try { localStorage.setItem('theme-mode', themeSel.value) } catch (e) {
+      console.error('保存主题失败：' + String((e && e.message) || e))
+    }
+    if (typeof window.__applyTheme === 'function') window.__applyTheme()
+  }
+  row('主题', themeSel)
+
+  // ③ 数据存放位置（都在用户目录，不进项目）
+  try {
+    const [wb, of, st] = await Promise.all([
+      window.moonAPI.wbFile(), window.moonAPI.officeLinks(null), window.moonAPI.startupFile(),
+    ])
+    const paths = [wb && wb.file, st && st.file, of && of.file].filter(Boolean)
+    if (paths.length) {
+      const d = mk('div')
+      d.style.cssText = 'color:#888;font-size:11px;line-height:1.7;border-top:1px solid #2a2a2a;padding-top:6px'
+      d.appendChild(mk('div', { textContent: '数据存放（用户目录，不进项目仓库）：' }))
+      for (const p of paths) d.appendChild(mk('div', { textContent: '· ' + p }))
+      card.appendChild(d)
+    }
+  } catch (e) {
+    console.log('设置：读数据路径失败（不影响使用）')
+  }
+
+  const bar = mk('div')
+  bar.style.cssText = 'display:flex;gap:8px;justify-content:flex-end'
+  const envBtn = mk('button', { textContent: '环境诊断', style: btnCss })
+  envBtn.onclick = () => { mask.remove(); showEnvironmentPanel() }
+  const aboutBtn = mk('button', { textContent: '关于', style: btnCss })
+  aboutBtn.onclick = () => { mask.remove(); showAboutPanel() }
+  const closeBtn = mk('button', { textContent: '关闭', style: btnCss })
+  closeBtn.onclick = () => mask.remove()
+  bar.appendChild(envBtn); bar.appendChild(aboutBtn); bar.appendChild(closeBtn)
+  card.appendChild(bar)
+  mask.appendChild(card)
+  document.body.appendChild(mask)
+  return true
+}
+
+/**
+ * P20-06：About。版本与环境**来自真实探测**（`app:about` IPC），不是硬编码。
+ */
+async function showAboutPanel() {
+  const old = document.getElementById('aboutPanel')
+  if (old) old.remove()
+  const mk = (tag, props) => { const el = document.createElement(tag); Object.assign(el, props || {}); return el }
+  const btnCss = 'padding:3px 9px;background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:5px;cursor:pointer'
+  const mask = mk('div', { id: 'aboutPanel' })
+  mask.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999'
+  const card = mk('div')
+  card.style.cssText = 'max-width:560px;width:92%;display:flex;flex-direction:column;gap:10px;background:#1e1e1e;color:#ddd;border:1px solid #333;border-radius:8px;padding:14px;font-size:12px'
+  const title = mk('div', { textContent: 'MoonBit 后端一站式开发平台' })
+  title.style.cssText = 'font-weight:600;font-size:15px'
+  card.appendChild(title)
+  const info = mk('pre', { id: 'aboutInfo' })
+  info.style.cssText = 'margin:0;padding:8px;background:#121212;border:1px solid #333;border-radius:6px;color:#bbb;white-space:pre-wrap'
+  card.appendChild(info)
+  const bar = mk('div')
+  bar.style.cssText = 'display:flex;gap:8px;justify-content:flex-end'
+  const envBtn = mk('button', { textContent: '环境诊断', style: btnCss })
+  envBtn.onclick = () => { mask.remove(); showEnvironmentPanel() }
+  const closeBtn = mk('button', { textContent: '关闭', style: btnCss })
+  closeBtn.onclick = () => mask.remove()
+  bar.appendChild(envBtn); bar.appendChild(closeBtn)
+  card.appendChild(bar)
+  mask.appendChild(card)
+  document.body.appendChild(mask)
+
+  const a = (await window.moonAPI.appAbout()) || {}
+  const lines = [
+    '版本：' + (a.version || '?') + '（当前标 alpha：IDE Core + Agent Read 已成立；' +
+      'Agent 用**真实 LLM** 端到端未验，所以不标 beta）',
+    '',
+    '运行环境',
+    '  Electron：' + (a.electron || '?'),
+    '  Node    ：' + (a.node || '?'),
+    '  Chromium：' + (a.chrome || '?'),
+    '  系统    ：' + (a.platform || '?') + '（' + (a.osRelease || '?') + '）',
+    '',
+    '说明',
+    '  · 三个冻结区：不做完整 Office、不做 Token 中转 SaaS、不做通用 Agent 平台',
+    '  · 数据都在用户目录（~/.moonbit-work/），不进项目仓库',
+    '  · 改文件一律走「用户确认后应用」',
+  ]
+  info.textContent = lines.join('\n')
+  return true
+}
+
 window.moonbitIDE = {  openProject: (dir) => boot(dir),      // 等价于用户「打开文件夹」之后走的那条路
   closeProject,
   getContext: () => projectCtx,         // 冻结对象，只读
@@ -1820,6 +2058,10 @@ window.moonbitIDE = {  openProject: (dir) => boot(dir),      // 等价于用户�
     list: () => window.moonAPI.commandList(),
     execute: (name, args, opts) => window.moonAPI.commandExecute(name, args, opts),
   },
+  // P20-01/05/06：欢迎屏重排 + Settings + About
+  welcome: { enhance: () => enhanceWelcome() },
+  settings: { show: () => showSettingsPanel() },
+  about: { show: () => showAboutPanel() },
   // P20：启动恢复 + 环境诊断 + 面板统一入口
   panels: { menu: () => showPanelMenu(), inject: () => injectPanelButton() },
   env: { show: () => showEnvironmentPanel(), check: () => window.moonAPI.envCheck() },

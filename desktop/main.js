@@ -279,6 +279,22 @@ registerOfficeLinkIpc({
   writeNote: (root, text) => wbMain.writeStore(wbCore.setNote(wbMain.readStore(), root, text).store),
 })
 
+// P20-06：About 要显示**真实**的版本与环境（不是硬编码一个字串）
+ipcMain.handle('app:about', () => {
+  let pkg = {}
+  try { pkg = require('./package.json') } catch (e) { pkg = {} }
+  return {
+    ok: true,
+    name: pkg.name || 'moonbit-work-desktop',
+    version: pkg.version || null,
+    electron: (process.versions && process.versions.electron) || null,
+    node: (process.versions && process.versions.node) || null,
+    chrome: (process.versions && process.versions.chrome) || null,
+    platform: process.platform + ' ' + process.arch,
+    osRelease: require('os').release(),
+  }
+})
+
 // P20：启动恢复 + 环境检查。
 // ⚠️ markCleanExit 这一步必须做：不做的话每次启动都会被判成「异常退出」并降级恢复，
 //    用户会以为「我的标签为什么没恢复」。所以注册在 before-quit 上。
