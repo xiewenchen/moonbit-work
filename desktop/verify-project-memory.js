@@ -107,6 +107,11 @@ app.whenReady().then(async () => {
   eq('删不存在的 → ok=false', delMiss.ok, false)
 
   log('\n=== ⑧ ★ 规则保护"绕不过去"（review 抓到的绕过路径）===')
+  // ⚠️ 先把项目打开：P17 之后 `fs:write` 要求"**已打开项目**"，而本脚本原来只把 ROOT 当参数传。
+  //    放在本节**最前面**（而不是后面的写入断言之前）—— 否则本节前半段的写入断言会先失败。
+  //    另：openProject 没有返回值，不能用 P() 包（会 JSON.parse(undefined) 抛错）。
+  await js(`window.moonbitIDE.openProject(${JSON.stringify(ROOT)})`)
+  await new Promise((r) => setTimeout(r, 900))
   const RULE_FILE = path.join(MDIR, 'agent-rules.md')
   const beforeRule = fs.readFileSync(RULE_FILE, 'utf8')
 
@@ -124,10 +129,20 @@ app.whenReady().then(async () => {
   eq('带 confirmed:true 才允许写入', okConfirmed.ok, true)
 
   // 普通文件不受这条保护影响（不能误伤）
-  const other = path.join(ROOT, 'notes.txt')
+  // ⚠️ 两个前提要说清（这里是全量回归挖出来的）：
+  //    ① P17 把 `fs:write` 收窄成"**必须已打开项目**才能写"，而这个脚本从来没调过 openProject
+  //       —— 它一直只把 ROOT 当**参数**传来传去。所以这里得先把它打开。
+  //       （报错原文：`未打开项目 —— 拒绝写入（避免"没打开项目也能改磁盘上的文件"）`）
+  //    ② 写的路径也必须在那个工作区**内**（用 os.tmpdir() 的目录会被正确地拒）。
+  // ⚠️ openProject 没有返回值（不要用 P() 包它 —— 那会 JSON.parse(undefined) 抛错，
+  //    与之前 openFile 那个坑一模一样）。直接 await js() 即可。
+  await js(`window.moonbitIDE.openProject(${JSON.stringify(ROOT)})`)
+  await new Promise((r) => setTimeout(r, 900))
+  const other = path.join(ROOT, 'verify-memory-noise.txt')
   const okOther = await P(`await window.moonAPI.writeFile(${JSON.stringify(other)}, 'hi')`)
-  chk('普通文件写入不受影响', okOther.ok === true, JSON.stringify(okOther).slice(0, 100))
+  chk('普通文件写入不受影响（已打开项目 + 在工作区内）', okOther.ok === true, JSON.stringify(okOther).slice(0, 120))
   eq('  内容正确', fs.readFileSync(other, 'utf8'), 'hi')
+  try { fs.unlinkSync(other) } catch (_) { /* 删不掉就算 */ }
 
   log('\n=== ⑨ 无效项目根不崩 ===')
   const bad = await P(`await window.moonAPI.memoryEnsure('C:/__绝对不存在的路径__', null)`)

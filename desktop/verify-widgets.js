@@ -110,8 +110,15 @@ app.whenReady().then(async () => {
   console.log('\n=== ⑥ 截图 ===')
   await js(`(() => { const a = document.querySelector('a[data-view="home"]'); if (a) a.click() })()`)
   await sleep(1200)
-  fs.writeFileSync(path.join(SHOT, 'dashboard-widgets.png'), (await win.webContents.capturePage()).toPNG())
-  console.log('  dashboard-widgets.png')
+  // ⚠️ 截图失败**不该**让整个验证失败 —— 它是附加产物（在某些环境下 capturePage 会抛
+  //    UnknownVizError：无 GUI / GPU 被禁时就会）。全量回归里这一条曾让脚本以 FATAL 退出，
+  //    掩盖了它**上面那些断言其实全过**的事实。
+  try {
+    fs.writeFileSync(path.join(SHOT, 'dashboard-widgets.png'), (await win.webContents.capturePage()).toPNG())
+    console.log('  dashboard-widgets.png')
+  } catch (e) {
+    console.log('  （截图跳过：' + String((e && e.message) || e).slice(0, 60) + ' —— 不影响上面的结论）')
+  }
 
   console.log('\n' + H.summary())
   app.quit()

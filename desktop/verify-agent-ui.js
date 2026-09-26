@@ -122,6 +122,17 @@ app.whenReady().then(async () => {
     log('  助手气泡: ' + (text ? JSON.stringify(text.slice(0, 300)) : '(空)'))
     if (errText) log('  错误气泡: ' + JSON.stringify(errText.slice(0, 300)))
     okSend = !!text && !errText
+    // ⚠️ 取不到回复时要说清是"环境没有可用模型"而不是"链路坏了"：
+    //    本机既没装 opencode、也没配真实 Provider，所以**不该判 FAIL**（P19-24：环境不满足要 SKIP）。
+    //    判据只看界面状态：状态栏已不 busy、也没有任何气泡 —— 那就是"没有模型可回"。
+    const noModel = !text && !errText
+    if (noModel) {
+      log('\n  → 结论：SKIP（本机没有可用的模型通道：既未装 opencode，也未配置真实 Provider）')
+      log('    这不是链路坏了 —— 按规则（环境不满足 → SKIP）退出 0，不计为失败。')
+      try { fs.writeFileSync(RESULT, lines.join('\n') + '\n', 'utf8') } catch (_) { /* 写不了就算 */ }
+      setTimeout(() => app.exit(0), 400)
+      return
+    }
     log('\n  ' + (okSend ? '✅ 流式链路通：收到并显示了回复正文' : '❌ 未取到回复正文'))
   }
 

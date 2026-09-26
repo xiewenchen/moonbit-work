@@ -137,8 +137,13 @@ app.whenReady().then(async () => {
 
   const SHOT = path.join(__dirname, 'e2e-shots', 'views')
   fs.mkdirSync(SHOT, { recursive: true })
-  fs.writeFileSync(path.join(SHOT, 'strapi-parity.png'), (await win.webContents.capturePage()).toPNG())
-  console.log('\n截图: e2e-shots/views/strapi-parity.png')
+  // ⚠️ 同上：截图是附加产物，失败不该改变验证结论（无 GUI 时 capturePage 会抛 UnknownVizError）
+  try {
+    fs.writeFileSync(path.join(SHOT, 'strapi-parity.png'), (await win.webContents.capturePage()).toPNG())
+    console.log('\n截图: e2e-shots/views/strapi-parity.png')
+  } catch (e) {
+    console.log('\n（截图跳过：' + String((e && e.message) || e).slice(0, 60) + ' —— 不影响上面的结论）')
+  }
   console.log(`\n结果：${pass} 通过, ${fail} 失败 / 共 ${pass + fail} 项`)
   app.quit()
 }).catch((e) => { console.error('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); process.exit(1) })
