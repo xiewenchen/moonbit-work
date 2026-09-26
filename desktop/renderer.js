@@ -2220,10 +2220,95 @@ window.moonbitIDE = {  openProject: (dir) => boot(dir),      // 等价于用户�
     snapshot: (opts) => window.moonAPI.qualitySnapshot(opts),
     log: (file) => window.moonAPI.qualityLog(file),
   },
+/**
+ * PH3-IDE-06：把 Patch 显示成 Monaco 的 diff（Original ↔ Changed），
+ * 而不是只在对话框里给一段文本。**只读** —— 真正的落盘仍走 P8 两阶段：
+ * propose → 用户点 Apply。
+ *
+ * PH3-IDE-07：带一个「跳到修改位置」按钮 —— 打开真实文件并滚到改动行。
+ *
+ * ⚠️ 定义在 window.moonbitIDE 对象**内部**（所以是 `patchDiff: (…) =>` 而不是 function）。
+ *    编辑器实例挂在 window 上，因为对象内不能声明模块级变量。
+ */
+  patchDiff: (patch, opts = {}) => {
+    const p = patch || {}
+    if (!p.file) return { ok: false, error: '这个补丁没有 file 字段' }
+    const oldText = typeof p.old === 'string' ? p.old : ''
+    const newText = typeof p.new === 'string' ? p.new : ''
+    if (!oldText && !newText) return { ok: false, error: '这个补丁没有 old/new 内容' }
+    const prev = document.getElementById('patchDiffMask')
+    if (prev) { prev.remove(); try { if (window.__patchDiffEditor) window.__patchDiffEditor.dispose() } catch (_) { /* 释放失败不影响关面板 */ } window.__patchDiffEditor = null }
+
+    const mask = document.createElement('div')
+    mask.id = 'patchDiffMask'
+    mask.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:9600;display:flex;align-items:center;justify-content:center'
+    const card = document.createElement('div')
+    card.style.cssText = 'width:90vw;height:80vh;background:#141414;border:1px solid #333;border-radius:10px;display:flex;flex-direction:column;overflow:hidden'
+    const bar = document.createElement('div')
+    bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid #2a2a2a'
+    const title = document.createElement('div')
+    title.textContent = '改动预览　' + String(p.file)
+    title.style.cssText = 'flex:1;color:#ddd;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'
+    title.title = String(p.file)
+    const btnCss2 = 'padding:4px 10px;background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:5px;cursor:pointer;font-size:12px'
+    const jump = document.createElement('button')
+    jump.id = 'patchDiffJump'
+    jump.textContent = '跳到修改位置'
+    jump.style.cssText = btnCss2
+    jump.onclick = () => {
+      Promise.resolve(openFile(p.file)).then(() => {
+        const line = Number.isFinite(opts.line) ? opts.line : null
+        if (line && editor && typeof editor.revealLineInCenter === 'function') {
+          editor.revealLineInCenter(line)
+          if (typeof editor.setPosition === 'function') editor.setPosition({ lineNumber: line, column: 1 })
+        }
+        mask.remove()
+      }).catch(() => { mask.remove() })
+    }
+    const close = document.createElement('button')
+    close.textContent = '关闭'
+    close.style.cssText = btnCss2
+    close.onclick = () => {
+      mask.remove()
+      try { if (window.__patchDiffEditor) window.__patchDiffEditor.dispose() } catch (_) { /* 释放失败不影响关闭 */ }
+      window.__patchDiffEditor = null
+    }
+    bar.appendChild(title); bar.appendChild(jump); bar.appendChild(close)
+
+    const host = document.createElement('div')
+    host.id = 'patchDiffHost'
+    host.style.cssText = 'flex:1;min-height:0'
+    card.appendChild(bar); card.appendChild(host)
+    mask.appendChild(card)
+    document.body.appendChild(mask)
+
+    try {
+      const VC = window.monaco || monaco
+      window.__patchDiffEditor = VC.editor.createDiffEditor(host, {
+        readOnly: true,
+        originalEditable: false,
+        renderSideBySide: true,
+        automaticLayout: true,
+        fontSize: 12,
+      })
+      const lang = p.language || opts.language || 'plaintext'
+      const base = 'inmemory://patch-diff/' + Date.now().toString(36) + '/'
+      window.__patchDiffEditor.setModel({
+        original: VC.editor.createModel(oldText, lang, VC.Uri.parse(base + 'old.' + lang)),
+        modified: VC.editor.createModel(newText, lang, VC.Uri.parse(base + 'new.' + lang)),
+      })
+    } catch (e) {
+      return { ok: false, error: 'diff 渲染失败：' + String((e && e.message) || e), mask: 'patchDiffMask' }
+    }
+    return { ok: true, file: p.file, diff: true, host: 'patchDiffHost', mask: 'patchDiffMask' }
+  },
+
   // PH3-IDE-01/02：IDE 侧上下文（当前文件 / 选区）的只读视图。
   // openFile 走的是**真实路径**（与文件树点击同一条），不是测试专用捷径。
   editor: {
     openFile: (p) => openFile(p),
+    // PH3-IDE-06：把补丁显示成 Monaco diff（只读预览；落盘仍走 P8 的确认）
+    showPatchDiff: (patch, opts) => window.moonbitIDE.patchDiff(patch, opts),
     activeFile: () => activeFileOf(),
     selection: () => selectionOf(),
     // 选中若干行（1-based，含端点）。产品入口"选中代码 → Ask Agent"要用；

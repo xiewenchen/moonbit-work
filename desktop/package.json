@@ -32,7 +32,8 @@
     "verify:agent-request": "electron verify-agent-request.js",
     "verify:agent-e2e": "electron verify-agent-e2e.js",
     "check:local-chk": "node ../tools/check-local-chk.js --ci",
-    "verify:panels-smoke": "electron verify-panels-smoke.js"
+    "verify:panels-smoke": "electron verify-panels-smoke.js",
+    "verify:patch-diff": "electron verify-patch-diff.js"
   },
   "devDependencies": {
     "@xterm/addon-fit": "0.10.0",
