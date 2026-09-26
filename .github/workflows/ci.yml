@@ -105,6 +105,7 @@ jobs:
           node test-agent-adapter.js    # P9B：AI Adapter + MockLLM（不依赖真实 API 额度）
           node test-agent-security.js   # PH3-SEC：命令注入 / 工具超时 / 无限循环 / Cancel
           node test-workspace.js       # PH3-WS：工作空间身份（规范化）/ 一致性 / 删除只删元数据
+          node test-memory-schema.js  # PH3-MEM：记忆 schema / 候选确认 / 检索不注入无关 / 跨项目隔离
           node test-session.js          # P10：会话与项目绑定（含禁止跨项目污染）
           node test-project-memory.js   # P11：项目级记忆（规则写保护 / 检索只给相关的 / 压缩）
           node test-backend-context.js  # P14：BackendProjectContext（端口只从能指着说的来源推）
