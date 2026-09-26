@@ -82,8 +82,10 @@ jobs:
         run: node tools/audit-desktop-security.js --ci
 
       - name: No new local chk
-        run: node tools/check-local-chk.js --ci
+        run: |
+          node tools/check-local-chk.js --ci
           node tools/check-handler-refs.js --ci      # 事件处理器引用：点了不会静默没反应
+          node tools/audit-ipc.js --ci               # PH3-IPC：未配对的 invoke（调了没人实现 = 点了没反应）
 
       - name: Desktop IDE logic tests
         run: |
