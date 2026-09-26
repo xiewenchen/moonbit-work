@@ -408,3 +408,27 @@ opencode 只是 transport 的一种实现。
 
 让 `agent-adapter.js` 使用这个 transport，使 **adapter 成为唯一出口**，UI 与 Agent Runtime 只认 adapter。
 当前 adapter 仍只走 HTTP，与 transport 尚未汇合 —— 所以 **AI-03 整体仍未 PASS**。
+
+---
+
+## 15. PH3-REL：发布前工程治理（2026-09-26）
+
+`tools/audit-release.js` + 基线 `tools/release-baseline.json`，已挂 CI。
+**79 个模块，真缺口 9 个（新增 0）** —— 其余模块要么有 `test-*`，要么有 `verify-*`，
+要么被别的测试 `require` 过。
+
+### 这个工具最花心思的两处是**判据**
+
+1. **分类**：`*-main.js` 是接线层（由 verify 覆盖）、`e2e-*`/`probe-*` 是工具脚本 ——
+   对它们要求单测是错的。不分类会报出一堆假缺口。
+2. **"没有同名测试文件" ≠ "没被测"**：第一版把 `mock-llm.js` 报成新缺口，
+   而它被 `test-agent-adapter.js` 直接 require 并断言了行为。加了 `referencedByTest`
+   之后新增缺口从 1 变 0。
+
+> 假缺口与假绿一样有害 —— **它会让人开始不信这个工具**。
+
+### PHASE3.md 本身（REL-10）
+
+本文件即 REL-10 的产物：§1 冻结现状、§2 当前 Phase 与第一批任务结论、
+§4 红灯与 SKIP、§6 需用户决策的阻塞项、§7 已知风险，
+以及各阶段的实现记录（§8-§15）。任何"完成了"的说法以本文件为准。

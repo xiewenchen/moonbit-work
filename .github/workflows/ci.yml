@@ -80,6 +80,7 @@ jobs:
       # P17：桌面安全审计（IPC 清单 / 高危入口 / Electron 开关 / 浮动依赖），高危项只减不增
       - name: Desktop security audit
         run: node tools/audit-desktop-security.js --ci
+          node tools/audit-release.js --ci       # PH3-REL：新模块必须有测试（接线层/工具脚本除外）
 
       - name: No new local chk
         run: |

@@ -1,0 +1,15 @@
+{
+  "note": "PH3-REL-01 的存量缺口（冻结，只减不增）",
+  "gaps": [
+    "aiagent.js",
+    "d17.js",
+    "d18.js",
+    "fsops.js",
+    "holidays.js",
+    "icons.js",
+    "lsp-manager.js",
+    "moonbit-lang.js",
+    "translate-strapi.js"
+  ],
+  "frozenAt": "2026-09-26"
+}
