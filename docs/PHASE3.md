@@ -37,7 +37,7 @@
 | PH3-V-02 迁移第一个 `chk` | **PASS（Phase 2.1 已完成）** | 34 个脚本已迁到 `verify-harness.js`；局部定义归零 |
 | PH3-V-19 验证器反向测试 | **PASS** | `test-verify-harness.js` 36/0，含 `chk([])` / `chk({})` → FAIL |
 | PH3-AI-01 确认 AI Adapter 接口 | **PASS** | 见 §5.1 |
-| PH3-AI-03 确定唯一 Provider→Adapter 路径 | **FAIL（真发现）** | 目前**存在两条路**，见 §5.2 |
+| PH3-AI-03 确定唯一 Provider→Adapter 路径 | **进行中（第 1/2 步 PASS）** | 已把 opencode 收成可复用 transport（`opencode-transport.js` 32/0）并让 `agent.js` 走它；**剩「adapter 接 transport」未做**，见 §5.4 |
 | PH3-AI-05 API Key 生命周期审查 | **PASS（修了 3 处）** | 见 §5.3 |
 | PH3-AI-06 错误脱敏 | **PASS（本轮加固）** | 6/6 用例 + 3 条新断言 |
 | PH3-AI-07 真实 Provider 连接测试 | **NOT_RUN** | **需要用户提供 Provider**（见 §6） |
@@ -161,3 +161,34 @@ Ollama                          → 未安装 / 未运行
 3. **`0.2.0-alpha` 不升 beta**：因为"Agent 用**真实 LLM** 端到端修好一个项目"仍未验证（正是 §6）。
 4. **`verify:desktop` 的 `&&` 串联**（R11）—— 可能掩盖后续脚本失败。
 5. **P3-12 未做**（DEFERRED-BY-DESIGN）—— 集成终端不与 Command Registry 打通。
+
+---
+
+## 8. PH3-AI-03 进展：opencode 已收成 transport（2026-09-26）
+
+清单描述的是「UI / Agent / Provider 三处各自直连」。**实测比这更具体**：
+
+- **生产实际只有一条路**：`UI(aiagent.js:196) → IPC agent:run → agent.js → spawn opencode`
+- **`agent-adapter.js` 只被 `mock-llm.js` 与测试使用** —— 生产环境**没人用**（与 `buildAgentContext` 同型的「建好未接」）
+
+### 已做（第 1 步：等价抽取 + 单测）
+
+新建 `desktop/opencode-transport.js`，把原先内联在 `agent.js` 里的三样搬出来并变成可测的纯逻辑：
+事件解析（四种事件）、`--format json` 参数组装、启动与续接 id。
+`agent.js` 的 `agent:run` 改为调 `runOpencodeOnce`，**行为等价**。
+
+- 新测试 `test-opencode-transport.js` **32/0**（含「`--format json` 必须带」、「close 事件带回 sessionId」、
+  「找不到 opencode 时错误文案与原文一致」），已挂 CI（12 steps）。
+- `agent.js` 里内联的 `JSON.parse(line)` 残留 **0**；`verify-agent-config` 真跑 **9/0**；纯 Node 全量 **40 个**。
+- 测试样本**取自 `agent.js` 里的实测注释**，不是我想象的格式。
+
+### ★ 抽取时差点丢掉的副作用
+
+原实现靠**每个事件里的 `sessionID`** 做多轮续接。我第一版没把它带出去（只取了 `text`/`tool`/`meta`/`error`）——
+**「行为一字不改」需要逐条核对，而不是感觉上一样**。为此补了断言：
+「事件里带 sessionId」+「只有 sessionID、没有内容的事件也要传出去」。
+
+### 还剩（第 2 步）
+
+让 `agent-adapter.js` 使用这个 transport，使 **adapter 成为唯一出口**，UI 与 Agent Runtime 只认 adapter。
+当前 adapter 仍只走 HTTP，与 transport 尚未汇合 —— 所以 **AI-03 整体仍未 PASS**。
