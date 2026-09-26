@@ -14,7 +14,7 @@ const path = require('path')
 const os = require('os')
 
 const { createHarness } = require('./verify-harness')
-const { createAdapter, normalizeResponse, runToolLoop } = require('./agent-adapter')
+const { createAdapter, normalizeResponse, runToolLoop, lastUserText } = require('./agent-adapter')
 const { createMockLlm, scenarios } = require('./mock-llm')
 const { createReadOnlyToolRegistry } = require('./agent-tools')
 const { createPatch, analyzePatch, renderPatchPreview, applyPatch } = require('./agent-patch')
@@ -262,6 +262,44 @@ async function main() {
     })
     const bj = await badJson.generate([])
     chk('★ 非 JSON 响应里的 Key 也被脱敏', bj.ok === false && !String(bj.error).includes('sk-json-abcdef123456'), String(bj.error).slice(0, 120))
+
+    // ★ PH3-AI-03：adapter 成为**唯一出口** —— 两种 transport 的返回结构必须一致，
+    //   这样 UI / Agent Runtime 只需认 adapter，不必知道底层是 HTTP 还是 opencode。
+    const ocChild = {
+      pid: 7,
+      stdout: { on: (n, cb) => { if (n === 'data') ocChild._o = cb } },
+      stderr: { on: (n, cb) => { if (n === 'data') ocChild._e = cb } },
+      on: (n, cb) => { if (n === 'close') ocChild._c = cb },
+    }
+    const ocAd = createAdapter({
+      transport: 'opencode',
+      provider: { model: 'm' },
+      opencode: { spawn: () => ocChild, resolveSpawn: (b, a) => ({ bin: b, args: a, shell: false }), findBin: () => '/x/opencode' },
+    })
+    const pending = ocAd.generate([{ role: 'user', content: '你好' }])
+    await new Promise((r) => setTimeout(r, 10))
+    ocChild._o(Buffer.from('{"type":"text","part":{"type":"text","text":"嗡"},"sessionID":"ses_1"}\n'))
+    ocChild._c(0)
+    const ocRes = await pending
+    chk('★ transport:opencode 能 generate（结构与 http 一致）', ocRes.ok === true && ocRes.text === '嗡', JSON.stringify(ocRes).slice(0, 140))
+    chk('  标了 via:opencode 且带回 sessionId', ocRes.via === 'opencode' && ocRes.sessionId === 'ses_1', JSON.stringify({ via: ocRes.via, sid: ocRes.sessionId }))
+    chk('  也具备 text/toolCalls/usage 字段（与 http 同形）', Array.isArray(ocRes.toolCalls) && 'usage' in ocRes)
+
+    // 没装 opencode → 明确失败，**而不是挂住**
+    const ocBad = createAdapter({ transport: 'opencode', provider: { model: 'm' }, opencode: { spawn: () => {}, findBin: () => null } })
+    const ocBadRes = await ocBad.generate([{ role: 'user', content: 'x' }])
+    chk('★ 没装 opencode → ok:false（不挂住）', ocBadRes.ok === false && /未找到 opencode/.test(ocBadRes.error), String(ocBadRes.error).slice(0, 90))
+
+    chk('transport:opencode 缺依赖 → 构造即抛', (() => {
+      try { createAdapter({ transport: 'opencode', provider: { model: 'm' } }); return false } catch (e) { return true }
+    })())
+    chk('transport 默认仍是 http（旧路径不变）', (() => {
+      try { createAdapter({ provider: { baseUrl: 'u', model: 'm' } }); return false } catch (e) { return /request/.test(String(e.message)) }
+    })())
+
+    chk('lastUserText 取最后一条 user', lastUserText([{ role: 'user', content: 'a' }, { role: 'assistant', content: 'b' }, { role: 'user', content: 'c' }]) === 'c')
+    chk('lastUserText 支持 content 数组', lastUserText([{ role: 'user', content: [{ type: 'text', text: 'x' }, { type: 'text', text: 'y' }] }]) === 'x\ny')
+    chk('lastUserText 空输入不炸', lastUserText(null) === '' && lastUserText([]) === '')
   }
 
   console.log('\n=== ⑧ P9B-08 无限规划必须被**预算**截断 ===')

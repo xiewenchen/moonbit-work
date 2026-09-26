@@ -83,6 +83,23 @@ function buildBody(provider, messages, opts = {}) {
  * @param {(url:string, opts:object, onDelta:(s:string)=>void) => Promise<{status:number, error?:string}>} [deps.requestStream]
  * @param {(ms:number) => Promise<any>} [deps.sleep]
  */
+const { runOpencodeOnce } = require('./opencode-transport')
+
+/** 从消息列表里取最后一条 user 文本（opencode CLI 只收一个 prompt 字符串）。 */
+function lastUserText(messages) {
+  const arr = Array.isArray(messages) ? messages : []
+  for (let i = arr.length - 1; i >= 0; i--) {
+    const m = arr[i]
+    if (!m || m.role !== 'user') continue
+    if (typeof m.content === 'string') return m.content
+    if (Array.isArray(m.content)) {
+      const parts = m.content.filter((p) => p && p.type === 'text').map((p) => p.text)
+      if (parts.length) return parts.join('\n')
+    }
+  }
+  return ''
+}
+
 function createAdapter(deps = {}) {
   const provider = deps.provider || {}
   const request = deps.request
@@ -90,18 +107,70 @@ function createAdapter(deps = {}) {
   const timeoutMs = Number.isFinite(deps.timeoutMs) ? deps.timeoutMs : DEFAULT_TIMEOUT_MS
   // 调用方可注入更严格的脱敏；不注入也有内置底线（见 defaultRedact）
   const redact = typeof deps.redact === 'function' ? deps.redact : defaultRedact
+  // PH3-AI-03：adapter 成为**唯一出口**，底层有两种传输实现。
+  //   'http'     —— 自己发 POST {baseUrl}/chat/completions（默认，行为与以前完全一致）
+  //   'opencode'  —— 交给 opencode CLI（opencode-transport.js）
+  // 这样 UI 与 Agent Runtime 只需认 adapter，不再自己 spawn。
+  const transport = deps.transport === 'opencode' ? 'opencode' : 'http'
 
-  if (typeof request !== 'function') throw new Error('createAdapter 需要注入 request')
-  if (!provider.baseUrl || !provider.model) throw new Error('provider 缺少 baseUrl 或 model')
+  if (transport === 'http' && typeof request !== 'function') throw new Error('createAdapter 需要注入 request')
+  if (transport === 'http' && (!provider.baseUrl || !provider.model)) throw new Error('provider 缺少 baseUrl 或 model')
+  if (transport === 'opencode' && !deps.opencode) throw new Error("transport:'opencode' 需要注入 opencode 依赖")
 
-  const endpoint = joinUrl(provider.baseUrl, 'chat/completions')
+  // ⚠️ opencode transport 不一定要 baseUrl（它读自己的配置）—— 所以这里不能无条件算。
+  const endpoint = (provider.baseUrl ? joinUrl(provider.baseUrl, 'chat/completions') : null)
   const headers = () => {
     const h = { 'Content-Type': 'application/json' }
     if (provider.apiKey) h.Authorization = 'Bearer ' + provider.apiKey
     return h
   }
 
+  /**
+   * transport:'opencode' —— 把一次"对话"交给 opencode CLI，收齐文本后返回。
+   * 返回结构与 http transport **保持一致**，所以调用方（Agent Runtime / UI）无需分支。
+   *
+   * ⚠️ opencode 是**流式**的：这里把 text 事件累积起来，等 end 再 resolve。
+   *    若有 opts.onDelta，顺便转出去（让上层仍能流式显示）。
+   */
+  async function callViaOpencode(messages, opts = {}) {
+    const oc = deps.opencode || {}
+    const prompt = lastUserText(messages)
+    const texts = []
+    const done = await new Promise((resolve) => {
+      const r = runOpencodeOnce(
+        { spawn: oc.spawn, resolveSpawn: oc.resolveSpawn, findBin: oc.findBin },
+        {
+          prompt,
+          model: provider.model,
+          sessionId: oc.sessionId,
+          cwd: oc.cwd,
+          onEvent: (ev) => {
+            if (ev.type === 'text') {
+              texts.push(ev.text)
+              if (typeof opts.onDelta === 'function') opts.onDelta(ev.text)
+            } else if (ev.type === 'end') {
+              resolve(ev)
+            }
+          },
+        },
+      )
+      // 启动就失败（没装 opencode / spawn 抛错）→ 直接 resolve，不能一直等
+      if (r.ok !== true) resolve({ ok: false, error: r.error, missing: r.missing })
+    })
+    if (done && done.ok === false) return { ok: false, error: redact(String(done.error || 'opencode 执行失败')) }
+    return {
+      ok: true,
+      text: texts.join(''),
+      toolCalls: [],
+      usage: null,
+      model: provider.model,
+      via: 'opencode',
+      sessionId: (done && done.sessionId) || null,
+    }
+  }
+
   async function callOnce(messages, opts) {
+    if (transport === 'opencode') return callViaOpencode(messages, opts)
     const r = await request(endpoint, {
       method: 'POST',
       headers: headers(),
@@ -244,4 +313,4 @@ async function runToolLoop(deps = {}) {
   return { ok: false, error: '达到最大步数（' + maxSteps + '）', steps, modelCalls, stopped: 'maxSteps' }
 }
 
-module.exports = { createAdapter, normalizeResponse, buildBody, joinUrl, DEFAULT_TIMEOUT_MS, runToolLoop, defaultRedact }
+module.exports = { createAdapter, normalizeResponse, buildBody, joinUrl, DEFAULT_TIMEOUT_MS, runToolLoop, defaultRedact, lastUserText }
