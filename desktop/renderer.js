@@ -2477,6 +2477,32 @@ window.moonbitIDE = {  openProject: (dir) => boot(dir),      // 等价于用户�
     return { ok: true, file: p.file, diff: true, host: 'patchDiffHost', mask: 'patchDiffMask' }
   },
 
+  // PH3-OFFICE：办公与工程的融合接口（关联 Task / 便签→Context / 待办→Agent 任务）
+  // ⚠️ 实现来自 <script src="./office-fusion.js"> 注入的 window.moonbitOfficeFusion
+  officeFusion: (() => {
+    const F = () => {
+      const f = window.moonbitOfficeFusion
+      if (!f) throw new Error('office-fusion.js 未注入（检查 translate-strapi.js 的注入列表）')
+      return f
+    }
+    return {
+      scope: () => F().FUSION_SCOPE,
+      linkToTask: (link, taskId) => F().linkToTask(link, taskId),
+      linksOfTask: (links, taskId) => F().linksOfTask(links, taskId),
+      noteToContext: (note, opts) => F().noteToContext(note, opts),
+      // PH3-OFFICE-06：待办 → Agent 任务（界面上就是"Start with Agent"）
+      todoToTask: (todo, opts) => F().todoToAgentTask(todo, opts),
+      calendarToTask: (ev, opts) => F().calendarToProjectTask(ev, opts),
+      buildContext: (input) => F().buildOfficeContext(input),
+      // 直接发起（拿着待办的目标去问 Agent，不替用户编话术）
+      startFromTodo: async (todo, projectRoot) => {
+        const r = F().todoToAgentTask(todo, { projectRoot })
+        if (r.ok !== true) return r
+        const req = await buildAgentRequest(r.prompt)
+        return { ok: true, task: r.task, request: req }
+      },
+    }
+  })(),
   // PH3-UI：信息架构（三层分层 / 入口统计 / 状态徽标文本）
   // ⚠️ 实现来自 <script src="./ui-hierarchy.js"> 注入的 window.moonbitUiHierarchy
   ui: (() => {
