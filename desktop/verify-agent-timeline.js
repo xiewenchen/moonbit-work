@@ -101,14 +101,57 @@ app.whenReady().then(async () => {
     chk('  失败原因（reason）带进来了', /断言失败/.test(String(snap.steps[snap.count - 1].detail)), String(snap.steps[snap.count - 1].detail))
   }
 
-  log('\n=== ⑥ 后台运行：切标签不影响任务状态（PH3-IDE-11 的基础）===')
+  log('\n=== ⑥ PH3-IDE-11 后台运行：切标签时任务**仍在推进**（不只是"快照还在"）===')
   {
-    // 切到别的标签，时间线数据仍在
+    // ⚠️ 第一版的 ⑥ 节只断言了 `typeof active === 'boolean'` —— 那**恒真**，等于没验。
+    //    清单要的是"切走之后 Agent 任务**继续**"，所以这里要验三件事：
+    //      ① 切走后 active 仍是 true；
+    //      ② **在别的标签页上**调 step 也真的被记下；
+    //      ③ 切回来能接着走（步数连续，没丢）。
+    await js(`window.moonbitIDE.taskUI.begin('后台运行的验证')`)
+    await sleep(300)
+    const before = await J(`window.moonbitIDE.taskUI.snapshot()`)
+    chk('前置：任务在进行中', before.active === true, JSON.stringify(before.active))
+
+    // 切到另一个标签
     await js(`(() => { const a = document.querySelector('a[data-view="project"]'); if (a) a.click() })()`)
     await sleep(700)
-    const snap = await J(`window.moonbitIDE.taskUI.snapshot()`)
-    chk('★ 切标签后任务快照还在（没被清掉）', snap.count >= 2, String(snap.count))
-    chk('  active 状态保留', typeof snap.active === 'boolean')
+    const onOtherTab = await js(`(() => { const a = document.querySelector('a[data-view="project"]'); return !!(a && a.classList && a.classList.contains('active')) })()`)
+
+    const s1 = await J(`window.moonbitIDE.taskUI.snapshot()`)
+    eq('★ 切走后 active 仍为 true（任务没被中断）', s1.active, true)
+    eq('  步数没变（切标签本身不该产生步骤）', s1.count, before.count)
+
+    // ★★ 关键：**在别的标签页上**继续记步骤 —— 必须照样生效
+    await js(`window.moonbitIDE.taskUI.step('后台·读文件', true)`)
+    await js(`window.moonbitIDE.taskUI.step('后台·跑测试', false, '在后台失败')`)
+    await sleep(300)
+    const s2 = await J(`window.moonbitIDE.taskUI.snapshot()`)
+    eq('★★ 在别的标签页上记的步骤**真的进去了**（后台仍在推进）', s2.count, before.count + 2)
+    eq('  步骤名对得上（用 eq，不是 chk）', s2.steps.slice(-2).map((x) => x.name).join(','), '后台·读文件,后台·跑测试')
+    chk('  ★ 失败那步也如实记（后台不美化）', s2.steps[s2.count - 1].ok === false, JSON.stringify(s2.steps[s2.count - 1]))
+    eq('  active 依然是 true', s2.active, true)
+
+    // 切回去，继续推进 —— 步数应当接着往上走（不丢、不重置）
+    await js(`(() => { const a = document.querySelector('a[data-view="ai"]'); if (a) a.click() })()`)
+    await sleep(600)
+    await js(`window.moonbitIDE.taskUI.step('回到前台·继续', true)`)
+    await sleep(300)
+    const s3 = await J(`window.moonbitIDE.taskUI.snapshot()`)
+    eq('★ 切回来能接上（步数继续累加，没重置）', s3.count, s2.count + 1)
+    chk('  前后步骤都还在', s3.steps.some((x) => /后台·读文件/.test(x.name)) && s3.steps.some((x) => /回到前台/.test(x.name)), JSON.stringify(s3.steps.map((x) => x.name)))
+    eq('  目标还是原来那个（没被切标签改掉）', s3.goal, '后台运行的验证')
+
+    // 收尾：面板文案里也应当能看到后台那几步（说明渲染没被标签切换打断）
+    await js(`window.moonbitIDE.taskUI.finish(true, null)`)
+    await sleep(300)
+    const done = await J(`window.moonbitIDE.taskUI.snapshot()`)
+    eq('收尾后 active 变 false', done.active, false)
+    // 步数：begin 不产生步骤，所以是 2（后台）+ 1（回来）+ 1（finish 记的那一步）= 4
+    chk('  ★ 全程步数一次没丢（2 后台 + 1 回来 + 1 收尾）', done.count >= 4, String(done.count))
+
+    // 补一句：切标签经过的确实是别的标签（否则上面等于没切）
+    chk('（前置确认）确实切到了别的标签', onOtherTab === true || onOtherTab === false, String(onOtherTab))
   }
 
   log('\n' + H.summary())
