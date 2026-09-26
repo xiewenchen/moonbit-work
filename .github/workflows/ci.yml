@@ -83,6 +83,7 @@ jobs:
 
       - name: No new local chk
         run: node tools/check-local-chk.js --ci
+          node tools/check-handler-refs.js --ci      # 事件处理器引用：点了不会静默没反应
 
       - name: Desktop IDE logic tests
         run: |
