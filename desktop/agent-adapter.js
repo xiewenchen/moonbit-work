@@ -130,7 +130,9 @@ function createAdapter(deps = {}) {
    * 返回结构与 http transport **保持一致**，所以调用方（Agent Runtime / UI）无需分支。
    *
    * ⚠️ opencode 是**流式**的：这里把 text 事件累积起来，等 end 再 resolve。
-   *    若有 opts.onDelta，顺便转出去（让上层仍能流式显示）。
+   *    - `opts.onDelta`  只收增量文本（与 http transport 的 stream 一致）
+   *    - `opts.onEvent`  收**原始事件**（tool / meta / error …）—— UI 要显示"agent 干了什么"
+   *      （PH3-AI-03 第 3 步：agent:run 改成经 adapter 后，这些事件必须仍能到达界面）
    */
   async function callViaOpencode(messages, opts = {}) {
     const oc = deps.opencode || {}
@@ -145,6 +147,7 @@ function createAdapter(deps = {}) {
           sessionId: oc.sessionId,
           cwd: oc.cwd,
           onEvent: (ev) => {
+            if (typeof opts.onEvent === 'function') opts.onEvent(ev)
             if (ev.type === 'text') {
               texts.push(ev.text)
               if (typeof opts.onDelta === 'function') opts.onDelta(ev.text)
@@ -155,7 +158,10 @@ function createAdapter(deps = {}) {
         },
       )
       // 启动就失败（没装 opencode / spawn 抛错）→ 直接 resolve，不能一直等
+      // ⚠️ 也在这里把 child 同步交给调用方：IPC 的 agent:run 必须**立即**返回 pid
+      //    （agent:stop 靠它），不能等 generate() 的 Promise resolve。
       if (r.ok !== true) resolve({ ok: false, error: r.error, missing: r.missing })
+      else if (typeof oc.onSpawn === 'function') oc.onSpawn(r.child, r.pid)
     })
     if (done && done.ok === false) return { ok: false, error: redact(String(done.error || 'opencode 执行失败')) }
     return {

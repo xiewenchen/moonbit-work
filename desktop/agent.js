@@ -15,10 +15,10 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const { rootOfInput } = require('./project-context')
-// PH3-AI-03：opencode 退化为 adapter 的一个**传输实现** ——
-// 事件解析/续接 id/--format json 这些原先散在本文件里的逻辑，现在住在 opencode-transport.js。
-// 本文件只负责把它接到 IPC 与事件推送上。
-const { runOpencodeOnce } = require('./opencode-transport')
+// PH3-AI-03：opencode 退化为 adapter 的一个**传输实现**。
+// agent:run 现在只认 adapter —— 不再自己 spawn、不再自己解析事件。
+// （事件解析/续接 id/--format json 的逻辑住在 opencode-transport.js，由 adapter 调用。）
+const { createAdapter } = require('./agent-adapter')
 
 const CFG_DIR = path.join(os.homedir(), '.config', 'opencode')
 // opencode 官方推荐 .jsonc（可写注释），但也支持 .json —— 两个都要找。
@@ -143,35 +143,47 @@ function registerAgentIpc({ getWindow }) {
     if (current) { try { current.kill() } catch (_) {} current = null }
     send('agent:start', { prompt: String(prompt || ''), bin: findOpencode() })
     let sid = sessionId || ''
-    // 行为等价替换：原先这里是内联的"起进程+按行解析 JSON"这一大段，
-    // 现在交给 runOpencodeOnce（可单测）；本函数只把事件转成 IPC 推送。
-    const r = runOpencodeOnce(
-      { spawn, resolveSpawn, findBin: findOpencode },
-      {
-        prompt,
-        cwd: rootOfInput(cwd) || process.cwd(),
-        model,
+    let spawned = null
+    // PH3-AI-03 第 3 步：UI 不再直接 spawn，而是**只认 adapter**。
+    // transport:'opencode' 是 adapter 的一种实现 —— 以后换成 http 直连，这里一行都不用改。
+    const adapter = createAdapter({
+      transport: 'opencode',
+      provider: { model },
+      opencode: {
+        spawn,
+        resolveSpawn,
+        findBin: findOpencode,
         sessionId,
+        cwd: rootOfInput(cwd) || process.cwd(),
+        // 同步拿 child：IPC 必须立即返回 pid（agent:stop 靠它）
+        onSpawn: (child, pid) => { spawned = { child, pid } },
+      },
+    })
+    adapter
+      .generate([{ role: 'user', content: String(prompt || '') }], {
         onEvent: (ev) => {
-          if (ev.type === 'end') {
-            sid = ev.sessionId || sid
-            send('agent:end', { ok: ev.ok === true, code: ev.code, sessionId: sid })
-            current = null
-            return
-          }
-          if (ev.type === 'error') { send('agent:data', { type: 'error', text: friendlyError(ev.error) }); return }
+          if (ev.type === 'end') { sid = ev.sessionId || sid; return }
           if (ev.sessionId) sid = ev.sessionId
           if (ev.type === 'session') return          // 只携带 id 的载体，不显示
+          if (ev.type === 'error') { send('agent:data', { type: 'error', text: friendlyError(ev.error) }); return }
           send('agent:data', ev)
         },
-      },
-    )
-    if (r.ok !== true) {
-      send('agent:end', { ok: false, error: r.error })
-      return { ok: false, error: r.error }
+      })
+      .then((r) => {
+        send('agent:end', { ok: r.ok === true, sessionId: sid, error: r.error || null })
+        current = null
+      })
+      .catch((e) => {
+        send('agent:end', { ok: false, error: String((e && e.message) || e) })
+        current = null
+      })
+
+    if (!spawned) {
+      // 没找到 opencode（或启动就失败）→ 如实返回，别假装起了进程
+      return { ok: false, error: '未找到 opencode 可执行文件（npm i -g opencode-ai 安装后重启 IDE）' }
     }
-    current = r.child
-    return { ok: true, pid: r.pid }
+    current = spawned.child
+    return { ok: true, pid: spawned.pid }
   })
 
   ipcMain.handle('agent:stop', () => {

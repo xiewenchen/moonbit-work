@@ -37,7 +37,7 @@
 | PH3-V-02 迁移第一个 `chk` | **PASS（Phase 2.1 已完成）** | 34 个脚本已迁到 `verify-harness.js`；局部定义归零 |
 | PH3-V-19 验证器反向测试 | **PASS** | `test-verify-harness.js` 36/0，含 `chk([])` / `chk({})` → FAIL |
 | PH3-AI-01 确认 AI Adapter 接口 | **PASS** | 见 §5.1 |
-| PH3-AI-03 确定唯一 Provider→Adapter 路径 | **进行中（第 1/2 步 PASS）** | 已把 opencode 收成可复用 transport（`opencode-transport.js` 32/0）并让 `agent.js` 走它；**剩「adapter 接 transport」未做**，见 §5.4 |
+| PH3-AI-03 确定唯一 Provider→Adapter 路径 | **PASS** | 三步做完：opencode 收成 transport（32/0）→ adapter 支持 transport（85/0）→ **`agent:run` 改为只认 adapter**（`runOpencodeOnce` 残留 0）。见 §5.4 |
 | PH3-AI-05 API Key 生命周期审查 | **PASS（修了 3 处）** | 见 §5.3 |
 | PH3-AI-06 错误脱敏 | **PASS（本轮加固）** | 6/6 用例 + 3 条新断言 |
 | PH3-AI-07 真实 Provider 连接测试 | **NOT_RUN** | **需要用户提供 Provider**（见 §6） |
@@ -199,7 +199,28 @@ Ollama                          → 未安装 / 未运行
 > 已改用公共 `verify-harness`（`chk(name, ok, detail)` 签名一致，改动极小）。
 > —— **Phase 2.1 建立的这套门禁，在本批第一次抓到的是它的作者。**
 
-### 还剩（第 3 步）
+### 还剩（第 3 步）—— **已完成**
+
+`agent.js` 的 `agent:run` 也改成**只认 adapter**：
+
+```js
+const adapter = createAdapter({ transport: 'opencode', provider: { model }, opencode: { spawn, resolveSpawn, findBin, sessionId, cwd, onSpawn } })
+adapter.generate([{ role: 'user', content: prompt }], { onEvent })
+```
+
+于是 `agent.js` 里 `runOpencodeOnce` 残留 **0**、`JSON.parse(line)` 残留 **0** ——
+**UI 不再自己 spawn、不再自己解析事件**，只认 adapter 的接口。
+
+过程中遇到一个**真实的接口约束**：IPC 必须**立即**返回 `pid`（`agent:stop` 靠它 kill），
+而 `adapter.generate()` 是 Promise。解法是给 opencode deps 加 `onSpawn(child, pid)` 同步回调
+（`new Promise` 的 executor 是同步跑的，所以它一定在 `generate()` 返回前触发）。
+另给 `opts.onEvent` 加了**原始事件透传** —— 否则 tool/meta 事件到不了界面。
+
+验证：`test-agent-adapter` 81 → **85/0**（新增 onSpawn 同步拿 pid、onEvent 收到 tool/meta。
+`verify-agent-config` 真跑 **9/0**；纯 Node **40 个**。
+
+**结论：PH3-AI-03 = PASS。** 唯一出口成立：`UI → adapter → transport → 模型`，
+opencode 只是 transport 的一种实现。
 
 让 `agent-adapter.js` 使用这个 transport，使 **adapter 成为唯一出口**，UI 与 Agent Runtime 只认 adapter。
 当前 adapter 仍只走 HTTP，与 transport 尚未汇合 —— 所以 **AI-03 整体仍未 PASS**。

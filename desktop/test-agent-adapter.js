@@ -300,6 +300,37 @@ async function main() {
     chk('lastUserText 取最后一条 user', lastUserText([{ role: 'user', content: 'a' }, { role: 'assistant', content: 'b' }, { role: 'user', content: 'c' }]) === 'c')
     chk('lastUserText 支持 content 数组', lastUserText([{ role: 'user', content: [{ type: 'text', text: 'x' }, { type: 'text', text: 'y' }] }]) === 'x\ny')
     chk('lastUserText 空输入不炸', lastUserText(null) === '' && lastUserText([]) === '')
+
+    // ★ PH3-AI-03 第 3 步：agent:run 改成只认 adapter，所以这两条通道必须可靠 ——
+    //   onSpawn（IPC 要**立即**拿 pid，agent:stop 靠它）
+    //   onEvent（UI 要看到"agent 干了什么"，tool/meta 不能丢）
+    let spawnedPid = null
+    const evTypes = []
+    const child3 = {
+      pid: 99,
+      stdout: { on: (n, cb) => { if (n === 'data') child3._o = cb } },
+      stderr: { on: () => {} },
+      on: (n, cb) => { if (n === 'close') child3._c = cb },
+    }
+    const ad3 = createAdapter({
+      transport: 'opencode',
+      provider: { model: 'm' },
+      opencode: {
+        spawn: () => child3,
+        resolveSpawn: (b, a) => ({ bin: b, args: a, shell: false }),
+        findBin: () => '/x/opencode',
+        onSpawn: (child, pid) => { spawnedPid = pid },
+      },
+    })
+    const p3 = ad3.generate([{ role: 'user', content: 'x' }], { onEvent: (e) => evTypes.push(e.type) })
+    chk('★ onSpawn 同步拿到 pid（IPC 必须立即返回）', spawnedPid === 99, String(spawnedPid))
+    await new Promise((r) => setTimeout(r, 10))
+    child3._o(Buffer.from('{"type":"tool","part":{"tool":"readFile"}}\n{"type":"step_finish","part":{"tokens":{"input":1}}}\n'))
+    child3._c(0)
+    await p3
+    chk('★ onEvent 收到了 tool 事件（UI 要显示 agent 干了什么）', evTypes.includes('tool'), JSON.stringify(evTypes))
+    chk('★ onEvent 收到了 meta 事件（用量统计）', evTypes.includes('meta'), JSON.stringify(evTypes))
+    chk('  onEvent 也收到了 end', evTypes.includes('end'), JSON.stringify(evTypes))
   }
 
   console.log('\n=== ⑧ P9B-08 无限规划必须被**预算**截断 ===')
