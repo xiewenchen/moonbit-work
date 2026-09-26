@@ -109,6 +109,7 @@ jobs:
           node test-session-view.js   # PH3-SESSION：标题/搜索/导出/回放（不泄漏思维链）
           node test-backend-profile.js # PH3-BE：Profile/状态机/OpenAPI 发现/错误进问题模型/健康进 Quality
           node test-db-context.js      # PH3-DB：连接状态/表结构进 Agent/历史/SELECT 草案必须过闸
+          node test-env-recovery.js    # PH3-ENV/REC：环境四态与 PATH 补全 / 异常退出不搬现场
           node test-session.js          # P10：会话与项目绑定（含禁止跨项目污染）
           node test-project-memory.js   # P11：项目级记忆（规则写保护 / 检索只给相关的 / 压缩）
           node test-backend-context.js  # P14：BackendProjectContext（端口只从能指着说的来源推）
