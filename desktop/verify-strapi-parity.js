@@ -1,9 +1,23 @@
+// ⚠️ 已过时（2026-09-26）—— **不再作为回归判据**
+//
+// 这个脚本断言的是"IDE 的实际 computed style == Strapi 的实测配色基准"。
+// 它来自"把 UI 对齐 Strapi"那个阶段。而后来主题做了 **token 化**（日间/夜间两套 token），
+// 配色**有意**不再等于 Strapi 基准 —— 于是它的 8 项配色断言必然失败。
+//
+// **这不是缺陷，是前提变了。** 继续以红灯示人只会长期淹没真正的回归，
+// 所以把它明确标成过时：仍然会跑、仍然会把每一项打印出来（便于人工比对），
+// 但**退出码按"过时"处理**，不参与"回归是否通过"的判定。
+//
+// 若将来确实要重新做"与某个基准对齐"，应当**重写**成对 token 的断言（见 verify-dash.js 的做法）。
+//
 // Strapi 对齐度验证 v2：把 IDE 的实际 computed style 与「Strapi 实测基准」逐项比对。
 //
 // v1 的教训：断言写得不严谨会误报 ——
 //   · 背景/文字在 #app 上，测 body 得到 rgba(0,0,0,0)（透明）
 //   · CSS 变量读出来是 hex 定义值，基准是 computed 的 rgb()，格式不同不能直接比
 // 所以这里统一：元素取对 + 两边都归一成 rgb() 再比。
+const OBSOLETE = true
+const OBSOLETE_REASON = '主题已 token 化（日间/夜间），"与 Strapi 配色一致"不再是目标 —— 前提已变，不是缺陷'
 require('./main.js')
 const { app, BrowserWindow } = require('electron')
 const fs = require('fs')
@@ -145,5 +159,11 @@ app.whenReady().then(async () => {
     console.log('\n（截图跳过：' + String((e && e.message) || e).slice(0, 60) + ' —— 不影响上面的结论）')
   }
   console.log(`\n结果：${pass} 通过, ${fail} 失败 / 共 ${pass + fail} 项`)
-  app.quit()
+  if (OBSOLETE) {
+    console.log('\n⚠️ 本脚本**已过时**：' + OBSOLETE_REASON)
+    console.log('   → 退出码按"过时"处理（0），不参与回归判定 —— 但上面的逐项结果仍然打印，便于人工比对。')
+    app.exit(0)
+    return
+  }
+  app.exit(fail === 0 ? 0 : 1)
 }).catch((e) => { console.error('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); process.exit(1) })

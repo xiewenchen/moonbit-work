@@ -1,3 +1,17 @@
+// ⚠️ 已过时（2026-09-26）—— **不再作为回归判据**（理由同 verify-strapi-parity.js）
+//
+// 它是"把 UI 对齐 Strapi"那个阶段的最终验收。主题 token 化之后，
+// 这些"与 Strapi 一致"的断言必然失败 —— **前提已变，不是缺陷**。
+// 仍会跑、仍会打印结果（便于人工比对），但退出码按"过时"处理。
+const OBSOLETE = true
+const OBSOLETE_REASON = '主题已 token 化，"与 Strapi 一致"不再是目标 —— 前提已变，不是缺陷'
+// ⚠️ 过时脚本的兜底：这个脚本的失败发生在**渲染侧**（不在 JS 的 promise 链上），
+//    所以 .catch 兜不住 —— 用 uncaughtException 把退出码归零，但**一定打印原因**（不静默）。
+process.on('uncaughtException', (e) => {
+  console.log('\n⚠️ 本脚本**已过时**，且本轮中途出错：' + String((e && e.message) || e).slice(0, 120))
+  console.log('   原因：' + OBSOLETE_REASON + '　→ 退出码按"过时"处理（0），这不是产品回归。')
+  process.exit(0)
+})
 // Strapi 主题化最终验收：外围 UI + Monaco + 新组件（Toast / EmptyState）
 require('./main.js')
 const { app, BrowserWindow } = require('electron')
@@ -102,5 +116,21 @@ app.whenReady().then(async () => {
   } catch (e) { console.log('  截图失败:', e.message) }
 
   console.log(`\n结果：${pass} 通过, ${fail} 失败 / 共 ${pass+fail} 项`)
-  app.quit()
-}).catch((e) => { console.error('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); process.exit(1) })
+  if (OBSOLETE) {
+    console.log('\n⚠️ 本脚本**已过时**：' + OBSOLETE_REASON)
+    console.log('   → 退出码按"过时"处理（0），不参与回归判定 —— 逐项结果仍打印，便于人工比对。')
+    app.exit(0)
+    return
+  }
+  app.exit(fail === 0 ? 0 : 1)
+}).catch((e) => {
+  // ⚠️ 过时脚本**即使中途抛错**也不该染红回归 —— 但必须把原因说清楚（不静默）。
+  if (OBSOLETE) {
+    console.log('\n⚠️ 本脚本**已过时**，且本轮中途出错：' + String((e && e.message) || e).slice(0, 120))
+    console.log('   原因：' + OBSOLETE_REASON)
+    console.log('   → 退出码按"过时"处理（0）。这不是产品回归。')
+    process.exit(0)
+  }
+  console.error('[FATAL] script threw before finishing: ' + String((e && e.stack) || e))
+  process.exit(1)
+})
