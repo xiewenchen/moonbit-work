@@ -188,7 +188,18 @@ Ollama                          → 未安装 / 未运行
 **「行为一字不改」需要逐条核对，而不是感觉上一样**。为此补了断言：
 「事件里带 sessionId」+「只有 sessionID、没有内容的事件也要传出去」。
 
-### 还剩（第 2 步）
+### ★ 门禁抓到了我自己（值得记）
+
+写 `test-opencode-transport.js` 时，我在文件里**自写了一份 `chk`**（还写了注释"本文件用自带断言"）——
+结果 `node tools/check-local-chk.js --ci` 直接报 **「当前带局部 chk：1 个；基线 0 个」**，
+而**我已经把它提交了**。
+
+> 这条最该记的不是"我错了"，而是**"理由"不能豁免门禁**：我当时确实有理由（想让这个测试保持
+> 零依赖、纯 Node）。但门禁的规则是"新增局部 chk = 0"，理由再充分也不该绕。
+> 已改用公共 `verify-harness`（`chk(name, ok, detail)` 签名一致，改动极小）。
+> —— **Phase 2.1 建立的这套门禁，在本批第一次抓到的是它的作者。**
+
+### 还剩（第 3 步）
 
 让 `agent-adapter.js` 使用这个 transport，使 **adapter 成为唯一出口**，UI 与 Agent Runtime 只认 adapter。
 当前 adapter 仍只走 HTTP，与 transport 尚未汇合 —— 所以 **AI-03 整体仍未 PASS**。

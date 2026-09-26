@@ -2,17 +2,16 @@
 //
 // 这些样本**取自 agent.js 里的实测注释**（不是我想象的格式）——
 // 先验真实输入再写断言，否则断言只是在测我的假设。
-require('./verify-harness')   // 仅确保 harness 存在（本文件用自带断言，保持纯 Node）
+//
+// ⚠️ 用公共 verify-harness（不要自带 chk）：PH3-V-18 的扫描器会直接抓出来
+//（本轮就抓到过一次 —— 我在这里自写了一份，基线从 0 变 1）。
+const { createHarness } = require('./verify-harness')
 const {
   parseOpencodeEvent, parseOpencodeChunk, sessionIdFrom, buildOpencodeArgs, runOpencodeOnce,
 } = require('./opencode-transport')
 
-let pass = 0, fail = 0
-const chk = (name, ok, detail) => {
-  if (typeof ok !== 'boolean') { fail++; console.log('  [FAIL] ' + name + '   chk 只接受布尔：' + JSON.stringify(ok)); return }
-  if (ok) { pass++; console.log('  [PASS] ' + name) }
-  else { fail++; console.log('  [FAIL] ' + name + (detail ? '  ' + detail : '')) }
-}
+const H = createHarness()
+const { chk } = H
 
 console.log('=== ① 事件解析：四种真实事件 ===')
 {
@@ -125,5 +124,5 @@ console.log('\n=== ⑤ runOpencodeOnce：注入依赖，不起真进程 ===')
   chk('非 0 退出 → ok:false 且带 code', events2.some((e) => e.type === 'end' && e.ok === false && e.code === 1))
 }
 
-console.log('\n结果：' + pass + ' 通过 / ' + fail + ' 失败 / 共 ' + (pass + fail) + ' 项')
-process.exit(fail === 0 ? 0 : 1)
+console.log('\n' + H.summary())
+process.exit(H.exitCode())
