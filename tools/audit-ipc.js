@@ -132,6 +132,29 @@ console.log('\n疑似重复（PH3-IPC-03：多个名字在说同一件事）：'
 if (!dups.length) console.log('  （无）')
 for (const d of dups) console.log('  ' + d.channels.join('  /  '))
 
+// ── PH3-IPC-10：返回结构合规率 ────────────────────────────────────────────────
+// ⚠️ 只**报告**、不阻断：旧代码有 400+ 处返回，一次改完不现实（也违反"一次一个"）。
+//    这里给出基线，配合"新代码必须用 ipc-result"这条约定逐步收口。
+const returns = []
+// ⚠️ files 是 scan() 内部的局部变量 —— 这里要自己读一次目录
+const jsFiles = fs.readdirSync(DIR).filter((n) => n.endsWith('.js') && !n.startsWith('test-') && !n.startsWith('verify-'))
+for (const f of jsFiles) {
+  const src = fs.readFileSync(path.join(DIR, f), 'utf8')
+  for (const m of src.matchAll(/return\s*(\{[^}]*ok\s*:\s*(?:true|false)[^}]*\})/g)) {
+    returns.push({ file: f, shape: m[1].replace(/\s+/g, ' ') })
+  }
+}
+const hasCode = returns.filter((r) => /code\s*:/.test(r.shape)).length
+const hasOk = returns.filter((r) => /ok\s*:/.test(r.shape)).length
+const hasData = returns.filter((r) => /data\s*:/.test(r.shape)).length
+const compliance = hasOk ? Math.round((hasCode / hasOk) * 100) : 0
+console.log('\nPH3-IPC-10 返回结构（统一为 {ok, code, error, data}）：')
+console.log('  带 ok 的返回：' + hasOk + ' 处')
+console.log('  其中带 code：' + hasCode + ' 处　→ 合规率约 ' + compliance + '%')
+console.log('  带 data 的：' + hasData + ' 处')
+console.log('  → 约定：**新代码用 ./ipc-result 的 ok()/fail()**；旧代码由本指标逐步收口（不要求一次改完）。')
+console.log('     只有 error 没有 code 时，界面只能按**文案**分支 —— 文案一改逻辑就坏。')
+
 console.log('\n结论：' + hChannels.length + ' 个入口，其中高危 ' + risky.filter((x) => /write|exec/.test(x.risk)).length +
   ' 个、疑似重复 ' + dups.length + ' 组、未配对 ' + unpairedInvokes.length + ' 个。')
 if (CI_MODE && unpairedInvokes.length) {

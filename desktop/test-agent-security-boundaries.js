@@ -55,7 +55,10 @@ const IO_NO_CONFIRM = {
   writeFile: async (abs, text) => { fs.writeFileSync(abs, text, 'utf8') },
 }
 const cleanup = () => {
-  for (const d of [WS, USERDIR]) { try { fs.rmSync(d, { recursive: true, force: true }) } catch (_) {} }
+  for (const d of [WS, USERDIR]) {
+    // 删不掉就算了：它们在系统 temp 里，不影响测试结论
+    try { fs.rmSync(d, { recursive: true, force: true }) } catch (_) { /* best-effort 清理 */ }
+  }
 }
 
 console.log('=== ① SEC-09 路径沙箱：workspace 外一律拒绝 ===')
