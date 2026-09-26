@@ -250,6 +250,8 @@ registerAgentRequestIpc({
   ipcMain,
   onLog: (e) => console.log('[agent]', JSON.stringify(e)),
   getWorkspace: () => agentTools.getWorkspace(),
+  // PH3-IDE-12/13：通知要推事件回渲染侧，所以需要窗口
+  getWindow: () => mainWindow,
 })
 
 // P10：会话（按项目绑定；存用户目录，不进项目）

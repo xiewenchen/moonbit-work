@@ -93,7 +93,8 @@ console.log('\n=== P5-08 单文件超长 → 截断并注明 ===')
 
 console.log('\n=== P5-09 优先级：预算不够时先丢低优先级 ===')
 {
-  chk('优先级顺序（清单：任务 > 问题 > 文件 > 项目结构 > 历史）', CONTEXT_PRIORITY.slice(0, 3), ['task', 'problems', 'activeFile'])
+  chk('优先级顺序（清单：任务 > **用户指着的问题** > 问题列表 > 文件 > 项目结构 > 历史）',
+    CONTEXT_PRIORITY.slice(0, 4), ['task', 'focusProblem', 'problems', 'activeFile'])
   const ctx = createAgentContext({
     task: 'T'.repeat(800),
     problems: Array.from({ length: 30 }, (_, i) => ({ severity: 'error', file: 'a.mbt', line: i + 1, message: '问题' + i })),

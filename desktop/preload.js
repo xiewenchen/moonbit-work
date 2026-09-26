@@ -116,6 +116,9 @@ contextBridge.exposeInMainWorld('moonAPI', {
   // ---- 验证闭环（P9）：改完自动证明没改坏 ----
   agentVerifyRun: (file) => ipcRenderer.invoke('agentVerify:run', { file }),
   agentVerifyLast: () => ipcRenderer.invoke('agentVerify:last'),
+  // PH3-IDE-12/13：任务完成/失败通知（主进程弹系统通知，并推回 agent:notified）
+  agentNotify: (payload) => ipcRenderer.invoke('agent:notify', payload || {}),
+  onAgentNotified: (cb) => ipcRenderer.on('agent:notified', (_e, p) => cb(p)),
   onAgentVerifyProgress: (cb) => {
     const h = (_e, p) => cb(p)
     ipcRenderer.on('agentVerify:progress', h)

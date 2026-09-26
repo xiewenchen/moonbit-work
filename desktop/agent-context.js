@@ -33,6 +33,9 @@ const AGENT_CONTEXT_LIMITS = Object.freeze({
  */
 const CONTEXT_PRIORITY = Object.freeze([
   'task',
+  // PH3-IDE-03：用户**指着**的那条问题 —— 排在 problems 列表之前，
+  // 因为它代表“这次就是冲着它问的”，不该淹没在一片问题里。
+  'focusProblem',
   'problems',
   'activeFile',
   'selection',
@@ -58,6 +61,10 @@ function createAgentContext(input = {}) {
     project: input.project || null,                       // ProjectContext（含 rootDir / projectType / label …）
     activeFile: input.activeFile || null,                 // { path, content, language }
     selection: input.selection || null,                   // { text, startLine, endLine }
+    // PH3-IDE-03：用户标定/指着的那条问题
+    // ⚠️ 没有 message 就不算一条问题 —— 与 agent-request 的 normalizeProblem 同一条判据。
+    //   两处判据必須一致，否则“入参被丢弃了但上下文里又冒出来”这种怪事会出现。
+    focusProblem: (input.focusProblem && input.focusProblem.message) ? input.focusProblem : null,
     problems: Array.isArray(input.problems) ? input.problems.slice() : [],
     lastRun: input.lastRun || null,                       // RunResult
     lastTest: input.lastTest || null,                     // { ok, name, output }
@@ -72,6 +79,17 @@ function renderPiece(key, ctx, limits) {
   switch (key) {
     case 'task':
       return ctx.task ? '## 当前任务\n' + ctx.task : null
+
+    // PH3-IDE-03：用户指着的那条问题。带位置时写成 `file:line`，行号拿不到就不写
+    //（编一个行号会让 Agent 去看错地方）。
+    case 'focusProblem': {
+      const f = ctx.focusProblem
+      if (!f || !f.message) return null
+      const where = f.file ? (f.file + (f.line == null ? '' : ':' + f.line)) : '（无文件位置）'
+      return '## 用户指着的这条问题\n- 位置：' + where +
+        (f.severity ? '（' + f.severity + '）' : '') +
+        '\n- 内容：' + f.message
+    }
 
     case 'problems': {
       if (!ctx.problems.length) return null

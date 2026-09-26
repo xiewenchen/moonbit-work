@@ -196,6 +196,57 @@ app.whenReady().then(async () => {
     chk('★ 清空选区后 selection 又为空（状态是真读的，不是缓存的）', !(s4.snapshot && s4.snapshot.selection))
   }
 
+  log('\n=== ⑩ PH3-IDE-04/05/12/13：Problem → 解释/修复 + 完成失败通知 ===')
+  {
+    // ① 问题面板上真的有「解释 / 修复」两个入口
+    const probe = path.join(ROOT, 'desktop', 'url-detect.js')
+    await js(`window.moonbitIDE.editor.openFile(${JSON.stringify(probe)})`)
+    await sleep(700)
+    // 造一条真实 Problem 灌进 Store，然后重渲染面板
+    await js(`(() => {
+      const P = window.MoonbitProblems
+      if (!P) return false
+      const st = window.moonbitIDE.problems
+      st.add([{ source: P.PROBLEM_SOURCE.COMPILER, severity: 'error', message: 'PH3 验证用的问题', file: ${JSON.stringify(probe)}, line: 3, column: 1 }])
+      window.moonbitIDE.problems.refresh && window.moonbitIDE.problems.refresh()
+      return true
+    })()`)
+    await js(`(() => { const b = document.querySelector('#problems') ? true : false; return b })()`)
+    // 直接触发一次面板重渲染（点问题标签）
+    await js(`(() => { const a = document.querySelector('a[data-view="problems"], a[data-view="project"]'); if (a) a.click(); return true })()`)
+    await sleep(600)
+    await js(`window.moonbitIDE.problems.refresh && window.moonbitIDE.problems.refresh()`)
+    await sleep(500)
+    const acts = JSON.parse(await js(`JSON.stringify(Array.from(document.querySelectorAll('#problems .diag-act')).map((b) => b.textContent))`))
+    chk('★ 问题行上有「解释」「修复」入口', acts.indexOf('解释') >= 0 && acts.indexOf('修复') >= 0, JSON.stringify(acts.slice(0, 6)))
+
+    // ② 点「解释」→ 请求里**带着那条问题**（focusProblem）
+    const r = JSON.parse(await js(`(async () => JSON.stringify(await window.moonbitIDE.agentRequest.askAbout({
+      file: 'a.mbt', line: 3, message: '下标越界', source: 'compiler', severity: 'error',
+    }, '帮我解释这条问题的原因，先不要改代码。')))()`))
+    chk('askAbout 成功', r.ok === true, JSON.stringify(r).slice(0, 140))
+    const fp = r.snapshot && r.snapshot.focusProblem
+    chk('★★ 快照里带上了那条问题（file/line/message/source）',
+      !!(fp && fp.file === 'a.mbt' && fp.line === 3 && /下标越界/.test(fp.message) && fp.source === 'compiler'),
+      JSON.stringify(fp))
+    chk('  sources 标为 ok（不是 absent）', !!(r.snapshot && r.snapshot.sources && r.snapshot.sources.focusProblem === 'ok'), JSON.stringify(r.snapshot && r.snapshot.sources))
+
+    // ③ 没有 message 的"问题"不算问题（不假装有）
+    const bad = JSON.parse(await js(`(async () => JSON.stringify(await window.moonbitIDE.agentRequest.build('x', { focusProblem: { file: 'a.mbt' } })))()`))
+    chk('★ 缺 message 的 focusProblem 被丢弃（不假装有）', !(bad.snapshot && bad.snapshot.focusProblem), JSON.stringify(bad.snapshot && bad.snapshot.focusProblem))
+
+    // ④ 不传时也不能凭空多出来
+    const none = JSON.parse(await js(`(async () => JSON.stringify(await window.moonbitIDE.agentRequest.build('随便问问')))()`))
+    chk('不传就没有 focusProblem', !(none.snapshot && none.snapshot.focusProblem), JSON.stringify(none.snapshot && none.snapshot.focusProblem))
+
+    // ⑤ PH3-IDE-12/13：通知能发出去（主进程侧返回 ok）
+    const n1 = JSON.parse(await js(`(async () => JSON.stringify(await window.moonAPI.agentNotify({ kind: 'done', title: 'Agent 已完成', body: '验证通过' })))()`))
+    chk('★ 完成通知发出（ok）', n1.ok === true, JSON.stringify(n1))
+    const n2 = JSON.parse(await js(`(async () => JSON.stringify(await window.moonAPI.agentNotify({ kind: 'failed', title: 'Agent 未通过验证', body: '失败：下标越界', file: 'a.mbt:3' })))()`))
+    chk('★ 失败通知也发出', n2.ok === true, JSON.stringify(n2))
+    chk('  且**如实**报告系统通知是否真的弹了（不假装）', typeof n2.notified === 'boolean', JSON.stringify(n2))
+  }
+
   log('\n' + H.summary())
   dump(H.exitCode())
 }).catch((e) => { console.error('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); process.exit(1) })

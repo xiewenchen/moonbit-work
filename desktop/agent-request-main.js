@@ -21,9 +21,11 @@ const {
 } = require('./agent-request')
 const { buildTaskUnderstanding, describeUnderstanding } = require('./task-understanding')
 
-function registerAgentRequestIpc({ ipcMain, onLog, getWorkspace }) {
+function registerAgentRequestIpc({ ipcMain, onLog, getWorkspace, getWindow }) {
   const log = typeof onLog === 'function' ? onLog : () => {}
   const workspace = () => (typeof getWorkspace === 'function' ? (getWorkspace() || '') : '')
+  // PH3-IDE-12/13：发通知要拿窗口来推事件回去。没注入时**如实报错**，不静默不弹。
+  const win = () => (typeof getWindow === 'function' ? getWindow() : null)
   let lastSnapshot = null
   let lastUnderstanding = null
 
@@ -45,6 +47,8 @@ function registerAgentRequestIpc({ ipcMain, onLog, getWorkspace }) {
       listProblems: has('problems') ? () => problems : undefined,
       getActiveFile: src('activeFile'),
       getSelection: src('selection'),
+      // PH3-IDE-03/04/05：用户指着的那条问题（由渲染侧点亮某条时传入）
+      getFocusProblem: src('focusProblem'),
       getLastRun: src('lastRun'),
       getLastTest: src('lastTest'),
       getRecentFiles: src('recentFiles'),
@@ -59,10 +63,38 @@ function registerAgentRequestIpc({ ipcMain, onLog, getWorkspace }) {
       projectContext: inputs.project,
       activeFile: inputs.activeFile,
       selection: inputs.selection,
+      focusProblem: inputs.focusProblem,   // PH3-IDE-03：面向前端一条问题的提问
     })
     if (!request.ok) return { ok: false, errors: request.errors }
     return { ok: true, request, inputs, sources }
   }
+
+  /**
+   * PH3-IDE-12/13：Agent 任务完成/失败的通知。
+   * ⚠️ 通知本身是“告知”，不是“结果” —— 所以它**只带一个可点的入口**
+   *    （点回去看到的是真实的 Problem/会话），不在通知里渲染结论。
+   */
+  ipcMain.handle('agent:notify', async (_e, payload = {}) => {
+    const p = payload || {}
+    const w = win()
+    if (!w || (w.isDestroyed && w.isDestroyed())) return { ok: false, error: '没有窗口（getWindow 未注入或窗口已关）' }
+    let notified = false
+    try {
+      const { Notification } = require('electron')
+      if (Notification && Notification.isSupported && Notification.isSupported()) {
+        const s = { title: String(p.title || 'MoonBit Work'), body: String(p.body || '').slice(0, 200) }
+        if (p.file) s.body = s.body + '\n' + String(p.file)
+        const n = new Notification(s)
+        // 点通知 → 让窗口回到前台（**不一定**跳文件：跳转由真实的 Problem 路径决定）
+        n.on('click', () => { try { if (w.show) w.show(); if (w.focus) w.focus() } catch (_) { /* 聚焦失败不影响通知本身 */ } })
+        n.show()
+        notified = true
+      }
+    } catch (e) { notified = false }
+    // 无论系统通知能不能弹，都把事件推回渲染侧（让它能高亮那条问题）
+    try { w.webContents.send('agent:notified', { ok: notified, kind: p.kind || null, file: p.file || null }) } catch (_) { /* 推不回也不抛 */ }
+    return { ok: true, notified, supported: notified }
+  })
 
   ipcMain.handle('agent:buildRequest', async (_e, payload = {}) => {
     const a = await assemble(payload)

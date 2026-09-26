@@ -1086,6 +1086,8 @@ function collectRendererInputs(opts = {}) {
     },
     af != null ? { activeFile: af } : {},
     se != null ? { selection: se } : {},
+    // PH3-IDE-03/04/05：用户指着的那条问题（由「解释 / 修复」按钮传入）
+    opts.focusProblem != null ? { focusProblem: opts.focusProblem } : {},
     opts.lastRun != null ? { lastRun: opts.lastRun } : {},
     opts.lastTest != null ? { lastTest: opts.lastTest } : {},
     (Array.isArray(opts.recentFiles) && opts.recentFiles.length) ? { recentFiles: opts.recentFiles } : {},
@@ -2472,6 +2474,8 @@ window.moonbitIDE = {  openProject: (dir) => boot(dir),      // 等价于用户�
     // P9A：可验证的任务理解
     understand: (message, opts) => understandTask(message, opts),
     lastUnderstanding: () => window.moonAPI.agentLastUnderstanding(),
+    // PH3-IDE-04/05：带着具体某条问题去问 Agent（Problem 面板上「解释 / 修复」用）
+    askAbout: (problem, message) => askAgentAbout(problem, message),
   },
   // 只读工具（P6）：Agent 的"眼睛"。它们全部经路径沙箱，且表里**没有**写/执行工具。
   // 注意：**不提供 setWorkspace** —— workspace 由 openProject（用户操作）设定，Agent 不该能改沙箱根。
@@ -2561,6 +2565,23 @@ window.moonAPI.onAgentVerifyDone((p) => {
   if (ps.length) {
     window.moonbitIDE.problems.add(ps)
     logLine('（已把 ' + ps.length + ' 条问题写入问题面板）\n', 'err')
+  }
+  // PH3-IDE-12/13：完成/失败都发桌面通知。
+  // ⚠️ 失败时通知里带上**第一条问题的位置**，用户点通知能回到窗口，
+  //    但**跳不跳文件由真实的 Problem 决定** —— 通知不自己编一个位置。
+  const first = ps[0] || null
+  try {
+    window.moonAPI.agentNotify({
+      kind: p.ok === true ? 'done' : 'failed',
+      title: p.ok === true ? 'Agent 已完成' : 'Agent 未通过验证',
+      body: p.ok === true
+        ? ('验证通过' + (first ? '' : '：' + String(p.text || '').slice(0, 120)))
+        : ('失败：' + String((first && first.message) || p.text || '').slice(0, 160)),
+      file: first && first.file ? String(first.file) + (first.line ? ':' + first.line : '') : null,
+    })
+  } catch (e) {
+    // 通知失败不能影响结果展示（它只是"告知"）
+    logLine('（桌面通知发送失败：' + String((e && e.message) || e) + '，结果不受影响）\n', 'err')
   }
   // PH3-IDE-08：还要进 **Quality**。
   // 方式与已有产物一致 —— 把这次验证当成一条“来源”交给 Quality 聚合
@@ -3134,7 +3155,56 @@ function renderProgressRows(el, rows) {
         jumpToLine(d.line, d.col)
       }
     }
+    // PH3-IDE-04/05：对着**这一条**问题直接问 Agent（解释 / 修复）。
+    // ⚠️ 两个按钮都只是**入口**：Fix 也只走到"提议补丁、等用户确认"，
+    //    不会因为从这儿点就直接改文件（P8 的确认闸不动）。
+    const actions = document.createElement('span')
+    actions.className = 'diag-actions'
+    const mkA = (label, title, message) => {
+      const b = document.createElement('button')
+      b.className = 'diag-act'
+      b.textContent = label
+      b.title = title
+      b.style.cssText = 'margin-left:6px;padding:1px 6px;font-size:11px;background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:4px;cursor:pointer'
+      b.onclick = (e) => {
+        if (e && e.stopPropagation) e.stopPropagation()   // 别触发整行的"跳到文件"
+        askAgentAbout(d, message)
+      }
+      return b
+    }
+    actions.appendChild(mkA('解释', '让 Agent 解释这条问题（不改代码）', '帮我解释这条问题的原因，先不要改代码。'))
+    actions.appendChild(mkA('修复', '让 Agent 提出修复（仍要你确认才落盘）', '帮我修这条问题。'))
+    row.appendChild(actions)
     el.appendChild(row)
+  }
+}
+
+/**
+ * PH3-IDE-04/05：带着**具体那条问题**去问 Agent。
+ *
+ * ⚠️ 切到 AI 标签只是"把用户带到对话处"；真正的上下文靠 `focusProblem` 传过去，
+ *    这样 Agent 知道用户指的是哪一条，而不是在一堆问题里自己挑。
+ */
+async function askAgentAbout(problem, message) {
+  const p = problem || {}
+  try {
+    const tab = document.querySelector('a[data-view="ai"]')
+    if (tab && tab.click) tab.click()
+  } catch (_) { /* 切标签失败不影响提问本身 */ }
+  try {
+    const r = await buildAgentRequest(String(message || '帮我看看这条问题。'), {
+      focusProblem: {
+        file: p.file || null,
+        line: Number.isFinite(p.line) ? p.line : null,
+        message: String(p.message || ''),
+        source: p.source || null,
+        severity: p.severity || null,
+      },
+    })
+    return r
+  } catch (e) {
+    if (typeof logLine === 'function') logLine('问 Agent 失败：' + String((e && e.message) || e) + '\n', 'err')
+    return { ok: false, error: String((e && e.message) || e) }
   }
 }
 

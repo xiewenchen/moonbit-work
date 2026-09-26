@@ -43,6 +43,10 @@ function trimmedOrNull(v) {
  * @param {object} [input.projectContext] 真实 ProjectContext（无项目时为 null）
  * @param {object} [input.activeFile]   { path, content, language }
  * @param {object} [input.selection]    { text, startLine, endLine }
+ * @param {object} [input.focusProblem]  用户**指着**的那条问题（PH3-IDE-03/04/05）：
+ *                                       { file, line, message, source, severity }
+ *                                       带了它就代表“用户是冲着这条问题问的”，
+ *                                       于是它应该在上下文里**排在前面**，而不是淹没在 problems 列表里。
  * @param {number} [input.createdAt]
  */
 function createAgentRequest(input = {}) {
@@ -65,6 +69,7 @@ function createAgentRequest(input = {}) {
     projectContext: pc || null,
     activeFile: normalizeFile(input.activeFile),
     selection: normalizeSelection(input.selection),
+    focusProblem: normalizeProblem(input.focusProblem),
     createdAt: Number.isFinite(input.createdAt) ? input.createdAt : Date.now(),
   })
 }
@@ -76,6 +81,24 @@ function normalizeFile(f) {
     path: String(f.path),
     content: typeof f.content === 'string' ? f.content : '',
     language: trimmedOrNull(f.language),
+  })
+}
+
+/**
+ * PH3-IDE-03：用户“指着”的那条问题。
+ * ⚠️ message 必须有 —— 没有它就不是一条可用的上下文（宁可返回 null 也不假装有）。
+ *    行号取不到就是 null，**不编一个**（编错了 Agent 会去看错地方）。
+ */
+function normalizeProblem(p) {
+  if (!p || typeof p !== 'object') return null
+  const message = trimmedOrNull(p.message)
+  if (!message) return null
+  return Object.freeze({
+    file: trimmedOrNull(p.file),
+    line: Number.isFinite(p.line) ? p.line : null,
+    message: String(message).slice(0, 500),
+    source: trimmedOrNull(p.source),
+    severity: trimmedOrNull(p.severity),
   })
 }
 
@@ -180,7 +203,7 @@ async function collectAgentInputs(deps = {}, opts = {}) {
   const sources = {}
   const out = {
     task: opts.task == null ? null : String(opts.task),
-    project: null, activeFile: null, selection: null,
+    project: null, activeFile: null, selection: null, focusProblem: null,
     problems: [], lastRun: null, lastTest: null, recentFiles: [],
   }
 
@@ -200,6 +223,8 @@ async function collectAgentInputs(deps = {}, opts = {}) {
 
   await take('project', deps.getContext, (v) => { out.project = v || null })
   await take('problems', deps.listProblems, (v) => { out.problems = Array.isArray(v) ? v : [] })
+  // PH3-IDE-03/04/05：用户指着的那条问题（没接就是 absent，与别的一视同仁）
+  await take('focusProblem', deps.getFocusProblem, (v) => { out.focusProblem = v || null })
   await take('activeFile', deps.getActiveFile, (v) => { out.activeFile = v || null })
   await take('selection', deps.getSelection, (v) => { out.selection = v || null })
   await take('lastRun', deps.getLastRun, (v) => { out.lastRun = v || null })
@@ -245,6 +270,14 @@ function buildContextSnapshot(request, inputs, sources, opts = {}) {
       ? { startLine: ctx.selection.startLine, endLine: ctx.selection.endLine, chars: String(ctx.selection.text || '').length }
       : null,
     problems: { total: (ctx.problems || []).length, bySeverity: bySev },
+    // PH3-IDE-03：用户指着的那条（放在这里，让快照能看出“这次是冲着它问的”）
+    focusProblem: ctx.focusProblem
+      ? {
+        file: ctx.focusProblem.file, line: ctx.focusProblem.line,
+        message: String(ctx.focusProblem.message || '').slice(0, 200),
+        source: ctx.focusProblem.source, severity: ctx.focusProblem.severity,
+      }
+      : null,
     lastRun: ctx.lastRun ? { ok: ctx.lastRun.ok === true, status: ctx.lastRun.status || null, url: ctx.lastRun.url || null } : null,
     lastTest: ctx.lastTest ? { ok: ctx.lastTest.ok === true, name: ctx.lastTest.name || null } : null,
     recentFiles: (ctx.recentFiles || []).length,
