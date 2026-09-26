@@ -103,6 +103,7 @@ jobs:
           node test-agent-request.js     # P5A：AgentRequest 契约 + 真实取数（ProjectContext/Problems）+ 快照
           node test-task-understanding.js # P9A：可验证的任务理解（结构/规则/applyLlmPlan 只覆盖计划）
           node test-agent-adapter.js    # P9B：AI Adapter + MockLLM（不依赖真实 API 额度）
+          node test-agent-security.js   # PH3-SEC：命令注入 / 工具超时 / 无限循环 / Cancel
           node test-session.js          # P10：会话与项目绑定（含禁止跨项目污染）
           node test-project-memory.js   # P11：项目级记忆（规则写保护 / 检索只给相关的 / 压缩）
           node test-backend-context.js  # P14：BackendProjectContext（端口只从能指着说的来源推）
