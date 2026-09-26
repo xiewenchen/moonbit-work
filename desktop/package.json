@@ -35,7 +35,8 @@
     "verify:panels-smoke": "electron verify-panels-smoke.js",
     "verify:patch-diff": "electron verify-patch-diff.js",
     "verify:agent-timeline": "electron verify-agent-timeline.js",
-    "verify:workspace": "electron verify-workspace.js"
+    "verify:workspace": "electron verify-workspace.js",
+    "verify:ui-hierarchy": "electron verify-ui-hierarchy.js"
   },
   "devDependencies": {
     "@xterm/addon-fit": "0.10.0",

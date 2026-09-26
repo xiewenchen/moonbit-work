@@ -2253,6 +2253,74 @@ const taskUI = {
     return this.step(name, p.ok === undefined ? null : p.ok === true, p.detail || p.reason || null)
   },
 }
+/**
+ * PH3-UI-08/09/10：把 Problem / Quality / Backend 三个摘要刷到状态栏。
+ *
+ * ⚠️ 两条原则：
+ *   ① **没有问题就不显示徽标** —— 天天挂着一个 "0" 反而是噪音；
+ *   ② 每类是**独立**的小标，不是一个混在一起的字符串 —— 这样"哪一类有事"一眼看得出。
+ */
+function refreshStatusBadges() {
+  const host = (function () {
+    let el = document.getElementById('statusBadges')
+    if (el) return el
+    el = document.createElement('span')
+    el.id = 'statusBadges'
+    // 挂在状态栏左段后面（没有状态栏就退回 body，仍可验证）
+    const bar = document.getElementById('statusbar') || document.getElementById('statusBar')
+    ;(bar || document.body).appendChild(el)
+    return el
+  })()
+  host.textContent = ''
+  const U = window.moonbitUiHierarchy
+  if (!U) return { ok: false, error: 'ui-hierarchy.js 未注入' }
+
+  const add = (b, kind) => {
+    if (!b) return null                       // null 就是不显示
+    const s = document.createElement('span')
+    s.className = 'status-badge status-badge-' + kind + ' status-badge-' + (b.level || 'info')
+    s.textContent = (kind === 'problems' ? '问题 ' : (kind === 'quality' ? '工程 ' : '后端 ')) + b.text
+    s.title = b.title || ''
+    s.style.cssText = 'margin-left:8px;padding:0 6px;border-radius:8px;font-size:11px;' +
+      (b.level === 'error' ? 'background:#742a2a;color:#fed7d7' :
+        b.level === 'warn' ? 'background:#744210;color:#fefcbf' :
+          b.level === 'ok' ? 'background:#22543d;color:#c6f6d5' : 'background:#2a2a2a;color:#bbb')
+    host.appendChild(s)
+    return s
+  }
+
+  let problems = []
+  try { problems = (window.moonbitIDE && window.moonbitIDE.problems && window.moonbitIDE.problems.list()) || [] } catch (_) { problems = [] }
+  const pb = U.problemBadge(problems)
+  add(pb, 'problems')
+
+  // Quality / Backend 是**按需**拉的（不在每次刷新都发 IPC）
+  return { ok: true, problems: pb, host: 'statusBadges' }
+}
+
+/** 拉一次 Quality 与 Backend 的状态并显示（由面板/验证调用）。 */
+async function refreshStatusBadgesAsync() {
+  const U = window.moonbitUiHierarchy
+  if (!U) return { ok: false, error: 'ui-hierarchy.js 未注入' }
+  const host = document.getElementById('statusBadges')
+  const out = refreshStatusBadges()
+  try {
+    const q = await window.moonAPI.qualitySnapshot({})
+    const fact = (q && q.snapshot && q.snapshot.fact) || {}
+    const b = U.qualityBadge(fact)
+    if (host && b) {
+      const s = document.createElement('span')
+      s.className = 'status-badge status-badge-quality status-badge-' + b.level
+      s.textContent = '工程 ' + b.text
+      s.title = b.title || ''
+      s.style.cssText = 'margin-left:8px;padding:0 6px;border-radius:8px;font-size:11px;background:#2a2a2a;color:#bbb'
+      host.appendChild(s)
+    }
+    out.quality = b
+  } catch (e) { out.qualityError = String((e && e.message) || e) }
+  return out
+}
+
 window.moonbitIDE = {  openProject: (dir) => boot(dir),      // 等价于用户「打开文件夹」之后走的那条路
   closeProject,
   getContext: () => projectCtx,         // 冻结对象，只读
@@ -2409,6 +2477,27 @@ window.moonbitIDE = {  openProject: (dir) => boot(dir),      // 等价于用户�
     return { ok: true, file: p.file, diff: true, host: 'patchDiffHost', mask: 'patchDiffMask' }
   },
 
+  // PH3-UI：信息架构（三层分层 / 入口统计 / 状态徽标文本）
+  // ⚠️ 实现来自 <script src="./ui-hierarchy.js"> 注入的 window.moonbitUiHierarchy
+  ui: (() => {
+    const U = () => {
+      const u = window.moonbitUiHierarchy
+      if (!u) throw new Error('ui-hierarchy.js 未注入（检查 translate-strapi.js 的注入列表）')
+      return u
+    }
+    return {
+      layout: () => U().layout(),
+      structure: () => U().summarizeStructure(),
+      entries: () => U().ENTRIES,
+      tiers: () => U().TIER,
+      problemBadge: (ps) => U().problemBadge(ps),
+      qualityBadge: (fact) => U().qualityBadge(fact),
+      backendBadge: (h, st) => U().backendBadge(h, st),
+      workbenchPlacement: () => U().workbenchPlacement(),
+      // 把三类徽标一起刷新到状态栏
+      refreshBadges: () => refreshStatusBadges(),
+    }
+  })(),
   // PH3-WS-03～10：工作空间（身份 / 一致性自检 / 元数据位置）
   // ⚠️ 这里**只读**各子系统的真实存储，不写、不改键 —— 已有数据是用 projectRoot/root 存的，
   //    改键等于让用户丢数据。一致性靠“读时规范化”来保证。
