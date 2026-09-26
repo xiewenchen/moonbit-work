@@ -20,9 +20,44 @@ const {
   describeQuality,
   QUALITY_STATE,
 } = require('./quality-result')
+// PH3-Q：事实层（溯源 / 新鲜度 / STALE / 退化检测）。
+// 渐进：**不改** quality-result.js，而是新层包住旧层 —— 旧字段全部保留。
+const { createFactSnapshot, withProvenance, describeFact, VERIFY_ORIGIN } = require('./quality-fact')
 
 /** 从哪里找验证产物（默认本目录 desktop/，与验证脚本输出位置一致）*/
 function defaultDir() { return __dirname }
+
+/**
+ * PH3-Q-03：这份产物是**什么时候**跑出来的。
+ * 依据用**文件的 mtime** —— 这是磁盘上的真实事实，不是我们猜的。
+ * 拿不到就返回 null（于是新鲜度会是 unknown，而不是假装"刚跑过"）。
+ */
+function verifiedAtOf(fullPath) {
+  try { return fs.statSync(fullPath).mtimeMs } catch (_) { return null }
+}
+
+/**
+ * PH3-Q-06：当前 commit（读 .git/HEAD，纯 fs，不起进程；拿不到就 null）。
+ * worktree 里 HEAD 可能是 `ref: refs/heads/xxx`，要再读一次那个 ref。
+ */
+function currentCommit(dir) {
+  try {
+    let head = fs.readFileSync(path.join(dir, '.git', 'HEAD'), 'utf8').trim()
+    if (head.startsWith('ref:')) {
+      head = fs.readFileSync(path.join(dir, '.git', head.slice(4).trim()), 'utf8').trim()
+    }
+    return /^[0-9a-f]{7,40}$/.test(head) ? head.slice(0, 8) : null
+  } catch (_) { return null }
+}
+
+/** 运行环境（PH3-Q-05 里"在哪个环境"）。 */
+function currentEnv() {
+  const p = process.platform
+  if (p === 'win32') return 'windows'
+  if (p === 'darwin') return 'mac'
+  if (p === 'linux') return 'linux'
+  return 'unknown'
+}
 
 /**
  * 聚合一份工程状态快照。
@@ -38,17 +73,32 @@ function snapshotQuality(opts = {}) {
   try { files = fs.readdirSync(dir).filter((n) => n.endsWith('-result.txt')).sort() } catch (e) { files = [] }
   for (const n of files) {
     let text = ''
-    try { text = fs.readFileSync(path.join(dir, n), 'utf8') } catch (e) { text = '' }
-    sources.push({ name: n, text, file: 'desktop/' + n })
+    const full = path.join(dir, n)
+    try { text = fs.readFileSync(full, 'utf8') } catch (e) { text = '' }
+    // PH3-Q：顺手把"什么时候跑的"带上 —— 用文件 mtime（真实事实），拿不到就是 null
+    sources.push({ name: n, text, file: 'desktop/' + n, verifiedAt: verifiedAtOf(full) })
   }
 
+  const commit = currentCommit(path.resolve(dir, '..'))
+  const env = currentEnv()
   for (const s of sources) {
-    const r = fromDesktopVerify(String(s.text == null ? '' : s.text), {
+    const base = fromDesktopVerify(String(s.text == null ? '' : s.text), {
       name: s.name,
       // P16-11/12：给每条结果挂上"去哪看"——日志文件与可跳转的文件
       file: s.file || null,
+      // PH3-Q-03：能查到就带上（查不到就是 null，不编一个时间）
+      verifiedAt: Number.isFinite(s.verifiedAt) ? s.verifiedAt : null,
     })
-    st.put(r)
+    // PH3-Q-05：谁跑的 / 什么时候 / 用什么命令 / 在什么环境 / 哪个 commit。
+    //   desktop/*-result.txt 是本地跑 verify 脚本产出的 → origin 记 LOCAL（不是 CI）。
+    //   工具链命令我们并不知道（结果里没记），所以 command 留 null，不编。
+    st.put(withProvenance(base, {
+      at: Number.isFinite(s.verifiedAt) ? s.verifiedAt : null,
+      origin: s.origin || VERIFY_ORIGIN.LOCAL,
+      command: s.command == null ? null : s.command,
+      env,
+      commit,
+    }))
   }
 
   const failures = st.failures()
@@ -66,10 +116,32 @@ function snapshotQuality(opts = {}) {
       line: r.line == null ? null : r.line,
       source: r.source,
     })),
-    all: st.list().map((r) => ({ id: r.id, name: r.name, state: r.state, file: r.file || null, passed: r.passed, failed: r.failed })),
+    all: st.list().map((r) => ({
+      id: r.id, name: r.name, state: r.state, file: r.file || null, passed: r.passed, failed: r.failed,
+      // PH3-Q：能查到就带上，查不到就是 null
+      verifiedAt: Number.isFinite(r.verifiedAt) ? r.verifiedAt : null,
+      provenance: r.provenance || null,
+    })),
     describe: describeQuality(st),
     scannedDir: dir,
     scannedFiles: files.length,
+    // PH3-Q-01：事实快照（结果 + 环境 + 来源 + 时间 + commit，且已把过期的 PASS 标成 STALE）。
+    // 旧字段全部保留 —— 这是"加一层"，不是"换一套"。
+    fact: (() => {
+      const f = createFactSnapshot({
+        project: path.resolve(dir, '..'),
+        results: st.list(),
+        environment: env,
+        origin: VERIFY_ORIGIN.LOCAL,
+        commit,
+      })
+      return {
+        project: f.project, timestamp: f.timestamp, environment: f.environment,
+        origin: f.origin, commit: f.commit, overall: f.overall,
+        canProceed: f.canProceed, staleCount: f.staleCount,
+        describe: describeFact(f),
+      }
+    })(),
   }
 }
 

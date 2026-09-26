@@ -350,6 +350,34 @@ opencode 只是 transport 的一种实现。
 
 ---
 
+## 14. PH3-Q-06/07/08：事实层接线（2026-09-26）
+
+上一节只建了"层"，这一节把它**接进系统**（否则它只是"一个能跑的库"）。
+
+`quality-main.js` 的 `snapshotQuality` 现在额外产出 **`fact`** 字段（**旧字段一个不动** ——
+这是"加一层"，不是"换一套"，符合 RULE-04）：
+
+| 字段 | 来源（**必须真实**） |
+|---|---|
+| `fact.commit` | 读 `.git/HEAD`（含 worktree 的 `ref:` 二级跳转），纯 fs 不起进程 |
+| `fact.environment` | `process.platform` → windows/linux/mac |
+| `fact.origin` | `LOCAL` —— `desktop/*-result.txt` 是**本机**跑 verify 脚本产出的，不是 CI（不冒充 CI） |
+| 每条的 `verifiedAt` | **产物文件的 mtime** —— 磁盘上的真实事实 |
+| `provenance.command` | **留 null** —— 结果文本里本来就没记命令，**不编一个** |
+
+于是 `PH3-Q-08` 也通了：Agent 的 `qualityStatus` 只读工具返回同一份快照
+（它本来就不重跑测试），现在里面**带 `fact` 与 `canProceed`**，Agent 能据此判断
+"现在到底能不能继续"。
+
+**验证**：`verify-quality-ui` 26 → **43/0**（+17）：`fact.commit` 是真实短 hash、
+`environment` 是本机平台、`origin` 是 LOCAL（不是 CI）、`verifiedAt` 来自 mtime 且不是 0、
+`provenance.command` 如实为 null、旧字段全部仍在、Agent 工具也拿到同一份。
+
+> 又是一次「断言取错层级」：工具返回的 `data` **直接就是**快照，我写成了 `data.snapshot.fact`。
+> 与之前 `sources` 那次同型 —— **先看清返回形状，再写断言**。
+
+---
+
 ## 9. PH3-TASK：Agent Task Runtime（2026-09-26）
 
 新建 `desktop/agent-task.js` + `test-agent-task.js`（**91/0**，已挂 CI）。

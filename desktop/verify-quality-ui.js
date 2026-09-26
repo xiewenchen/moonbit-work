@@ -125,6 +125,41 @@ app.whenReady().then(async () => {
     eq('★ 没跑过验证时不会凭空出现一条', hit3, undefined)
   }
 
+  log('\n=== ⑧ PH3-Q-06/07/08：事实层接线（真实 commit / 环境 / mtime）===')
+  {
+    const snap = JSON.parse(await js(`(async () => JSON.stringify(await window.moonbitIDE.quality.snapshot()))()`))
+    const s = snap.snapshot || {}
+    chk('★ 快照带上了 fact 字段（旧字段仍在）', !!s.fact, JSON.stringify(Object.keys(s).slice(0, 12)))
+    chk('  旧字段没被换掉（overall/all/failures 都还在）', typeof s.overall === 'string' && Array.isArray(s.all) && Array.isArray(s.failures))
+    const f = s.fact || {}
+    chk('★ fact.commit 是真实的短 hash（读 .git/HEAD）', /^[0-9a-f]{7,8}$/.test(String(f.commit)), String(f.commit))
+    eq('★ fact.environment 是本机平台', f.environment, 'windows')
+    eq('★ fact.origin 记 LOCAL（是本机跑 verify 脚本产出的，不是 CI）', f.origin, 'LOCAL')
+    chk('  fact.overall 与旧的 overall 一致', f.overall === s.overall, f.overall + ' vs ' + s.overall)
+    chk('  有可读描述', /工程状态：/.test(String(f.describe)), String(f.describe).slice(0, 80))
+
+    // 每条结果都带"什么时候跑的"（来自产物 mtime，不是编的）
+    const withTime = (s.all || []).filter((x) => Number.isFinite(x.verifiedAt))
+    chk('★ 结果带 verifiedAt（来自产物文件 mtime）', withTime.length > 0, withTime.length + '/' + (s.all || []).length)
+    const t0 = withTime[0] && withTime[0].verifiedAt
+    chk('  而且是个合理的时间戳（不是 0）', Number.isFinite(t0) && t0 > 1600000000000, String(t0))
+
+    // PH3-Q-05：每条结果都有 provenance 的四个字段
+    const p0 = (withTime[0] || {}).provenance
+    chk('★ 带 provenance（谁跑的/何时/什么命令/什么环境）', !!p0, JSON.stringify(p0))
+    eq('  谁跑的', p0.origin, 'LOCAL')
+    eq('  什么环境', p0.env, 'windows')
+    chk('  哪个 commit', /^[0-9a-f]{7,8}$/.test(String(p0.commit)), String(p0.commit))
+    chk('★ 工具链命令如实留 null（结果里本来就没记，不编）', p0.command === null, JSON.stringify(p0.command))
+
+    // PH3-Q-08：Agent 的只读工具也拿到同一份事实
+    const ag = JSON.parse(await js(`(async () => JSON.stringify(await window.moonbitIDE.agentTools.call('qualityStatus', {})))()`))
+    chk('★ Agent 的 qualityStatus 工具能拿到', ag.ok === true, JSON.stringify(ag).slice(0, 120))
+    const agFact = (ag.data && ag.data.fact) || null
+    chk('★ 而且里面也有 fact（Agent 能据此判断能不能继续）', !!agFact, JSON.stringify(agFact && Object.keys(agFact)))
+    chk('  带 canProceed（PH3-Q-09）', !!(agFact && agFact.canProceed), JSON.stringify(agFact && agFact.canProceed))
+  }
+
   log('\n' + H.summary())
   dump(H.exitCode())
 }).catch((e) => { console.error('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); process.exit(1) })
