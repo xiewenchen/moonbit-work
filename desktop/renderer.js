@@ -1033,10 +1033,49 @@ async function proposeAndApplyPatch(patch) {
  * 收集渲染侧**真实状态** —— Agent 请求与任务理解**共用同一份**。
  * 两条路径不能各取一次，否则快照与理解会不一致。
  */
+/**
+ * PH3-IDE-01：当前**打开的文件**进 Agent Context。
+ * 内容取自 Monaco model（不是磁盘 —— 用户可能改了还没存）。
+ */
+function activeFileOf() {
+  if (typeof active !== 'number' || active < 0 || !tabs[active]) return null
+  const t = tabs[active]
+  const model = t.model
+  return {
+    path: t.path,
+    content: model && typeof model.getValue === 'function' ? model.getValue() : '',
+    language: model && typeof model.getLanguageId === 'function' ? model.getLanguageId() : null,
+  }
+}
+
+/**
+ * PH3-IDE-02：**选中代码**进 Agent Context。
+ * ⚠️ 没有选区（或选区为空）时返回 null —— 不假装"用户选了点什么"。
+ *    （这与 Quality 的 NOT_RUN、数据库的 NO_CLIENT 是同一条原则：别把"没有"说成"有"。）
+ */
+function selectionOf() {
+  if (typeof active !== 'number' || active < 0 || !tabs[active]) return null
+  if (!editor || typeof editor.getSelection !== 'function') return null
+  const sel = editor.getSelection()
+  const model = typeof editor.getModel === 'function' ? editor.getModel() : null
+  if (!sel || !model) return null
+  const text = typeof model.getValueInRange === 'function' ? model.getValueInRange(sel) : ''
+  if (!text) return null
+  return {
+    text,
+    startLine: sel.startLineNumber,
+    endLine: sel.endLineNumber,
+  }
+}
+
 function collectRendererInputs(opts = {}) {
   const problems = (window.moonbitIDE && window.moonbitIDE.problems && typeof window.moonbitIDE.problems.list === 'function')
     ? (window.moonbitIDE.problems.list() || []).slice(0, 50)
     : []
+  // PH3-IDE-01/02：**默认从编辑器取**当前文件与选区（这是 IDE 侧独有的信息，
+  // 主进程拿不到）；调用方仍可用 opts 显式覆盖 —— 测试就是靠这个注入假数据。
+  const af = opts.activeFile !== undefined ? opts.activeFile : activeFileOf()
+  const se = opts.selection !== undefined ? opts.selection : selectionOf()
   // 只在**真有值**时才带上这一项。
   // 这样主进程才能区分「没接线」(absent) 与「接线了但本轮无数据」(empty) ——
   // 否则一律被算成 empty，快照就看不出哪一块还没接（review 指出）。
@@ -1045,8 +1084,8 @@ function collectRendererInputs(opts = {}) {
       projectContext: (opts.context !== undefined ? opts.context : projectCtx) || null,
       problems,
     },
-    opts.activeFile != null ? { activeFile: opts.activeFile } : {},
-    opts.selection != null ? { selection: opts.selection } : {},
+    af != null ? { activeFile: af } : {},
+    se != null ? { selection: se } : {},
     opts.lastRun != null ? { lastRun: opts.lastRun } : {},
     opts.lastTest != null ? { lastTest: opts.lastTest } : {},
     (Array.isArray(opts.recentFiles) && opts.recentFiles.length) ? { recentFiles: opts.recentFiles } : {},
@@ -2180,6 +2219,38 @@ window.moonbitIDE = {  openProject: (dir) => boot(dir),      // 等价于用户�
     show: () => showQualityPanel(),
     snapshot: (opts) => window.moonAPI.qualitySnapshot(opts),
     log: (file) => window.moonAPI.qualityLog(file),
+  },
+  // PH3-IDE-01/02：IDE 侧上下文（当前文件 / 选区）的只读视图。
+  // openFile 走的是**真实路径**（与文件树点击同一条），不是测试专用捷径。
+  editor: {
+    openFile: (p) => openFile(p),
+    activeFile: () => activeFileOf(),
+    selection: () => selectionOf(),
+    // 选中若干行（1-based，含端点）。产品入口"选中代码 → Ask Agent"要用；
+    // 验证也靠它真造一个选区，而不是假装有。
+    selectLines: (startLine, endLine) => {
+      if (!editor || typeof editor.setSelection !== 'function') return null
+      const model = typeof editor.getModel === 'function' ? editor.getModel() : null
+      if (!model) return null
+      const VC = window.monaco || monaco
+      const last = model.getLineCount ? model.getLineCount() : 1
+      const s = Math.max(1, Math.min(Number(startLine) || 1, last))
+      const e = Math.max(s, Math.min(Number(endLine) || s, last))
+      const maxCol = model.getLineMaxColumn ? model.getLineMaxColumn(e) : 1
+      editor.setSelection(new VC.Selection(s, 1, e, maxCol))
+      if (typeof editor.revealRangeInCenterIfOutsideViewport === 'function' && VC.Range) {
+        editor.revealRangeInCenterIfOutsideViewport(VC.Range.fromPositions({ lineNumber: s, column: 1 }, { lineNumber: e, column: maxCol }))
+      }
+      return selectionOf()
+    },
+    clearSelection: () => {
+      if (!editor || typeof editor.setSelection !== 'function') return null
+      const model = typeof editor.getModel === 'function' ? editor.getModel() : null
+      if (!model) return null
+      const VC = window.monaco || monaco
+      editor.setSelection(new VC.Selection(1, 1, 1, 1))
+      return selectionOf()
+    },
   },
   // P5A：Agent 请求（渲染侧收集真实状态 → 主进程校验/组装/快照）
   agentRequest: {

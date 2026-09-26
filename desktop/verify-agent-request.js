@@ -156,6 +156,46 @@ app.whenReady().then(async () => {
       await js(`document.getElementById('agInput').value`), '修复 conduit/users.mbt 里那个 500')
   }
 
+  log('\n=== ⑨ PH3-IDE-01/02：当前文件与选中代码真的进 Context ===')
+  {
+    // ① 没打开文件时 —— 不能假装有
+    const s0 = JSON.parse(await js(`(async () => JSON.stringify(await window.moonbitIDE.agentRequest.build('看看当前文件')))()`))
+    chk('★ 没打开文件时 activeFile 为空（不假装）', !(s0.snapshot && s0.snapshot.activeFile), JSON.stringify(s0.snapshot && s0.snapshot.activeFile))
+
+    // ② 真打开一个文件（走真实 openFile，与文件树点击同一条路）
+    const pkg = path.join(ROOT, 'desktop', 'package.json')
+    await js(`window.moonbitIDE.editor.openFile(${JSON.stringify(pkg)})`)
+    await sleep(900)
+    const st = JSON.parse(await js(`JSON.stringify(window.moonbitIDE.editor.activeFile())`))
+    chk('★ 真打开了文件（activeFile 有路径）', !!st && st.path === pkg, JSON.stringify(st && st.path))
+    chk('  且带上了内容（agent 才能看）', !!st && st.content.length > 10, st ? String(st.content.length) : 'null')
+
+    const s1 = JSON.parse(await js(`(async () => JSON.stringify(await window.moonbitIDE.agentRequest.build('这个文件是干什么的？')))()`))
+    chk('★ 快照里出现了 activeFile（PH3-IDE-01 打通）', !!(s1.snapshot && s1.snapshot.activeFile), JSON.stringify(s1.snapshot && s1.snapshot.activeFile))
+    chk('  快照记的是路径与字符数（不塞全文）', !!(s1.snapshot.activeFile && s1.snapshot.activeFile.path === pkg && s1.snapshot.activeFile.chars > 0), JSON.stringify(s1.snapshot.activeFile))
+    chk('  sources.activeFile 标为 ok（不是 absent）', !!(s1.snapshot && s1.snapshot.sources && s1.snapshot.sources.activeFile === 'ok'), JSON.stringify(s1.snapshot && s1.snapshot.sources))
+
+    // ③ 没选中时 —— 也不假装
+    const s2 = JSON.parse(await js(`(async () => JSON.stringify(await window.moonbitIDE.agentRequest.build('选中了什么？')))()`))
+    chk('★ 没有选区时 selection 为空（不假装）', !(s2.snapshot && s2.snapshot.selection), JSON.stringify(s2.snapshot && s2.snapshot.selection))
+
+    // ④ 真选中 3 行
+    const sel = JSON.parse(await js(`JSON.stringify(window.moonbitIDE.editor.selectLines(1, 3))`))
+    chk('★ 真造出了一个选区', !!sel && sel.startLine === 1 && sel.endLine === 3, JSON.stringify(sel))
+    chk('  且带上了选中文本', !!sel && typeof sel.text === 'string' && sel.text.length > 0, sel ? String(sel.text.length) : 'null')
+
+    const s3 = JSON.parse(await js(`(async () => JSON.stringify(await window.moonbitIDE.agentRequest.build('解释我选中的这段')))()`))
+    chk('★ 快照里出现了 selection（PH3-IDE-02 打通）', !!(s3.snapshot && s3.snapshot.selection), JSON.stringify(s3.snapshot && s3.snapshot.selection))
+    chk('  行号对得上', !!(s3.snapshot.selection && s3.snapshot.selection.startLine === 1 && s3.snapshot.selection.endLine === 3), JSON.stringify(s3.snapshot.selection))
+    chk('  sources.selection 标为 ok', !!(s3.snapshot && s3.snapshot.sources && s3.snapshot.sources.selection === 'ok'), JSON.stringify(s3.snapshot && s3.snapshot.sources))
+    chk('★ 选中文本确实进了 Context（chars>0）', !!(s3.snapshot.selection && s3.snapshot.selection.chars > 0), JSON.stringify(s3.snapshot.selection))
+
+    // ⑤ 清空选区后又回到"没有"
+    await js(`window.moonbitIDE.editor.clearSelection()`)
+    const s4 = JSON.parse(await js(`(async () => JSON.stringify(await window.moonbitIDE.agentRequest.build('再问一次')))()`))
+    chk('★ 清空选区后 selection 又为空（状态是真读的，不是缓存的）', !(s4.snapshot && s4.snapshot.selection))
+  }
+
   log('\n' + H.summary())
   dump(H.exitCode())
 }).catch((e) => { console.error('[FATAL] script threw before finishing: ' + String((e && e.stack) || e)); process.exit(1) })

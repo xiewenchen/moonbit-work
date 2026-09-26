@@ -224,6 +224,34 @@ opencode 只是 transport 的一种实现。
 
 ---
 
+## 10. PH3-IDE-01/02：当前文件与选中代码进 Context（2026-09-26）
+
+**发现**：接口**早就建好了** —— `agent-request.js` 第 203/204 行一直有
+`deps.getActiveFile` / `deps.getSelection`，但**渲染侧从没提供**（源码注释写着"留给 P5A 后续"）。
+所以这两项不是"要新做"，而是"**把已经留好的口子接上**"。
+
+**做了**：
+- `renderer.js` 新增 `activeFileOf()`（从 Monaco model 取，**不是磁盘** —— 用户可能改了没存）
+  与 `selectionOf()`（从编辑器选区取文本与起止行）。
+- `collectRendererInputs()` 改为**默认从编辑器取**，调用方仍可显式覆盖（测试靠这个注入假数据）。
+- `window.moonbitIDE.editor` 暴露只读视图：`openFile` / `activeFile` / `selection` /
+  `selectLines` / `clearSelection` —— 其中 `selectLines` 正是产品入口
+  "选中代码 → Ask Agent"（PH3-IDE-02）要用的能力，同时让验证**真造选区**而不是假装有。
+
+**一处刻意的不假装**：没开文件 / 没选区时返回 **null**，而不是空对象/空串 ——
+与 Quality 的 `NOT_RUN`、数据库的 `NO_CLIENT` 是同一条原则：**别把"没有"说成"有"**。
+
+**验证**：`verify-agent-request` 41 → **55/0**（+14）。⑨ 节真开 `desktop/package.json`、
+真选 1–3 行，逐步断言：
+- 没开文件 → 快照里**没有** activeFile；打开后 → 有（记路径与字符数，**不塞全文**）；
+- 没选区 → 没有；选 1–3 行 → 有且行号对得上；清空后 → **又回到没有**（证明是真读，不是缓存）；
+- `sources.activeFile` / `sources.selection` 标为 `ok`（而不是 `absent`）。
+
+> 过程中又踩一次「没先查就写」：断言里用了 `A`，而该脚本的变量其实叫 `ROOT`（RULE-03 的又一次提醒）。
+> 还有一次是我把 `sources` 的层级写错（它在 `snapshot` 里，我写成了顶层）。
+
+---
+
 ## 9. PH3-TASK：Agent Task Runtime（2026-09-26）
 
 新建 `desktop/agent-task.js` + `test-agent-task.js`（**91/0**，已挂 CI）。
