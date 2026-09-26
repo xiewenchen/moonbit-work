@@ -17,7 +17,12 @@
 import fs from 'fs'
 import path from 'path'
 
-const ROOT = path.resolve(process.argv[2] || path.join(import.meta.dirname, '..', 'desktop'))
+// ⚠️ 先分一遍参数：`--ci` 不是路径。之前写成 argv[2]，于是 `--ci` 被当成目录
+//（ENOENT: scandir '.../moonbit-platform/--ci'）—— 而它已经挂在 CI 上，会直接让 CI 红。
+const ARGV = process.argv.slice(2)
+const CI_MODE = ARGV.includes('--ci')
+const POSITIONAL = ARGV.filter((a) => !a.startsWith('--'))
+const ROOT = path.resolve(POSITIONAL[0] || path.join(import.meta.dirname, '..', 'desktop'))
 const FILES = process.env.CHR_FILES
   ? process.env.CHR_FILES.split(',').map((s) => s.trim())
   : fs.readdirSync(ROOT).filter((f) => f.endsWith('.js') && !f.startsWith('test-') && !f.startsWith('verify-'))
@@ -98,7 +103,7 @@ for (const f of FILES) {
   }
 }
 
-const ci = process.argv.includes('--ci')
+const ci = CI_MODE
 if (findings.length === 0) {
   console.log('✓ 事件处理器里没有「调用未定义函数」的情况（扫了 ' + scannedHandlers + ' 个处理器，' + FILES.length + ' 个文件）')
   process.exit(0)

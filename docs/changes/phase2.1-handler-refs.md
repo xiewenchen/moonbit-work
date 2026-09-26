@@ -50,3 +50,28 @@ new Set('if for while …'.split(/\s+/))  // ✓
 
 这个工具是**纯静态**的（只读 JS 源），不需要窗口，所以**可以**进 CI —— 已经挂了。
 （对比 `verify-*.js` 是 Electron 脚本，那条线仍留在本地。）
+
+## ★ 又踩一个：`--ci` 被当成目录 —— 而且已经挂进 CI 了
+
+工具刚写完、**已经挂上 CI**，我才发现它自己有个 bug：
+
+```js
+const ROOT = path.resolve(process.argv[2] || …)   // ✗
+```
+
+`argv[2]` 在 `node tools/x.js --ci` 时就是 `'--ci'` → 被当成目录 →
+`ENOENT: scandir '…/moonbit-platform/--ci'` 直接崩。也就是**我刚挂的那行 CI 是坏的**。
+
+修法：先把参数分一遍 —— `--` 开头的是开关，不是路径：
+
+```js
+const ARGV = process.argv.slice(2)
+const CI_MODE = ARGV.includes('--ci')
+const POSITIONAL = ARGV.filter((a) => !a.startsWith('--'))
+```
+
+> 这里最该记的不是这个 bug 本身，而是**它差点被漏过去**：
+> 我在同一条命令里「挂 CI → 顺手验证」，验证那步因为前一步的 `&&` 链没走完而**没跑成**，
+> 而我是**看输出才发现** node 崩了的。如果那步被跳过或输出被 `| tail` 吃掉，
+> 我交付的就是"一个让 CI 变红的检查"。
+> **凡是挂了 CI 的东西，必须按 CI 的命令行原样跑过一遍。**
