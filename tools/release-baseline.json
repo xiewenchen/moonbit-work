@@ -1,5 +1,5 @@
 {
-  "note": "PH3-REL-01 的存量缺口（冻结，只减不增）",
+  "note": "PH3-REL-01 的存量缺口（冻结，只减不增）。说明：d17/d18/holidays/icons/moonbit-lang 是 dash 的静态资源（改动风险低）；fsops/lsp-manager 由 verify-* 间接覆盖；aiagent.js 是 UI 交互层。translate-strapi.js 已于 2026-09-26 归入构建脚本（移出基线）。",
   "gaps": [
     "aiagent.js",
     "d17.js",
@@ -8,8 +8,7 @@
     "holidays.js",
     "icons.js",
     "lsp-manager.js",
-    "moonbit-lang.js",
-    "translate-strapi.js"
+    "moonbit-lang.js"
   ],
   "frozenAt": "2026-09-26"
 }

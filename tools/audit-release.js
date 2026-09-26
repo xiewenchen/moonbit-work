@@ -41,6 +41,9 @@ const KNOWN_GAPS_DEFAULT = [
 /** 归类：不属于"应该有单测"的，就不该被当成缺口。 */
 function classify(file) {
   if (/^e2e-|^probe-|^inspect-|^export-/.test(file)) return { kind: 'tool-script', why: '一次性/工具脚本，不是产品模块' }
+  // ⚠️ 构建/转译脚本也是工具，不是产品模块：translate-strapi.js 生成 index.html，
+  //    它自己不需要单测（它的产物由 Electron verify 覆盖）。这条是复核时发现的误分类。
+  if (/^translate-|^build-|^gen-/.test(file)) return { kind: 'tool-script', why: '构建/转译脚本，不是产品模块' }
   if (/-main\.js$/.test(file)) return { kind: 'wiring', why: '接线层（IPC/handler），由 verify-* 覆盖' }
   if (file === 'main.js' || file === 'preload.js' || file === 'renderer.js') return { kind: 'app-shell', why: '应用外壳，由 Electron verify 覆盖' }
   return { kind: 'logic', why: '纯逻辑模块 —— 应当有 test-*' }

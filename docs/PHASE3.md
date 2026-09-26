@@ -483,3 +483,33 @@ cd conduit && sed -i 's/-29-79/-29/' moon.pkg && moon check --target native
 断言从 `>= 5` 改成 `>= 4`。
 
 **验证**：`verify-agent-timeline` 22 → **33/0**（⑥ 节 12 条）。
+
+---
+
+## 18. PH3-REL 复核（2026-09-26）
+
+用新挂的 `audit-release` 把这一整个 Phase 3 新增的模块盘了一遍：
+
+```
+模块 82 个　test 55 个　verify 55 个　有覆盖 53 个
+本次新增缺口 0 个
+```
+
+**新增缺口 0** —— 本批新增的 10 个模块（`ipc-result` / `ui-hierarchy` / `office-fusion` /
+`workspace` / `quality-fact` / `memory-schema` / `session-view` / `backend-profile` /
+`db-context` / `env-recovery` / `agent-task` / `opencode-transport`）**都有对应测试**。
+
+### 复核时修掉一处**误分类**
+
+基线里原来有 `translate-strapi.js` —— 但它是**构建/转译脚本**（生成 `index.html`），
+不是产品模块。它的产物由 Electron verify 覆盖，它自己不需要单测。
+已把 `translate-` / `build-` / `gen-` 前缀归入 `tool-script`，基线 **9 → 8**。
+
+> 这与上一批"mock-llm 被误报"是同一类：**判据错 → 报假缺口**。
+> 假缺口不会让代码出错，但会让这个工具失去可信度。
+
+### 剩下 8 个的性质（写进基线 note，不假装它们不存在）
+
+- `d17.js` `d18.js` `holidays.js` `icons.js` `moonbit-lang.js` —— dash 的静态资源，改动风险低；
+- `fsops.js` `lsp-manager.js` —— 由 `verify-*` 间接覆盖；
+- `aiagent.js` —— UI 交互层（由 `verify-agent-config` / `verify-p20-ui` 等覆盖）。
