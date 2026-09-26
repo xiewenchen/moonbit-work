@@ -71,13 +71,27 @@ const PATH_CANDIDATES = Object.freeze({
   node: ['/usr/local/bin', '%ProgramFiles%\\nodejs'],
   git: ['%ProgramFiles%\\Git\\cmd', '/usr/bin'],
   docker: ['%ProgramFiles%\\Docker\\Docker\\resources\\bin'],
+  // ⚠️ 这里同时给出两个 key：探测项的 id 是 `agent`（见 startup-state 的 ENV_CHECKS），
+  //    而工具本身叫 opencode —— 只写 `opencode` 的话，本机缺 agent 时**界面上一条候选都没有**
+  //    （接线真跑才发现：漏的是"缺的项 ['agent']、候选表认识的 []"）。
+  //    宁可两个 key 都留：写死一个名字，就会在某次改名后静默失效。
+  agent: ['%APPDATA%\\npm', '~/.npm-global/bin'],
   opencode: ['%APPDATA%\\npm', '~/.npm-global/bin'],
 })
 
 function pathFixups(envRows) {
   const out = []
   for (const r of Array.isArray(envRows) ? envRows : []) {
-    if (!r || r.state !== ENV_STATE.MISSING) continue
+    if (!r) continue
+    // ⚠️ 两个来源的字段名不一样，这里必须两种都认：
+    //    · classifyEnv() 的输出用 { state: ENV_STATE.* }
+    //    · checkEnvironment() 的输出用 { found: boolean }（没有 state）
+    //    只认 state 的话，把 checkEnvironment 的结果喂进来会**永远返回空**
+    //    —— 看起来"没有建议"，实际是判据根本没匹配上（接线时才暴露）。
+    const isMissing = (r.state !== undefined)
+      ? r.state === ENV_STATE.MISSING
+      : (r.found === false && !r.error)   // 探测出错 ≠ 没装，不给 PATH 建议
+    if (!isMissing) continue
     const cands = PATH_CANDIDATES[r.id]
     if (cands && cands.length) out.push({ id: r.id, name: r.name, candidates: cands.slice(), note: '先确认这些目录里确实有可执行文件，再加进 PATH' })
   }

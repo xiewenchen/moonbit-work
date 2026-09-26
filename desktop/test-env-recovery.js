@@ -68,6 +68,16 @@ console.log('\n=== ③ PH3-ENV-04 PATH 补全（项目真踩过：快捷方式�
   chk('  没有已知候选的工具不给瞎建议', !f.some((x) => x.id === 'weird'))
   chk('★ 提醒先确认目录真的存在', /先确认/.test(f[0].note), f[0].note)
   chk('BROKEN 的**不**给 PATH 建议（装是装了）', pathFixups([{ id: 'node', state: ENV_STATE.BROKEN }]).length === 0)
+  // ⚠️ 接线时才发现：两个来源的字段名不一样 —— classifyEnv 用 state，
+  //    而 checkEnvironment（环境面板真正喂进来的那个）用 found:boolean。
+  //    只认 state 的话，界面上**永远看不到建议**。这里把两种都锁住。
+  eq('★ 认 checkEnvironment 的形状（found:false 就是 MISSING）',
+    pathFixups([{ id: 'moon', name: 'MoonBit', found: false }]).length, 1)
+  chk('  且真的给出候选目录',
+    pathFixups([{ id: 'moon', name: 'MoonBit', found: false }])[0].candidates.some((c) => /\.moon/.test(c)))
+  eq('★ 装了的不给建议（found:true）', pathFixups([{ id: 'moon', name: 'MoonBit', found: true }]).length, 0)
+  eq('★ 探测出错的不给 PATH 建议（与「没装」不是一回事）',
+    pathFixups([{ id: 'moon', name: 'MoonBit', found: false, error: '探测超时' }]).length, 0)
   chk('候选表覆盖清单点名的五样', ['moon', 'node', 'git', 'docker', 'opencode'].every((k) => Array.isArray(PATH_CANDIDATES[k])))
 }
 

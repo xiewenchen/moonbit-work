@@ -27,6 +27,9 @@ const {
   describeStartup,
 } = require('./startup-state')
 
+// PH3-ENV-04：PATH 补全建议（纯逻辑在 env-recovery，这里把它接到环境面板）
+const { pathFixups } = require('./env-recovery')
+
 const DIR = path.join(os.homedir(), '.moonbit-work')
 const FILE = path.join(DIR, 'startup.json')
 
@@ -119,7 +122,10 @@ function registerStartupIpc({ ipcMain, onLog, probes }) {
     const r = await checkEnvironment(probe)
     cache = r
     log({ at: 'env.check', ok: r.ok, missing: r.missingCount, errored: r.errorCount })
-    return { ok: true, env: r, describe: describeStartup(planStartup(readSnapshot()), r) }
+    // PH3-ENV-04：把"缺了怎么办"的 PATH 补全建议一并给界面。
+    // ⚠️ 不给建议就只能看到"✗ node 未安装"，用户不知道该往哪个目录找。
+    const fixups = pathFixups(r.items)
+    return { ok: true, env: r, fixups, describe: describeStartup(planStartup(readSnapshot()), r) }
   })
   ipcMain.handle('env:last', () => ({ ok: true, env: cache }))
 

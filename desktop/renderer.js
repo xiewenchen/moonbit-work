@@ -1849,6 +1849,9 @@ async function showEnvironmentPanel() {
     hint.textContent = ''
     const r = await window.moonAPI.envCheck()
     const env = (r && r.env) || { items: [] }
+    // PH3-ENV-04：PATH 补全建议按 id 索引，下面每行按 id 取自己的那条
+    const fixupById = {}
+    for (const f of (r && r.fixups) || []) { if (f && f.id) fixupById[f.id] = f }
     list.textContent = ''
     hint.textContent = String(env.summary || '')
     for (const it of (env.items || [])) {
@@ -1878,6 +1881,42 @@ async function showEnvironmentPanel() {
         const e = mk('div', { textContent: '探测时报错（与「没装」不是一回事）：' + it.error })
         e.style.cssText = 'color:#f6ad55;margin-top:2px'
         row.appendChild(e)
+      }
+      // PH3-ENV-04：把"可能装在哪"的 PATH 补全建议直接列出来。
+      // ⚠️ 只说"✗ node 未安装"等于把问题丢回给用户；给了候选目录才是可操作的。
+      const fix = fixupById[it.id]
+      if (fix && Array.isArray(fix.candidates) && fix.candidates.length) {
+        const f = mk('div')
+        f.style.cssText = 'margin-top:4px;padding:6px 8px;background:#12181f;border:1px solid #2a3a4a;border-radius:5px'
+        const ft = mk('div', { textContent: '可能装在这些目录（确认有可执行文件后再加进 PATH）：' })
+        ft.style.cssText = 'color:#8fb8de;font-size:11px'
+        f.appendChild(ft)
+        for (const c of fix.candidates) {
+          const line = mk('div')
+          line.style.cssText = 'display:flex;gap:6px;align-items:center;margin-top:3px'
+          const code = mk('code', { textContent: c })
+          code.style.cssText = 'flex:1;color:#cfe3f5;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'
+          code.title = c
+          const cp = mk('button', { textContent: '复制', style: btnCss + ';font-size:11px;padding:2px 7px' })
+          cp.onclick = () => {
+            // 复制失败要如实说（剪贴板在无头/无权限环境下会失败），不能装作成功
+            const p = (navigator.clipboard && navigator.clipboard.writeText)
+              ? navigator.clipboard.writeText(c)
+              : Promise.reject(new Error('这个环境没有剪贴板接口'))
+            Promise.resolve(p).then(
+              () => { cp.textContent = '已复制'; setTimeout(() => { cp.textContent = '复制' }, 1200) },
+              (e) => { cp.textContent = '复制失败'; cp.title = String((e && e.message) || e); setTimeout(() => { cp.textContent = '复制' }, 1600) },
+            )
+          }
+          line.appendChild(code); line.appendChild(cp)
+          f.appendChild(line)
+        }
+        if (fix.note) {
+          const n = mk('div', { textContent: fix.note })
+          n.style.cssText = 'color:#888;font-size:11px;margin-top:4px'
+          f.appendChild(n)
+        }
+        row.appendChild(f)
       }
       list.appendChild(row)
     }
