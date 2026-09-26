@@ -2149,6 +2149,108 @@ async function showAboutPanel() {
   return true
 }
 
+/**
+ * PH3-IDE-09：Agent 任务时间线（Understanding → Read → Patch → Check → Test → Run → Health）。
+ * PH3-IDE-10：同时把当前阶段显示到状态栏（"Agent: 验证中"）。
+ *
+ * 数据来自**已有**的事件流（onAgentData / onAgentVerifyProgress…），
+ * 不新开一条通道 —— 也不在这里重放"思维链"：只显示**做了什么、结果如何**。
+ *
+ * ⚠️ 这里是**渲染**，不是状态机。状态是否合法由 agent-task.js 管；
+ *    渲染层只负责如实显示（失败就是失败，不美化成"部分成功"）。
+ */
+const taskTimeline = {
+  active: false,
+  goal: '',
+  steps: [],
+  status: '',
+  startedAt: 0,
+  finishedAt: 0,
+}
+
+function renderTaskTimeline() {
+  let box = document.getElementById('agentTimeline')
+  if (!box) {
+    box = document.createElement('div')
+    box.id = 'agentTimeline'
+    box.style.cssText = 'margin-top:8px;border-top:1px solid #2a2a2a;padding-top:6px;font-size:12px;max-height:26vh;overflow:auto'
+    const host = document.getElementById('agLog') || document.getElementById('aiPanel') || document.body
+    host.appendChild(box)
+  }
+  box.textContent = ''
+  const head = document.createElement('div')
+  head.id = 'agentTimelineHead'
+  head.style.cssText = 'color:#888;margin-bottom:4px'
+  head.textContent = '任务时间线' + (taskTimeline.goal ? '：' + String(taskTimeline.goal).slice(0, 40) : '')
+  box.appendChild(head)
+  for (const s of taskTimeline.steps) {
+    const row = document.createElement('div')
+    row.className = 'agent-tl-step'
+    row.textContent = (s.ok === true ? '✓ ' : (s.ok === false ? '✗ ' : '· ')) + s.name + (s.detail ? '　' + String(s.detail).slice(0, 80) : '')
+    row.style.cssText = 'color:' + (s.ok === false ? '#fc8181' : (s.ok === true ? '#9ae6b4' : '#aaa'))
+    box.appendChild(row)
+  }
+  return box
+}
+
+const taskUI = {
+  /** 开始一次任务（时间线清空重建；状态栏进入"理解中"）。 */
+  begin(goal) {
+    taskTimeline.active = true
+    taskTimeline.goal = String(goal || '')
+    taskTimeline.steps = []
+    taskTimeline.startedAt = Date.now()
+    taskTimeline.finishedAt = 0
+    this.status('理解中')
+    renderTaskTimeline()      // ⚠️ 必须渲染：否则容器不会出现（测试抓到的：begin 之后页面里什么都没有）
+    return { ok: true, goal: taskTimeline.goal }
+  },
+  /** 记一步。ok: true=成功 / false=失败 / null=进行中。 */
+  step(name, ok = null, detail = null) {
+    // ⚠️ 这里**不能**去改 active —— 否则 finish() 把 active 置 false 之后，
+    //    它自己末尾记的那一步会又把 active 设回 true（任务"复活"）。
+    //    （测试抓到的：finish(true) 之后 snapshot().active 仍是 true。）
+    const s = { name: String(name || ''), ok, detail: detail == null ? null : String(detail), at: Date.now() }
+    taskTimeline.steps.push(s)
+    renderTaskTimeline()
+    return s
+  },
+  /** PH3-IDE-10：状态栏。 */
+  status(s) {
+    taskTimeline.status = String(s || '')
+    const el = document.getElementById('agStatus')
+    if (el) { el.textContent = 'Agent: ' + taskTimeline.status; el.className = 'ag-status' }
+    const st = document.getElementById('stMsg')
+    if (st) st.textContent = 'Agent: ' + taskTimeline.status
+    return taskTimeline.status
+  },
+  /** 收尾：终态必须**如实**（失败就说失败）。 */
+  finish(ok, reason) {
+    taskTimeline.active = false
+    taskTimeline.finishedAt = Date.now()
+    const ms = taskTimeline.startedAt ? (taskTimeline.finishedAt - taskTimeline.startedAt) : 0
+    this.status(ok === true ? '已完成' : '失败')
+    this.step(ok === true ? '完成' : '失败', ok === true, reason || (ms ? (ms + ' ms') : null))
+    return { ok: ok === true, steps: taskTimeline.steps.length, ms, reason: reason || null }
+  },
+  /** 只读快照（验证与"后台运行后回来看看"都用它）。 */
+  snapshot() {
+    return {
+      active: taskTimeline.active,
+      goal: taskTimeline.goal,
+      status: taskTimeline.status,
+      steps: taskTimeline.steps.map((s) => ({ name: s.name, ok: s.ok, detail: s.detail })),
+      count: taskTimeline.steps.length,
+      ms: taskTimeline.startedAt ? ((taskTimeline.finishedAt || Date.now()) - taskTimeline.startedAt) : 0,
+    }
+  },
+  /** 把 verify 的进度事件接成时间线（已有通道，不新开）。 */
+  fromVerifyProgress(ev) {
+    const p = ev || {}
+    const name = p.step || p.name || '检查'
+    return this.step(name, p.ok === undefined ? null : p.ok === true, p.detail || p.reason || null)
+  },
+}
 window.moonbitIDE = {  openProject: (dir) => boot(dir),      // 等价于用户「打开文件夹」之后走的那条路
   closeProject,
   getContext: () => projectCtx,         // 冻结对象，只读
@@ -2303,6 +2405,8 @@ window.moonbitIDE = {  openProject: (dir) => boot(dir),      // 等价于用户�
     return { ok: true, file: p.file, diff: true, host: 'patchDiffHost', mask: 'patchDiffMask' }
   },
 
+  // PH3-IDE-09/10：Agent 任务时间线 + 状态栏（由已有事件流驱动）
+  taskUI,
   // PH3-IDE-01/02：IDE 侧上下文（当前文件 / 选区）的只读视图。
   // openFile 走的是**真实路径**（与文件树点击同一条），不是测试专用捷径。
   editor: {

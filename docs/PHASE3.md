@@ -252,6 +252,37 @@ opencode 只是 transport 的一种实现。
 
 ---
 
+## 11. PH3-IDE-06/07：Patch 显示在 Monaco diff（2026-09-26）
+
+原先 Patch 只能在对话框里读一段文本（`agent-patch.js` 的 `renderPatchPreview`）。
+现在 `window.moonbitIDE.patchDiff(patch, opts)` 开一个**只读**的 Monaco diff：
+`original ↔ modified` 并排 —— 真正的落盘仍走 P8 两阶段（propose → 用户点 Apply），
+**预览与写入是分开的**，这一点没有因为"能看到 diff"而放开。
+
+「跳到修改位置」按钮（PH3-IDE-07）打开真实文件并滚到改动行。
+
+### ★ 这一批我自己踩的两个坑（都值得记）
+
+1. **把函数声明插进了对象字面量内部** —— `window.moonbitIDE = { … }` 里的注释与 `editor`
+   属性挨着，我按注释定位插入，结果 `function showPatchDiff` 落在对象里 → 语法错。
+   （`node --check` 当场抓到。）改为对象方法 `patchDiff: (…) => {}`，编辑器实例挂 `window`
+   上（对象内声明不了模块级变量）。
+2. **`window.moonbitIDE.editor.patchDiff` 不存在** —— 它挂在 `moonbitIDE` 上、不在
+   `editor` 下，我转发时写错了一层。
+
+> 第 2 条能定位，**是因为验证里包了 `try/catch`**。否则只会看到 electron 的
+> `Script failed to execute`（它不告诉你渲染侧到底抛了什么）。
+> 这是"异常也要给出可读原因"的又一次实际收益。
+
+**另**：空 catch 门禁**又一次**抓到我（`dispose()` 的 `catch (_) {}`）—— 补了说明归入 B 类。
+
+**验证**：`verify-patch-diff` **17/0**（真造补丁、断言宿主里出现 `.monaco-diff-editor`
+而**不是**普通编辑器、点跳转后状态栏文件名真的变了且正是补丁里那个文件、
+缺 `file`/`old-new` 时如实拒绝、关闭按钮能收掉面板）。
+回归 `verify-agent-request` 55/0、`verify-panels-smoke` 25/0、`verify-agent-patch` 28/0；纯 Node 41 个。
+
+---
+
 ## 9. PH3-TASK：Agent Task Runtime（2026-09-26）
 
 新建 `desktop/agent-task.js` + `test-agent-task.js`（**91/0**，已挂 CI）。

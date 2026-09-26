@@ -30,3 +30,4 @@ desktop/*-result.txt
 # 测试跑靶项目时会生成的项目知识（靶子保持最小）
 testdata/*/.moonbit-work/
 desktop/patch-diff-result.txt
+desktop/agent-timeline-result.txt
